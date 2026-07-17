@@ -1,0 +1,42 @@
+# --- Secrets & environment ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Databases & logs ---
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+dist/
+.vite/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Misc ---
+.probe
+
+# --- Heavy vendor data (re-downloadable from Dhan) ---
+app/data/dhan_api/Dependencies/
+app/data/dhan_api/__pycache__/
+*.xlsx
+compliance.log

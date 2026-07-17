@@ -1,0 +1,16 @@
+# ELCO backend runtime dependencies (Python 3.8 compatible)
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+SQLAlchemy
+pandas
+numpy
+scipy
+yfinance<0.2.28
+requests
+vaderSentiment
+scikit-learn
+statsmodels
+httpx

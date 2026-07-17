@@ -1,0 +1,1331 @@
+import uvicorn
+import asyncio
+import logging
+import pandas as pd
+from datetime import datetime, timezone
+from fastapi import FastAPI, HTTPException, Query, Depends, status, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional, List, Dict
+from pydantic import BaseModel
+
+from .config import config, AppConfig, TradingStyle, AutoTradeState, DISCLAIMER
+from .data.dhan_provider import DhanProvider
+from .engine import SignalFusionEngine, FusedSignal
+from .risk_manager import risk_manager
+from .execution import ExecutionEngine
+
+# Import all modules
+from .modules.technical import TechnicalModule
+from .modules.fundamental import FundamentalModule
+from .modules.promoter import PromoterModule
+from .modules.ratio import RatioModule
+from .modules.options_flow import OptionsFlowModule
+from .modules.quant import QuantModule
+from .modules.news_risk import NewsRiskModule
+from .modules.sentiment import SentimentModule
+from .modules.pattern import PatternModule
+from .modules.sector import SectorModule
+from .modules.ml_model import MLModelModule
+from .modules.stat_arb import StatArbModule
+from .modules.forecasting import ForecastingModule
+from .modules.custom import CustomStrategyModule
+from .db import init_db
+
+# Initialize database
+init_db()
+
+# Startup safety banner: make the live-trading posture unmissable in logs.
+import os as _os
+_paper = config.paper_mode
+_live_flag = _os.getenv("LIVE_TRADING", "false").strip().lower() == "true"
+if (not _paper) and _live_flag:
+    logger_boot = __import__("logging").getLogger("elco.boot")
+    logger_boot.warning("⚠️  LIVE TRADING IS ARMED — real broker orders can be placed.")
+else:
+    __import__("logging").getLogger("elco.boot").info(
+        "Paper mode active — no real orders will be placed (safe default)."
+    )
+
+app = FastAPI(
+    title="ELCO API",
+    description="ELCO — Indian stock market trading analysis engine (Decision-support tool)",
+    version="0.1.0",
+)
+
+# CORS: default to localhost dev origins; override via ELCO_CORS_ORIGINS
+# (comma-separated). Wildcard "*" with credentials is invalid per spec, so we
+# only allow credentials when explicit origins are configured.
+_cors_env = _os.getenv(
+    "ELCO_CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173",
+)
+_allowed_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+security = HTTPBearer()
+
+from . import auth as _auth
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not _auth.verify_token(credentials.credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return True
+
+class LoginRequest(BaseModel):
+    password: str
+
+@app.post("/login")
+def login(req: LoginRequest):
+    if _auth.verify_password(req.password):
+        return {"token": _auth.create_token("admin")}
+    raise HTTPException(status_code=401, detail="Invalid password")
+
+
+# --- Per-user auth (real, DB-backed, PBKDF2-hashed) -------------------------
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    role: Optional[str] = "user"
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/register", status_code=201)
+def register_user(req: RegisterRequest):
+    """Create a user with a salted PBKDF2 password hash and return a signed token."""
+    from .db import SessionLocal, User
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    db = SessionLocal()
+    try:
+        email = req.email.strip().lower()
+        if db.query(User).filter(User.email == email).first():
+            raise HTTPException(status_code=409, detail="Email already registered")
+        user = User(email=email, password_hash=_auth.hash_password(req.password), role=req.role or "user")
+        db.add(user)
+        db.commit()
+        return {"token": _auth.create_token(email)}
+    finally:
+        db.close()
+
+@app.post("/api/auth/login")
+def login_user(req: UserLoginRequest):
+    """Verify a per-user credential and return a signed token."""
+    from .db import SessionLocal, User
+    db = SessionLocal()
+    try:
+        email = req.email.strip().lower()
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not _auth.verify_user_password(req.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
+        return {"token": _auth.create_token(email)}
+    finally:
+        db.close()
+
+# Broker admin API (attach/list/test/activate brokers), gated by auth.
+from .routers import brokers_api
+app.include_router(brokers_api.router, dependencies=[Depends(verify_token)])
+
+# AI technical scanner (/api/scanner/top20), consolidated from the retired api stack.
+from .api.scanner import router as scanner_router
+app.include_router(scanner_router, dependencies=[Depends(verify_token)])
+
+# Initialize Data Provider and Engine
+provider = DhanProvider()
+engine = SignalFusionEngine(provider)
+execution_engine = ExecutionEngine(provider)
+
+# Lazy singleton for the market-regime engine (avoids re-instantiation per request).
+_regime_engine = None
+def _get_regime_engine():
+    global _regime_engine
+    if _regime_engine is None:
+        from .modules.ai_regime import MarketRegimeEngine
+        _regime_engine = MarketRegimeEngine(provider)
+    return _regime_engine
+
+
+@app.on_event("startup")
+def _start_position_monitor():
+    """Mandatory-rules enforcement: the background monitor makes stop-losses
+    fire automatically (30s sweeps in market hours) instead of waiting for a
+    manual API call."""
+    from .position_monitor import position_monitor
+    position_monitor.start(engine, provider, execution_engine)
+
+# Register Modules
+engine.register_module(TechnicalModule(provider))
+engine.register_module(NewsRiskModule(provider))
+engine.register_module(OptionsFlowModule(provider))
+engine.register_module(MLModelModule(provider))
+engine.register_module(StatArbModule(provider))
+engine.register_module(ForecastingModule(provider))
+engine.register_module(FundamentalModule(provider))
+engine.register_module(PromoterModule(provider))
+engine.register_module(RatioModule(provider))
+engine.register_module(CustomStrategyModule(provider))
+engine.register_module(QuantModule(provider))
+engine.register_module(SentimentModule(provider))
+engine.register_module(PatternModule(provider))
+engine.register_module(SectorModule(provider))
+
+# --- Institutional analysis modules (the full 24-category coverage) ---
+from .modules.company import CompanyModule
+from .modules.financial_statement import FinancialStatementModule
+from .modules.valuation import ValuationModule
+from .modules.credit import CreditModule
+from .modules.volume import VolumeModule
+from .modules.order_flow import OrderFlowModule
+from .modules.smart_money import SmartMoneyModule
+from .modules.behavioral import BehavioralModule
+from .modules.event_driven import EventDrivenModule
+from .modules.cycle import CycleModule
+from .modules.risk_analysis import RiskAnalysisModule
+from .modules.industry import IndustryModule
+from .modules.esg import ESGModule
+from .modules.alternative_data import AlternativeDataModule
+from .modules.portfolio_analysis import PortfolioAnalysisModule
+from .modules.macro import MacroModule
+from .modules.intermarket import IntermarketModule
+from .modules.derivatives import DerivativesModule
+
+for _M in (CompanyModule, FinancialStatementModule, ValuationModule, CreditModule,
+           VolumeModule, OrderFlowModule, SmartMoneyModule, BehavioralModule,
+           EventDrivenModule, CycleModule, RiskAnalysisModule, IndustryModule,
+           ESGModule, AlternativeDataModule, PortfolioAnalysisModule,
+           MacroModule, IntermarketModule, DerivativesModule):
+    try:
+        engine.register_module(_M(provider))
+    except Exception as _e:
+        logging.getLogger("elco.boot").warning(f"Could not register {_M.__name__}: {_e}")
+
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "ELCO API is running."}
+
+
+@app.get("/config", response_model=AppConfig, dependencies=[Depends(verify_token)])
+def get_config():
+    """Retrieve the current runtime configuration."""
+    return config
+
+
+from typing import Optional, List, Dict
+
+class ConfigUpdate(BaseModel):
+    capital: Optional[float] = None
+    auto_trade: Optional[str] = None
+    paper_mode: Optional[bool] = None
+    broker_name: Optional[str] = None
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    custom_strategies: Optional[List[Dict]] = None
+
+@app.patch("/config", dependencies=[Depends(verify_token)])
+def update_config(update: ConfigUpdate):
+    """Admin endpoint to update runtime configuration."""
+    if update.capital is not None:
+        config.capital = update.capital
+    if update.auto_trade is not None:
+        try:
+            from .config import AutoTradeState
+            config.auto_trade = AutoTradeState(update.auto_trade)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid auto_trade state")
+    if update.paper_mode is not None:
+        config.paper_mode = update.paper_mode
+    if update.broker_name is not None:
+        config.broker_name = update.broker_name
+    if update.api_key is not None:
+        config.api_key = update.api_key
+    if update.api_secret is not None:
+        config.api_secret = update.api_secret
+    if update.custom_strategies is not None:
+        config.custom_strategies = update.custom_strategies
+    
+    return {"status": "success", "config": config}
+
+
+@app.get("/analyze/{symbol}", dependencies=[Depends(verify_token)])
+def analyze_symbol(symbol: str, style: str = Query("intraday")):
+    """
+    Analyzes a stock symbol using the active modules and applies risk checks.
+    """
+    try:
+        trading_style = TradingStyle(style.lower())
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid trading style. Must be one of: {[s.value for s in TradingStyle]}")
+
+    # 1. Generate Fused Signal
+    signal = engine.analyze(symbol, style=trading_style)
+
+    # 1b. Detect market regime so position sizing can adapt (HIGH_VOLATILITY
+    # shrinks size, RANGE_BOUND trims it). Best-effort — never blocks the trade.
+    regime = None
+    try:
+        regime = _get_regime_engine().detect_regime(symbol.upper()).get("regime")
+    except Exception as e:
+        logging.getLogger("elco.api").warning(f"Regime detection failed for {symbol}: {e}")
+
+    # 2. Risk Check & Position Sizing (regime-aware Half-Kelly)
+    requested_allocation = risk_manager.calculate_position_size(signal, market_regime=regime)
+    is_safe = requested_allocation > 0.0
+    
+    # 3. Execute Trade (if safe and signal is strong)
+    executed = False
+    if is_safe:
+        executed = execution_engine.execute_signal(signal, requested_allocation)
+
+    return {
+        "symbol": symbol.upper(),
+        "style": trading_style.value,
+        "action": signal.action,
+        "overall_score": signal.overall_score,
+        "overall_confidence": signal.overall_confidence,
+        "risk_check_passed": is_safe,
+        "executed": executed,
+        "market_regime": regime,
+        "reasons": signal.reasons,
+        "contributions": {
+            name: {
+                "score": mod_sig.score,
+                "confidence": mod_sig.confidence
+            }
+            for name, mod_sig in signal.contributions.items()
+        }
+    }
+@app.get("/api/history/{symbol}", dependencies=[Depends(verify_token)])
+def get_history(symbol: str, interval: str = "15m", period: str = "60d"):
+    """Fetches historical OHLC data for charting."""
+    # Ensure correct suffix for Indian stocks if missing
+    ticker_symbol = symbol if ".NS" in symbol or ".BO" in symbol else f"{symbol}.NS"
+    try:
+        import yfinance as yf
+        data = yf.download(ticker_symbol, period=period, interval=interval, progress=False)
+        if data.empty:
+            return []
+        
+        # Format for lightweight-charts
+        formatted_data = []
+        for index, row in data.iterrows():
+            # YFinance multi-index columns handling
+            open_val = row['Open'].iloc[0] if isinstance(row['Open'], pd.Series) else row['Open']
+            high_val = row['High'].iloc[0] if isinstance(row['High'], pd.Series) else row['High']
+            low_val = row['Low'].iloc[0] if isinstance(row['Low'], pd.Series) else row['Low']
+            close_val = row['Close'].iloc[0] if isinstance(row['Close'], pd.Series) else row['Close']
+            volume_val = row['Volume'].iloc[0] if isinstance(row['Volume'], pd.Series) else row['Volume']
+            
+            # Convert timestamp to unix timestamp (in seconds)
+            timestamp = int(index.timestamp())
+            
+            formatted_data.append({
+                "time": timestamp,
+                "open": float(open_val),
+                "high": float(high_val),
+                "low": float(low_val),
+                "close": float(close_val),
+                "value": float(volume_val) # Volume for histogram
+            })
+            
+        return formatted_data
+    except Exception as e:
+        print(f"Error fetching history for {symbol}: {e}")
+        return []
+
+
+@app.get("/api/quote/{symbol}", dependencies=[Depends(verify_token)])
+def get_quote(symbol: str):
+    """Latest real quote for live chart updates.
+
+    Pulls the real last price from yfinance. NOTE: NSE data via yfinance is
+    delayed (typically ~15 min), so `delayed: true` is returned — this is a
+    real price, not a live tick feed. Tick-level streaming requires a broker
+    WebSocket (e.g. Dhan) which is not wired here.
+    """
+    import yfinance as yf
+    from .data.dhan_provider import _yf_symbol
+    ticker_symbol = _yf_symbol(symbol)
+    try:
+        t = yf.Ticker(ticker_symbol)
+        fi = t.fast_info
+        last = fi.get("last_price") if hasattr(fi, "get") else getattr(fi, "last_price", None)
+        prev = fi.get("previous_close") if hasattr(fi, "get") else getattr(fi, "previous_close", None)
+        if last is None:
+            # Fall back to the most recent 1m bar close. For prev close, use
+            # 2 daily bars — today's first 1m OPEN is NOT the previous close
+            # (a gap would make change_pct wrong).
+            hist = t.history(period="1d", interval="1m")
+            if hist is None or hist.empty:
+                raise HTTPException(status_code=422, detail="No quote available.")
+            last = float(hist["Close"].iloc[-1])
+            if prev is None:
+                daily = t.history(period="5d", interval="1d")
+                if daily is not None and len(daily) >= 2:
+                    prev = float(daily["Close"].iloc[-2])
+        last = float(last)
+        change_pct = round(((last - prev) / prev) * 100, 2) if prev else 0.0
+        return {
+            "symbol": symbol.upper(),
+            "time": int(datetime.now(timezone.utc).timestamp()),
+            "price": round(last, 2),
+            "prev_close": round(float(prev), 2) if prev else None,
+            "change_pct": change_pct,
+            "delayed": True,
+            "source": "yfinance",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Quote fetch failed: {e}")
+
+# --- REAL-TIME live feed (Dhan WebSocket -> browser) -------------------------
+# Tick-by-tick data when Dhan creds are valid; otherwise the frontend falls
+# back to delayed polling and MUST label it as delayed. No fabricated ticks.
+
+DEFAULT_LIVE_SYMBOLS = ["NIFTY", "BANKNIFTY", "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN"]
+
+@app.get("/api/live/status", dependencies=[Depends(verify_token)])
+def live_feed_status():
+    """Health of the real-time Dhan feed: connected, subscribed symbols,
+    seconds since last tick, and the last error (e.g. expired token)."""
+    from .data.live_feed import live_feed
+    return live_feed.status()
+
+@app.post("/api/live/subscribe", dependencies=[Depends(verify_token)])
+def live_subscribe(symbols: List[str]):
+    """Subscribe symbols on the Dhan real-time feed (equities + NIFTY/BANKNIFTY...)."""
+    from .data.live_feed import live_feed
+    live_feed.ensure_running()
+    live_feed.subscribe(symbols[:100])
+    return live_feed.status()
+
+@app.get("/api/live/quotes", dependencies=[Depends(verify_token)])
+def live_quotes(symbols: str = ""):
+    """Latest cached REAL ticks for a comma-separated symbol list.
+    Each tick carries source='dhan' and delayed=false — if a symbol has no
+    tick yet, it is simply absent (never a made-up number)."""
+    from .data.live_feed import live_cache
+    wanted = [s for s in symbols.upper().split(",") if s.strip()] or live_cache.all_symbols()
+    return {"ticks": live_cache.get_many(wanted)}
+
+@app.websocket("/ws/live")
+async def ws_live(websocket: WebSocket):
+    """Push live ticks to the browser chart.
+
+    Query params: ?token=<auth token>&symbols=NIFTY,RELIANCE
+    Auth uses the same HMAC token as the REST API (WebSocket can't send
+    Authorization headers from the browser WebSocket API).
+    Pushes only NEW ticks (by exchange timestamp/ltp change) every 250ms scan.
+    """
+    from . import auth as _auth_mod
+    from .data.live_feed import live_feed, live_cache
+
+    token = websocket.query_params.get("token", "")
+    if not _auth_mod.verify_token(token):
+        await websocket.close(code=4401)
+        return
+
+    symbols = [
+        s.strip().upper()
+        for s in websocket.query_params.get("symbols", "").split(",")
+        if s.strip()
+    ] or DEFAULT_LIVE_SYMBOLS
+
+    await websocket.accept()
+    live_feed.ensure_running()
+    live_feed.subscribe(symbols)
+
+    # Tell the client upfront whether real-time data is even possible.
+    await websocket.send_json({"type": "status", **live_feed.status()})
+
+    last_sent: Dict[str, tuple] = {}
+    try:
+        while True:
+            ticks = live_cache.get_many(symbols)
+            fresh = {}
+            for sym, t in ticks.items():
+                key = (t.get("ltp"), t.get("exch_ts"), t.get("volume"))
+                if last_sent.get(sym) != key:
+                    last_sent[sym] = key
+                    fresh[sym] = t
+            if fresh:
+                await websocket.send_json({"type": "ticks", "ticks": fresh})
+            await asyncio.sleep(0.25)  # 4 pushes/sec max — plenty for a chart
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logging.getLogger("elco.api").warning(f"/ws/live closed: {e}")
+
+
+@app.get("/portfolio", dependencies=[Depends(verify_token)])
+def get_portfolio():
+    """Returns P&L summary and current portfolio exposure."""
+    pnl = execution_engine.get_pnl_summary()
+    
+    # Format open positions
+    open_pos_list = []
+    for sym, trade in execution_engine.open_positions.items():
+        try:
+            ltp = provider.get_quote(sym).ltp
+            unrealized = (ltp - trade.entry_price) * trade.qty if trade.action == "BUY" else (trade.entry_price - ltp) * trade.qty
+        except:
+            ltp = 0
+            unrealized = 0
+            
+        open_pos_list.append({
+            "symbol": sym,
+            "action": trade.action,
+            "qty": trade.qty,
+            "entry_price": trade.entry_price,
+            "ltp": ltp,
+            "unrealized_pnl": unrealized
+        })
+
+    return {
+        "pnl": pnl,
+        "exposure": risk_manager.portfolio_exposure,
+        "exposure_pct": (risk_manager.portfolio_exposure / config.capital) * 100 if config.capital else 0,
+        "open_positions": open_pos_list
+    }
+
+class OrderRequest(BaseModel):
+    symbol: str
+    action: str
+    qty: int
+    type: str
+    price: Optional[float] = None
+    
+@app.post("/api/orders", dependencies=[Depends(verify_token)])
+def place_order(order: OrderRequest):
+    """Places a manual order via the execution engine."""
+    from .engine import FusedSignal
+
+    # Map the requested action to an overall_score so the derived `action`
+    # property resolves correctly (action is read-only, not a constructor arg).
+    act = order.action.upper()
+    score = 1.0 if act == "BUY" else -1.0 if act == "SELL" else 0.0
+    signal = FusedSignal(
+        symbol=order.symbol.upper(),
+        overall_score=score,
+        overall_confidence=1.0,
+        style=TradingStyle.INTRADAY,
+        reasons=[f"Manual {order.type} Order from OMS UI"]
+    )
+    
+    # We pass the requested qty * ltp as requested_allocation to trick the Kelly criterion sizing
+    # inside execute_signal, OR we can add a method specifically for manual execution.
+    # For now, let's just use a high allocation so it buys the exact qty requested.
+    try:
+        current_price = provider.get_quote(signal.symbol).ltp
+        requested_allocation = order.qty * current_price
+    except:
+        requested_allocation = order.qty * 1000 # fallback
+        
+    success = execution_engine.execute_signal(signal, requested_allocation + 10)
+    
+    if success:
+        return {"status": "success", "message": "Order executed successfully"}
+    else:
+        raise HTTPException(status_code=400, detail="Failed to execute order (Risk check failed or Broker error)")
+
+@app.get("/journal", dependencies=[Depends(verify_token)])
+def get_journal():
+    """Returns the trade journal from the database."""
+    from .db import SessionLocal, TradeRecord
+    import json
+    db = SessionLocal()
+    try:
+        trades = db.query(TradeRecord).order_by(TradeRecord.id.desc()).all()
+        result = []
+        for t in trades:
+            reasons = []
+            if t.reason:
+                try:
+                    reasons = json.loads(t.reason)
+                except:
+                    reasons = [t.reason]
+            result.append({
+                "trade_id": str(t.id),
+                "symbol": t.symbol,
+                "action": t.action,
+                "qty": t.quantity,
+                "entry_price": t.price,
+                "exit_price": t.price, # Placeholder until closed
+                "timestamp": t.timestamp.isoformat() if t.timestamp else "",
+                "status": t.status,
+                "pnl": t.pnl,
+                "reasons": reasons
+            })
+        return result
+    finally:
+        db.close()
+
+@app.get("/workflows", dependencies=[Depends(verify_token)])
+def get_workflows():
+    """Returns all workflow approval requests."""
+    from .db import SessionLocal, WorkflowApproval
+    db = SessionLocal()
+    try:
+        workflows = db.query(WorkflowApproval).order_by(WorkflowApproval.timestamp.desc()).all()
+        return [{
+            "id": w.id,
+            "type": w.type,
+            "details": w.details,
+            "initiator": w.initiator,
+            "riskLevel": w.riskLevel,
+            "timestamp": w.timestamp.strftime("%Y-%m-%d %I:%M %p") if w.timestamp else "",
+            "status": w.status
+        } for w in workflows]
+    finally:
+        db.close()
+
+@app.post("/workflows/{workflow_id}/approve", dependencies=[Depends(verify_token)])
+def approve_workflow(workflow_id: str):
+    from .db import SessionLocal, WorkflowApproval
+    db = SessionLocal()
+    try:
+        workflow = db.query(WorkflowApproval).filter(WorkflowApproval.id == workflow_id).first()
+        if workflow:
+            workflow.status = "approved"
+            db.commit()
+            
+            # If it was an auto-trade resume request, actually resume it
+            if workflow.type == "System Auto-Resume":
+                from .config import AutoTradeState
+                config.auto_trade = AutoTradeState.ACTIVE
+                
+            return {"status": "success"}
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    finally:
+        db.close()
+
+@app.post("/workflows/{workflow_id}/reject", dependencies=[Depends(verify_token)])
+def reject_workflow(workflow_id: str):
+    from .db import SessionLocal, WorkflowApproval
+    db = SessionLocal()
+    try:
+        workflow = db.query(WorkflowApproval).filter(WorkflowApproval.id == workflow_id).first()
+        if workflow:
+            workflow.status = "rejected"
+            db.commit()
+            return {"status": "success"}
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    finally:
+        db.close()
+
+@app.get("/radar", dependencies=[Depends(verify_token)])
+def get_radar():
+    """Returns the latest market news and NLP severity analysis."""
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    analyzer = SentimentIntensityAnalyzer()
+    news_items = provider.get_news(limit=15)
+    
+    radar_data = []
+    total_compound = 0.0
+    
+    for item in news_items:
+        sentiment = analyzer.polarity_scores(item.headline)
+        total_compound += sentiment['compound']
+        radar_data.append({
+            "headline": item.headline,
+            "timestamp": item.timestamp.isoformat(),
+            "compound": sentiment['compound'],
+            "status": "BEARISH" if sentiment['compound'] <= -0.05 else "BULLISH" if sentiment['compound'] >= 0.05 else "NEUTRAL"
+        })
+        
+    avg_compound = total_compound / len(news_items) if news_items else 0
+    overall_status = "BEARISH" if avg_compound <= -0.05 else "BULLISH" if avg_compound >= 0.05 else "NEUTRAL"
+    
+    return {
+        "news": radar_data,
+        "avg_compound": avg_compound,
+        "overall_status": overall_status
+    }
+
+@app.get("/api/market-indices", dependencies=[Depends(verify_token)])
+def get_market_indices():
+    """Returns live market indices (Nifty, BankNifty, Reliance, etc) for the ticker tape."""
+    symbols = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY']
+    indices = []
+    
+    import yfinance as yf
+    
+    # Manually append indices
+    try:
+        nifty_tk = yf.Ticker("^NSEI")
+        nifty_info = nifty_tk.fast_info
+        last_price = nifty_info.last_price
+        prev_close = nifty_info.previous_close
+        change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
+        indices.append({"symbol": "NIFTY 50", "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
+    except:
+        indices.append({"symbol": "NIFTY 50", "val": "---", "change": "0.0%", "up": True})
+        
+    try:
+        bank_tk = yf.Ticker("^NSEBANK")
+        bank_info = bank_tk.fast_info
+        last_price = bank_info.last_price
+        prev_close = bank_info.previous_close
+        change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
+        indices.append({"symbol": "BANKNIFTY", "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
+    except:
+        pass
+        
+    for sym in symbols:
+        try:
+            tk = yf.Ticker(f"{sym}.NS")
+            info = tk.fast_info
+            last_price = info.last_price
+            prev_close = info.previous_close
+            change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
+            indices.append({"symbol": sym, "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
+        except:
+            pass
+
+    return indices
+
+
+@app.get("/api/scanners", dependencies=[Depends(verify_token)])
+def get_scanners():
+    """Returns real breakout and gap up scanner data using yfinance."""
+    import yfinance as yf
+    symbols = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'ICICIBANK.NS', 'SBIN.NS', 'BAJFINANCE.NS', 'BHARTIARTL.NS', 'ITC.NS', 'LT.NS']
+    
+    gap_up = []
+    breakout = []
+    high_volume = []
+    
+    # Batch download to speed up
+    try:
+        data = yf.download(symbols, period="2d", group_by="ticker", progress=False)
+        
+        for sym in symbols:
+            try:
+                if sym in data and not data[sym].empty:
+                    df = data[sym]
+                    if len(df) >= 2:
+                        prev_close = df['Close'].iloc[-2]
+                        curr_open = df['Open'].iloc[-1]
+                        curr_close = df['Close'].iloc[-1]
+                        curr_vol = df['Volume'].iloc[-1]
+                        
+                        clean_sym = sym.replace('.NS', '')
+                        
+                        # Gap up calculation
+                        gap_pct = ((curr_open - prev_close) / prev_close) * 100
+                        if gap_pct > 0:
+                            gap_up.append({"symbol": clean_sym, "price": round(curr_open, 2), "change": f"+{gap_pct:.2f}%", "volume": f"{curr_vol/1000000:.2f}M"})
+                            
+                        # Breakout calculation (simplified positive close)
+                        change_pct = ((curr_close - prev_close) / prev_close) * 100
+                        if change_pct > 0:
+                            breakout.append({"symbol": clean_sym, "price": round(curr_close, 2), "change": f"+{change_pct:.2f}%", "volume": f"{curr_vol/1000000:.2f}M"})
+                            
+                        # High Volume
+                        if curr_vol > 1000000:
+                            high_volume.append({"symbol": clean_sym, "price": round(curr_close, 2), "change": f"{change_pct:+.2f}%", "volume": f"{curr_vol/1000000:.2f}M"})
+            except Exception as e:
+                pass
+    except Exception as e:
+        pass
+        
+    return {
+        "gap_up": gap_up[:5],
+        "breakout": breakout[:5],
+        "high_volume": high_volume[:5]
+    }
+
+@app.get("/api/strategies/rank/{symbol}", dependencies=[Depends(verify_token)])
+def rank_strategies_for_symbol(symbol: str, years: int = 3, source: str = "real"):
+    """Backtest all built-in strategies on a symbol and rank them by real edge.
+
+    Returns honest metrics per strategy: win rate, profit factor, expectancy (R),
+    Sharpe, and max drawdown. `recommended` marks a positive statistical edge
+    (profit factor >= 1.3 with positive expectancy) — NOT an arbitrary win-rate
+    target. A high win rate alone does not make a strategy profitable.
+    """
+    from .backtester import load_history
+    from .modules.strategies import rank_strategies
+
+    if source not in ("mock", "real"):
+        source = "real"
+    df, actual_source = load_history(
+        symbol, years=max(1, min(years, 10)), source=source, return_source=True
+    )
+    if df is None or len(df) < 120:
+        raise HTTPException(status_code=422, detail="Not enough history to backtest strategies.")
+
+    ranked = rank_strategies(df)
+    recommended = [r for r in ranked if r["recommended"]]
+    resp = {
+        "symbol": symbol.upper(),
+        "data_source": actual_source,  # the source actually used, not the one requested
+        "bars": len(df),
+        "strategies": ranked,
+        "recommended": recommended,
+        "note": (
+            "Ranked by profit factor and expectancy, not win rate. Real tradable "
+            "strategies rarely sustain 80%+ win rates; profitability comes from "
+            "edge (profit factor > 1) and positive expectancy."
+        ),
+        "disclaimer": DISCLAIMER,
+    }
+    if source == "real" and actual_source == "mock":
+        resp["warning"] = (
+            "Real market data was unavailable (yfinance fetch failed); results "
+            "below are from deterministic MOCK data and do not reflect real markets."
+        )
+    return resp
+
+@app.get("/api/strategies/generate/{symbol}", dependencies=[Depends(verify_token)])
+def generate_strategies_for_symbol(symbol: str, years: int = 4, source: str = "real",
+                                   top_n: int = 10, min_win_rate: float = 0.0):
+    """AUTO STRATEGY GENERATOR with honest out-of-sample validation.
+
+    Grid-searches parameterized entry variants × exit profiles (1:1 and 1:2
+    reward:risk) on the first 70% of the data (train), then re-tests the best
+    on the last 30% it never saw (test). Only variants passing every gate on
+    BOTH splits are returned as `validated`; the rest appear under `overfit`
+    as a deliberate warning, never hidden.
+
+    min_win_rate=60 → only strategies with ≥60% win rate on train AND test.
+    Profitability gates (profit factor, expectancy) always apply as well —
+    a high win rate that loses money is filtered out.
+    """
+    from .backtester import load_history
+    from .modules.strategy_generator import generate_strategies
+
+    if source not in ("mock", "real"):
+        source = "real"
+    df, actual_source = load_history(
+        symbol, years=max(2, min(years, 10)), source=source, return_source=True
+    )
+    try:
+        report = generate_strategies(
+            df, top_n=max(1, min(top_n, 20)),
+            min_win_rate=max(0.0, min(min_win_rate, 90.0)),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    report["symbol"] = symbol.upper()
+    report["data_source"] = actual_source
+    if source == "real" and actual_source == "mock":
+        report["warning"] = (
+            "Real market data was unavailable (yfinance fetch failed); results "
+            "are from deterministic MOCK data and do not reflect real markets."
+        )
+    report["disclaimer"] = DISCLAIMER
+    return report
+
+@app.get("/api/scanners/historical/{symbol}", dependencies=[Depends(verify_token)])
+def get_historical_scans(symbol: str, period: str = "6mo"):
+    """Vectorized historical scan (UniversalScanner) over a symbol's OHLCV.
+
+    Returns the dates on which volume breakouts, gaps, and momentum shifts
+    fired — computed with real rolling/groupby math, no random data.
+    """
+    import yfinance as yf
+    from .modules.multi_scanner import UniversalScanner
+
+    ysym = symbol.upper() if symbol.upper().endswith(".NS") else f"{symbol.upper()}.NS"
+    try:
+        df = yf.Ticker(ysym).history(period=period)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"History fetch failed: {e}")
+    if df is None or df.empty:
+        raise HTTPException(status_code=422, detail="No history available for this symbol.")
+
+    df = df.reset_index()
+    scanner = UniversalScanner(df)
+
+    def _dates(frame):
+        col = "Date" if "Date" in frame.columns else frame.columns[0]
+        return [str(d)[:10] for d in frame[col].tolist()]
+
+    breakouts = scanner.scan_volume_breakouts()
+    gaps = scanner.scan_gap_ups_downs()
+    momentum = scanner.scan_momentum_shifts()
+    return {
+        "symbol": symbol.upper(),
+        "period": period,
+        "volume_breakout_dates": _dates(breakouts),
+        "gap_dates": _dates(gaps),
+        "momentum_shift_dates": _dates(momentum),
+    }
+
+@app.get("/api/options-chain", dependencies=[Depends(verify_token)])
+def get_options_chain(symbol: str = "NIFTY"):
+    """Calculates Options chain and Greeks using Black-Scholes from options_calc.py with live spot price."""
+    from .modules.options_calc import bs_call_price, bs_put_price, calculate_greeks
+    import yfinance as yf
+    
+    # Fetch real spot price
+    spot = 24500
+    try:
+        tk = yf.Ticker("^NSEI" if symbol.upper() == "NIFTY" else f"{symbol}.NS")
+        info = tk.fast_info
+        if info.last_price:
+            spot = info.last_price
+    except:
+        pass
+        
+    # Round spot to nearest 100
+    atm = round(spot / 100) * 100
+    
+    chain = []
+    strikes = [atm + (i * 100) for i in range(-5, 6)]
+    r = 0.07 # risk free rate
+    T = 7 / 365.0 # 7 days to expiry
+    sigma = 0.15 # 15% IV
+    
+    total_call_oi = 0
+    total_put_oi = 0
+    pain_map = {k: 0 for k in strikes}
+
+    for K in strikes:
+        distance = abs(K - spot)
+        # Modeled OI (real broker OI feed not wired): deterministic curve that
+        # peaks near ATM and at round strikes — for max-pain/PCR visualisation only.
+        base_oi = max(1000, 100000 - (distance * 150))
+        if K % 100 == 0:
+            base_oi *= 2.5
+        if K % 500 == 0:
+            base_oi *= 4.0
+            
+        c_oi = int(base_oi * 0.95) # Slight skew
+        p_oi = int(base_oi * 1.05)
+        total_call_oi += c_oi
+        total_put_oi += p_oi
+        
+        # Calculate pain at expiration for each possible expiry price (assuming it expires at one of our strikes)
+        for expiry_price in strikes:
+            call_payout = max(0, expiry_price - K) * c_oi
+            put_payout = max(0, K - expiry_price) * p_oi
+            pain_map[expiry_price] += (call_payout + put_payout)
+
+        # Call Greeks
+        c_price = bs_call_price(spot, K, T, r, sigma)
+        c_greeks = calculate_greeks(spot, K, T, r, sigma, 'c')
+        
+        # Put Greeks
+        p_price = bs_put_price(spot, K, T, r, sigma)
+        p_greeks = calculate_greeks(spot, K, T, r, sigma, 'p')
+        
+        chain.append({
+            "strike": K,
+            "calls": {
+                "ltp": round(c_price, 2), "delta": round(c_greeks['delta'], 3), "gamma": round(c_greeks['gamma'], 4), "theta": round(c_greeks['theta'], 2), "vega": round(c_greeks['vega'], 2), "iv": "15%", "oi": c_oi
+            },
+            "puts": {
+                "ltp": round(p_price, 2), "delta": round(p_greeks['delta'], 3), "gamma": round(p_greeks['gamma'], 4), "theta": round(p_greeks['theta'], 2), "vega": round(p_greeks['vega'], 2), "iv": "15%", "oi": p_oi
+            }
+        })
+        
+    pcr = round(total_put_oi / total_call_oi, 2) if total_call_oi > 0 else 0
+    max_pain = min(pain_map, key=pain_map.get)
+        
+    return {"symbol": symbol, "spot": spot, "chain": chain, "pcr": pcr, "max_pain": max_pain}
+
+@app.get("/api/reports", dependencies=[Depends(verify_token)])
+def get_reports():
+    """Aggregates real trade history from the DB for ReportsView.
+
+    Win rate + P&L curve are computed from CLOSED trades — no hardcoded numbers.
+    Returns empty series when there is no closed-trade history yet.
+    """
+    from .db import SessionLocal, TradeRecord
+    db = SessionLocal()
+    try:
+        closed = (
+            db.query(TradeRecord)
+            .filter(TradeRecord.status == "CLOSED")
+            .order_by(TradeRecord.timestamp.asc())
+            .all()
+        )
+    finally:
+        db.close()
+
+    wins = sum(1 for t in closed if (t.pnl or 0) > 0)
+    losses = sum(1 for t in closed if (t.pnl or 0) <= 0)
+
+    # Cumulative equity curve keyed by trade date.
+    pnl_curve = []
+    daily = {}  # date -> {"profit": x, "loss": y}
+    cumulative = 0.0
+    for t in closed:
+        pnl = t.pnl or 0.0
+        cumulative += pnl
+        day = t.timestamp.strftime("%Y-%m-%d") if t.timestamp else "?"
+        pnl_curve.append({"date": day, "pnl": round(cumulative, 2)})
+        d = daily.setdefault(day, {"profit": 0.0, "loss": 0.0})
+        if pnl >= 0:
+            d["profit"] += pnl
+        else:
+            d["loss"] += -pnl
+
+    return {
+        "win_rate": [
+            {"name": "Wins", "value": wins, "color": "#10b981"},
+            {"name": "Losses", "value": losses, "color": "#ef4444"},
+        ],
+        "pnl_curve": pnl_curve,
+        "daily_performance": [
+            {"day": day, "profit": round(v["profit"], 2), "loss": round(v["loss"], 2)}
+            for day, v in daily.items()
+        ],
+        "total_closed_trades": len(closed),
+    }
+
+@app.get("/api/backtest/{symbol}", dependencies=[Depends(verify_token)])
+def run_backtest(symbol: str, years: int = 2, source: str = "mock"):
+    """Run the event-driven backtester on a symbol.
+
+    source: "mock" (deterministic, offline) or "real" (yfinance historical).
+    Returns honest performance metrics + equity curve — no hardcoded win rates.
+    """
+    from .backtester import EventDrivenBacktester
+    if source not in ("mock", "real"):
+        source = "mock"
+    try:
+        bt = EventDrivenBacktester(symbols=[symbol], years=max(1, min(years, 10)), data_source=source)
+        summary = bt.run()
+        if summary is None:
+            raise HTTPException(status_code=422, detail="Not enough history to backtest this symbol.")
+        return {
+            "symbol": symbol,
+            "summary": summary,
+            "equity_curve": bt.equity_curve,
+            "trades": bt.trades[-100:],  # cap payload
+            "disclaimer": DISCLAIMER,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger("elco.api").error(f"Backtest failed for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
+
+
+@app.get("/api/command-center/{symbol}", dependencies=[Depends(verify_token)])
+def command_center(symbol: str):
+    """Unified panel data: verdict per trading type, directional %, trade plan,
+    per-analysis breakdown, and whether a best setup is auto-tradeable."""
+    from .command_center import build_command_center
+    try:
+        return build_command_center(symbol, engine, provider)
+    except Exception as e:
+        logging.getLogger("elco.api").error(f"Command center failed for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Command center failed: {e}")
+
+
+class ModeRequest(BaseModel):
+    mode: str  # "off" | "active"
+
+@app.post("/api/mode", dependencies=[Depends(verify_token)])
+def set_mode(req: ModeRequest):
+    """Switch between manual (off) and auto (active) trading."""
+    m = req.mode.strip().lower()
+    if m == "active":
+        config.auto_trade = AutoTradeState.ACTIVE
+    elif m == "off":
+        config.auto_trade = AutoTradeState.OFF
+    else:
+        raise HTTPException(status_code=400, detail="mode must be 'off' or 'active'")
+    return {"mode": config.auto_trade.value, "paper_mode": config.paper_mode}
+
+
+@app.post("/api/auto/execute/{symbol}", dependencies=[Depends(verify_token)])
+def auto_execute(symbol: str):
+    """If auto mode is on and a best setup qualifies, place the trade now."""
+    from .command_center import maybe_auto_execute
+    return maybe_auto_execute(symbol, engine, provider, execution_engine, risk_manager)
+
+
+@app.post("/api/auto/manage", dependencies=[Depends(verify_token)])
+def auto_manage():
+    """Sweep open positions: exit on target / stop-loss / market-mood flip."""
+    from .command_center import auto_manage_positions
+    actions = auto_manage_positions(engine, provider, execution_engine)
+    return {"exits": actions, "open_positions": len(execution_engine.open_positions)}
+
+
+class CloseRequest(BaseModel):
+    symbol: str
+    exit_price: Optional[float] = None
+
+@app.post("/api/positions/close", dependencies=[Depends(verify_token)])
+def close_position(req: CloseRequest):
+    """Manually close an open position."""
+    ok = execution_engine.close_position(req.symbol, req.exit_price)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"No open position for {req.symbol}")
+    return {"closed": req.symbol}
+
+
+# --- Views consolidated from the retired app/api/main.py stack --------------
+# These endpoints back frontend views (heatmap, replay, psychology, pathways,
+# universal screener). Served here so app.main:app is the single entrypoint.
+
+_screener_singleton = None
+
+def _get_screener():
+    """Lazily build the LiveScreener (brain init is ~3s and connects to Dhan)."""
+    global _screener_singleton
+    if _screener_singleton is None:
+        from .elco_brain import ElcoMasterBrain
+        from .screener.live_screener import LiveScreener
+        _screener_singleton = LiveScreener(ElcoMasterBrain())
+    return _screener_singleton
+
+@app.get("/api/portfolio/heatmap", dependencies=[Depends(verify_token)])
+def get_portfolio_heatmap():
+    from .modules.portfolio_data import PortfolioDataEngine
+    return PortfolioDataEngine().get_heatmap_data()
+
+@app.get("/api/replay/{symbol}", dependencies=[Depends(verify_token)])
+def get_execution_replay(symbol: str, date: Optional[str] = None):
+    from .modules.replay_engine import ReplayEngine
+    from datetime import datetime, timezone
+    if not date:
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return ReplayEngine().get_replay_data(symbol.upper(), date)
+
+@app.get("/api/psychology/metrics", dependencies=[Depends(verify_token)])
+def get_psychology_metrics():
+    """Real behaviour analytics from closed-trade history (no random numbers)."""
+    from .modules.trade_analytics import get_psychology_metrics as _psych
+    return _psych()
+
+@app.get("/api/analytics/strategy-performance", dependencies=[Depends(verify_token)])
+def get_strategy_performance():
+    """Win rate / net P&L / profit factor grouped by strategy (real GROUP BY)."""
+    from .modules.trade_analytics import strategy_performance
+    return {"strategies": strategy_performance()}
+
+@app.get("/api/system/pathways", dependencies=[Depends(verify_token)])
+def get_system_pathways():
+    from .modules.pathfinder import PathfinderEngine
+    return PathfinderEngine().get_pathways()
+
+@app.get("/api/screener/universal", dependencies=[Depends(verify_token)])
+async def run_universal_screener():
+    import asyncio
+    screener = _get_screener()
+    results = await asyncio.to_thread(screener.run_universal_scan, 15)
+    return {"status": "success", "data": results}
+
+
+# --- Ultimate Dashboard: real engine-backed (replaces mock TradingEngine) ---
+
+def _score_label(score: float) -> str:
+    if score >= 0.5:
+        return "Strong Buy"
+    if score >= 0.15:
+        return "Buy"
+    if score <= -0.5:
+        return "Strong Sell"
+    if score <= -0.15:
+        return "Sell"
+    return "Hold"
+
+class DashboardTradeRequest(BaseModel):
+    symbol: str
+    side: str
+    qty: int
+    execution_type: str = "MARKET"
+    hedge: bool = False
+
+@app.get("/api/dashboard/status", dependencies=[Depends(verify_token)])
+def get_dashboard_status():
+    """Live P&L + open positions from the real ExecutionEngine (no random data)."""
+    pnl = execution_engine.get_pnl_summary()
+    positions = [
+        {"symbol": t.symbol, "side": t.action, "qty": t.qty,
+         "avg_price": t.entry_price, "unrealized_pnl": 0.0}
+        for t in execution_engine.open_positions.values()
+    ]
+    return {
+        "daily_pnl": pnl["total_pnl"],
+        "realized_pnl": pnl["realized_pnl"],
+        "unrealized_pnl": pnl["unrealized_pnl"],
+        "circuit_breaker": config.auto_trade == AutoTradeState.HALTED,
+        "active_positions": positions,
+    }
+
+@app.get("/api/dashboard/analysis/{symbol}", dependencies=[Depends(verify_token)])
+def get_four_pillar_analysis(symbol: str):
+    """Real 4-pillar analysis from registered modules + fused verdict."""
+    sig = engine.analyze(symbol.upper(), style=TradingStyle.INTRADAY)
+    contrib = sig.contributions
+    def pillar(name: str) -> str:
+        m = contrib.get(name)
+        return _score_label(m.score) if m else "N/A"
+    probability = int(round((sig.overall_score + 1) / 2 * 100))
+    return {
+        "symbol": symbol.upper(),
+        "technical": pillar("technical"),
+        "fundamental": pillar("fundamental"),
+        "quant": pillar("quant"),
+        "sentiment": pillar("sentiment"),
+        "verdict": "BUY" if sig.action == "BUY" else "WAIT",
+        "probability": probability,
+        "ai_reason": (sig.reasons[0] if sig.reasons else f"Fused score {sig.overall_score:+.2f}"),
+    }
+
+@app.post("/api/dashboard/execute", dependencies=[Depends(verify_token)])
+def execute_dashboard_trade(trade: DashboardTradeRequest):
+    """Route a manual dashboard trade through the REAL gated ExecutionEngine."""
+    act = trade.side.upper()
+    score = 1.0 if act == "BUY" else -1.0 if act == "SELL" else 0.0
+    signal = FusedSignal(
+        symbol=trade.symbol.upper(),
+        overall_score=score,
+        overall_confidence=1.0,
+        style=TradingStyle.INTRADAY,
+        reasons=[f"Manual {trade.execution_type} dashboard trade" + (" (hedge)" if trade.hedge else "")],
+    )
+    try:
+        current_price = provider.get_quote(signal.symbol).ltp
+        allocation = trade.qty * current_price
+    except Exception:
+        allocation = trade.qty * 1000
+    ok = execution_engine.execute_signal(signal, allocation + 10)
+    if ok:
+        return {"status": "success", "message": f"{act} {trade.qty} {signal.symbol} executed"}
+    return {"status": "rejected", "message": "Risk check failed, neutral signal, or broker error"}
+
+@app.post("/api/dashboard/dynamic-exit", dependencies=[Depends(verify_token)])
+def check_dynamic_exits():
+    """Sweep open positions for target/stop/mood-flip exits via command_center."""
+    from .command_center import auto_manage_positions
+    actions = auto_manage_positions(engine, provider, execution_engine)
+    return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
+
+
+@app.get("/api/rules/status", dependencies=[Depends(verify_token)])
+def get_rules_status():
+    """Live state of the MANDATORY trading rules (R1–R7): trades today,
+    consecutive losses, symbols in cooldown, market-hours gate, halt state —
+    plus the background position monitor's health."""
+    from .trading_rules import rules_status
+    from .position_monitor import position_monitor
+    return {"rules": rules_status(), "position_monitor": position_monitor.status()}
+
+
+# --- Quant & Statistical metrics (real math from app/modules/quant_metrics.py) ---
+
+class CorrelationRequest(BaseModel):
+    symbols: List[str]
+    count: int = 250
+
+@app.get("/api/regime/{symbol}", dependencies=[Depends(verify_token)])
+def get_market_regime(symbol: str):
+    """Detect the current market regime (TRENDING / RANGE_BOUND / HIGH_VOLATILITY
+    / TRANSITIONING) from real candles — drives dynamic position sizing."""
+    return _get_regime_engine().detect_regime(symbol.upper())
+
+@app.get("/api/quant/metrics/{symbol}", dependencies=[Depends(verify_token)])
+def get_quant_metrics(symbol: str, benchmark: str = "NIFTY", count: int = 250):
+    """Institutional performance metrics for a symbol vs a benchmark, computed
+    from real candles: Sharpe, Sortino, Calmar, Max Drawdown, StdDev, Beta,
+    Alpha (CAPM), and a bootstrap Monte Carlo VaR. No hardcoded numbers."""
+    from .modules import quant_metrics as q
+    sym = symbol.upper()
+    try:
+        sym_candles = provider.get_candles(sym, timeframe="1d", count=count)
+        bench_candles = provider.get_candles(benchmark.upper(), timeframe="1d", count=count)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch candles: {e}")
+
+    if len(sym_candles) < 30:
+        raise HTTPException(status_code=422, detail="Not enough price history for metrics.")
+
+    sym_ret = q.returns_from_prices([c.close for c in sym_candles])
+    report = {"symbol": sym, "benchmark": benchmark.upper()}
+
+    if len(bench_candles) >= 30:
+        bench_ret = q.returns_from_prices([c.close for c in bench_candles])
+        report.update(q.full_performance_report(sym_ret, bench_ret))
+        report["correlation_to_benchmark"] = q.correlation_matrix(
+            {sym: sym_ret, benchmark.upper(): bench_ret}
+        ).get(sym, {}).get(benchmark.upper(), 0.0)
+    else:
+        report.update(q.full_performance_report(sym_ret))
+
+    report["monte_carlo_var_95"] = q.monte_carlo_var(sym_ret, horizon=1, confidence=0.95)
+    return report
+
+@app.post("/api/quant/correlation", dependencies=[Depends(verify_token)])
+def get_correlation_matrix(req: "CorrelationRequest"):
+    """Pearson correlation matrix across several symbols' daily returns."""
+    from .modules import quant_metrics as q
+    series = {}
+    for s in req.symbols[:20]:
+        try:
+            candles = provider.get_candles(s.upper(), timeframe="1d", count=req.count)
+            if len(candles) >= 30:
+                series[s.upper()] = q.returns_from_prices([c.close for c in candles])
+        except Exception:
+            continue
+    if len(series) < 2:
+        raise HTTPException(status_code=422, detail="Need at least 2 symbols with price history.")
+    return {"symbols": list(series.keys()), "matrix": q.correlation_matrix(series)}
+
+
+# --- Transaction Cost Analysis (real square-root market-impact model) --------
+
+class TCARequest(BaseModel):
+    expected_price: float
+    execution_price: float
+    side: str            # "buy" | "sell"
+    trade_size: float    # shares
+    adv: float           # average daily volume (shares)
+    volatility: float    # daily vol as a decimal, e.g. 0.02
+
+@app.post("/api/tca/analyze", dependencies=[Depends(verify_token)])
+def analyze_tca(req: TCARequest):
+    """Slippage (bps) + estimated market impact (square-root model) for a fill."""
+    from .modules.tca_engine import TCAEngine
+    try:
+        return TCAEngine().analyze_trade_execution(req.dict())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/institutional/flows", dependencies=[Depends(verify_token)])
+def get_institutional_flows(symbol: str = "RELIANCE"):
+    """REAL NSE institutional data: FII/DII net activity (₹ cr), delivery %,
+    and bulk/block deals. Falls back gracefully when NSE endpoints are
+    unreachable (returns nulls with a 'source' note — never fake numbers)."""
+    from .data.nse_provider import nse_provider
+    sym = symbol.upper()
+    flows = nse_provider.get_fii_dii_activity()
+    delivery = nse_provider.get_delivery_data(sym)
+    all_block = nse_provider.get_block_deals() or []
+    # Filter market-wide block deals down to this symbol.
+    sym_block = [d for d in all_block if sym in str(d.get("symbol", "")).upper()]
+    return {
+        "symbol": sym,
+        "fii_dii": flows or {"source": "unavailable — NSE endpoint unreachable"},
+        "delivery": delivery or {"source": "unavailable — NSE endpoint unreachable"},
+        "block_deal_sentiment": nse_provider.get_block_deal_sentiment(sym),
+        "block_deals": sym_block,
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

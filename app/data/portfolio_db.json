@@ -1,0 +1,21 @@
+{
+    "cash_balance": 1000000.0,
+    "max_sector_weight_limit": 0.25,
+    "max_stock_weight_limit": 0.1,
+    "positions": [
+        {
+            "symbol": "RELIANCE.NS",
+            "quantity": 50,
+            "average_price": 2800.0,
+            "sector": "Energy",
+            "factor": "Value"
+        },
+        {
+            "symbol": "TCS.NS",
+            "quantity": 25,
+            "average_price": 3800.0,
+            "sector": "IT",
+            "factor": "Quality"
+        }
+    ]
+}

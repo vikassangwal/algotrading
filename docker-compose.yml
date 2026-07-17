@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persist the SQLite DB across rebuilds instead of baking it into the image
+      - elco_data:/app/data_store
+    environment:
+      - ELCO_DB_PATH=/app/data_store/elco.db
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  elco_data:

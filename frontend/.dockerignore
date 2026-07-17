@@ -1,0 +1,8 @@
+# Frontend build context excludes — keep image clean & secret-free
+node_modules
+dist
+.env
+.env.*
+*.log
+.git
+.gitignore
