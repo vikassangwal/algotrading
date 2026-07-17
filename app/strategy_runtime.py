@@ -22,6 +22,34 @@ logger = logging.getLogger("elco.strategy_runtime")
 
 _MIN_BARS = 120
 
+# Regime compatibility — the biggest realized-win-rate lever there is.
+# Mean-reversion strategies bleed in strong trends; trend strategies chop to
+# death in ranges. A deployed strategy only trades when the CURRENT regime is
+# one it historically works in. HIGH_VOLATILITY blocks everything (slippage +
+# stop-hunts crush win rates across the board).
+REGIME_COMPAT = {
+    "rsi_reversion": {"RANGE_BOUND", "TRANSITIONING"},
+    "bollinger": {"RANGE_BOUND", "TRANSITIONING"},
+    "ema_cross": {"TRENDING", "TRANSITIONING"},
+    "macd": {"TRENDING", "TRANSITIONING"},
+    "donchian": {"TRENDING"},
+}
+
+
+def _regime_ok(template: str, provider, symbol: str) -> tuple:
+    """Returns (ok: bool, regime: str). Fails OPEN only if regime detection
+    itself errors (we never block on our own infrastructure failure)."""
+    allowed = REGIME_COMPAT.get(template)
+    if not allowed:
+        return True, "UNKNOWN_TEMPLATE"
+    try:
+        from .modules.ai_regime import MarketRegimeEngine
+        regime = MarketRegimeEngine(provider).detect_regime(symbol).get("regime", "")
+    except Exception as e:
+        logger.warning(f"Regime detection failed for {symbol}: {e} — allowing trade.")
+        return True, "DETECTION_FAILED"
+    return (regime in allowed), regime
+
 
 def _signal_fn_from_params(params: dict) -> Optional[Callable]:
     """Rebuild the exact generator signal function from stored params."""
@@ -131,7 +159,11 @@ def evaluate_deployed(provider) -> list:
             results.append({**d, "signal": None, "error": "insufficient candles"})
             continue
         try:
-            results.append({**d, "signal": fn(df)})
+            sig = fn(df)
+            ok, regime = _regime_ok(d["params"].get("template", ""), provider, sym)
+            results.append({**d, "signal": sig, "regime": regime,
+                            "regime_ok": ok,
+                            "tradeable": sig in ("BUY", "SELL") and ok})
         except Exception as e:
             results.append({**d, "signal": None, "error": str(e)})
     return results
@@ -155,6 +187,19 @@ def execute_deployed(provider, execution_engine, risk_manager, strategy_id: int)
     side = fn(df)
     if side not in ("BUY", "SELL"):
         return {"executed": False, "reason": "no signal right now", "signal": None}
+
+    # REGIME GATE — the strategy only trades in market conditions where its
+    # validated win rate actually holds. Wrong regime = no trade, period.
+    ok, regime = _regime_ok(target["params"].get("template", ""), provider, target["symbol"])
+    if not ok:
+        return {
+            "executed": False, "signal": side, "regime": regime,
+            "reason": (
+                f"regime gate: current regime is {regime}, but "
+                f"'{target['params'].get('template')}' strategies only keep their "
+                f"win rate in {sorted(REGIME_COMPAT.get(target['params'].get('template'), []))}"
+            ),
+        }
 
     signal = FusedSignal(
         symbol=target["symbol"],

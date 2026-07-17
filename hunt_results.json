@@ -1,0 +1,405 @@
+{
+ "min_win_rate": 60.0,
+ "symbols_scanned": 10,
+ "symbols_with_edge": 6,
+ "book": [
+  {
+   "symbol": "ICICIBANK",
+   "name": "Bollinger 20/2.0 [1:1.0]",
+   "params": {
+    "template": "bollinger",
+    "period": 20,
+    "std": 2.0,
+    "sl_atr": 2.0,
+    "target_atr": 2.0
+   },
+   "train": {
+    "trades": 27,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.89,
+    "expectancy_r": 0.305,
+    "max_drawdown_pct": 3.2
+   },
+   "test": {
+    "trades": 8,
+    "win_rate_pct": 62.5,
+    "profit_factor": 1.57,
+    "expectancy_r": 0.219,
+    "max_drawdown_pct": 2.1
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "ICICIBANK",
+   "name": "MACD 8/21/5 [1:1.0]",
+   "params": {
+    "template": "macd",
+    "fast": 8,
+    "slow": 21,
+    "signal": 5,
+    "sl_atr": 1.5,
+    "target_atr": 1.5
+   },
+   "train": {
+    "trades": 45,
+    "win_rate_pct": 64.4,
+    "profit_factor": 1.69,
+    "expectancy_r": 0.252,
+    "max_drawdown_pct": 5.45
+   },
+   "test": {
+    "trades": 21,
+    "win_rate_pct": 61.9,
+    "profit_factor": 1.49,
+    "expectancy_r": 0.194,
+    "max_drawdown_pct": 3.08
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "SBIN",
+   "name": "MACD 19/39/9 [1:1.0]",
+   "params": {
+    "template": "macd",
+    "fast": 19,
+    "slow": 39,
+    "signal": 9,
+    "sl_atr": 1.5,
+    "target_atr": 1.5
+   },
+   "train": {
+    "trades": 28,
+    "win_rate_pct": 60.7,
+    "profit_factor": 1.44,
+    "expectancy_r": 0.18,
+    "max_drawdown_pct": 7.01
+   },
+   "test": {
+    "trades": 9,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.84,
+    "expectancy_r": 0.289,
+    "max_drawdown_pct": 1.1
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "ITC",
+   "name": "MACD 19/39/9 [1:1.0]",
+   "params": {
+    "template": "macd",
+    "fast": 19,
+    "slow": 39,
+    "signal": 9,
+    "sl_atr": 2.0,
+    "target_atr": 2.0
+   },
+   "train": {
+    "trades": 25,
+    "win_rate_pct": 60.0,
+    "profit_factor": 1.42,
+    "expectancy_r": 0.171,
+    "max_drawdown_pct": 3.07
+   },
+   "test": {
+    "trades": 9,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.88,
+    "expectancy_r": 0.302,
+    "max_drawdown_pct": 1.13
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "MARUTI",
+   "name": "EMA Cross 10/20 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 10,
+    "slow": 20,
+    "sl_atr": 2.0,
+    "target_atr": 2.0
+   },
+   "train": {
+    "trades": 17,
+    "win_rate_pct": 70.6,
+    "profit_factor": 2.29,
+    "expectancy_r": 0.386,
+    "max_drawdown_pct": 2.04
+   },
+   "test": {
+    "trades": 5,
+    "win_rate_pct": 80.0,
+    "profit_factor": 3.79,
+    "expectancy_r": 0.573,
+    "max_drawdown_pct": 1.03
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "SUNPHARMA",
+   "name": "EMA Cross 5/20 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 5,
+    "slow": 20,
+    "sl_atr": 2.0,
+    "target_atr": 2.0
+   },
+   "train": {
+    "trades": 18,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.9,
+    "expectancy_r": 0.307,
+    "max_drawdown_pct": 3.06
+   },
+   "test": {
+    "trades": 9,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.89,
+    "expectancy_r": 0.307,
+    "max_drawdown_pct": 1.1
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "BHARTIARTL",
+   "name": "RSI(14) Reversion 20/80 [1:1.0]",
+   "params": {
+    "template": "rsi_reversion",
+    "period": 14,
+    "oversold": 20,
+    "overbought": 80,
+    "sl_atr": 1.5,
+    "target_atr": 1.5
+   },
+   "train": {
+    "trades": 14,
+    "win_rate_pct": 71.4,
+    "profit_factor": 2.33,
+    "expectancy_r": 0.394,
+    "max_drawdown_pct": 1.14
+   },
+   "test": {
+    "trades": 5,
+    "win_rate_pct": 80.0,
+    "profit_factor": 3.72,
+    "expectancy_r": 0.564,
+    "max_drawdown_pct": 1.04
+   },
+   "status": "VALIDATED"
+  }
+ ],
+ "per_symbol": {
+  "ICICIBANK": [
+   {
+    "name": "Bollinger 20/2.0 [1:1.0]",
+    "params": {
+     "template": "bollinger",
+     "period": 20,
+     "std": 2.0,
+     "sl_atr": 2.0,
+     "target_atr": 2.0
+    },
+    "train": {
+     "trades": 27,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.89,
+     "expectancy_r": 0.305,
+     "max_drawdown_pct": 3.2
+    },
+    "test": {
+     "trades": 8,
+     "win_rate_pct": 62.5,
+     "profit_factor": 1.57,
+     "expectancy_r": 0.219,
+     "max_drawdown_pct": 2.1
+    },
+    "status": "VALIDATED"
+   },
+   {
+    "name": "MACD 8/21/5 [1:1.0]",
+    "params": {
+     "template": "macd",
+     "fast": 8,
+     "slow": 21,
+     "signal": 5,
+     "sl_atr": 1.5,
+     "target_atr": 1.5
+    },
+    "train": {
+     "trades": 45,
+     "win_rate_pct": 64.4,
+     "profit_factor": 1.69,
+     "expectancy_r": 0.252,
+     "max_drawdown_pct": 5.45
+    },
+    "test": {
+     "trades": 21,
+     "win_rate_pct": 61.9,
+     "profit_factor": 1.49,
+     "expectancy_r": 0.194,
+     "max_drawdown_pct": 3.08
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "SBIN": [
+   {
+    "name": "MACD 19/39/9 [1:1.0]",
+    "params": {
+     "template": "macd",
+     "fast": 19,
+     "slow": 39,
+     "signal": 9,
+     "sl_atr": 1.5,
+     "target_atr": 1.5
+    },
+    "train": {
+     "trades": 28,
+     "win_rate_pct": 60.7,
+     "profit_factor": 1.44,
+     "expectancy_r": 0.18,
+     "max_drawdown_pct": 7.01
+    },
+    "test": {
+     "trades": 9,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.84,
+     "expectancy_r": 0.289,
+     "max_drawdown_pct": 1.1
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "ITC": [
+   {
+    "name": "MACD 19/39/9 [1:1.0]",
+    "params": {
+     "template": "macd",
+     "fast": 19,
+     "slow": 39,
+     "signal": 9,
+     "sl_atr": 2.0,
+     "target_atr": 2.0
+    },
+    "train": {
+     "trades": 25,
+     "win_rate_pct": 60.0,
+     "profit_factor": 1.42,
+     "expectancy_r": 0.171,
+     "max_drawdown_pct": 3.07
+    },
+    "test": {
+     "trades": 9,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.88,
+     "expectancy_r": 0.302,
+     "max_drawdown_pct": 1.13
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "MARUTI": [
+   {
+    "name": "EMA Cross 10/20 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 10,
+     "slow": 20,
+     "sl_atr": 2.0,
+     "target_atr": 2.0
+    },
+    "train": {
+     "trades": 17,
+     "win_rate_pct": 70.6,
+     "profit_factor": 2.29,
+     "expectancy_r": 0.386,
+     "max_drawdown_pct": 2.04
+    },
+    "test": {
+     "trades": 5,
+     "win_rate_pct": 80.0,
+     "profit_factor": 3.79,
+     "expectancy_r": 0.573,
+     "max_drawdown_pct": 1.03
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "SUNPHARMA": [
+   {
+    "name": "EMA Cross 5/20 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 5,
+     "slow": 20,
+     "sl_atr": 2.0,
+     "target_atr": 2.0
+    },
+    "train": {
+     "trades": 18,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.9,
+     "expectancy_r": 0.307,
+     "max_drawdown_pct": 3.06
+    },
+    "test": {
+     "trades": 9,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.89,
+     "expectancy_r": 0.307,
+     "max_drawdown_pct": 1.1
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "BHARTIARTL": [
+   {
+    "name": "RSI(14) Reversion 20/80 [1:1.0]",
+    "params": {
+     "template": "rsi_reversion",
+     "period": 14,
+     "oversold": 20,
+     "overbought": 80,
+     "sl_atr": 1.5,
+     "target_atr": 1.5
+    },
+    "train": {
+     "trades": 14,
+     "win_rate_pct": 71.4,
+     "profit_factor": 2.33,
+     "expectancy_r": 0.394,
+     "max_drawdown_pct": 1.14
+    },
+    "test": {
+     "trades": 5,
+     "win_rate_pct": 80.0,
+     "profit_factor": 3.72,
+     "expectancy_r": 0.564,
+     "max_drawdown_pct": 1.04
+    },
+    "status": "VALIDATED"
+   }
+  ]
+ },
+ "no_edge": [
+  {
+   "symbol": "TCS",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "INFY",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "TATAMOTORS",
+   "reason": "real data unavailable \u2014 skipped (never hunt on mock)"
+  },
+  {
+   "symbol": "LT",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  }
+ ],
+ "note": "The book contains ONLY strategy-symbol pairs that held 60.0%+ win rate on held-out test data net of costs. Symbols under no_edge should simply not be traded with these strategies \u2014 skipping them IS how the system's realized accuracy stays high."
+}

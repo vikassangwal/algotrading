@@ -127,3 +127,53 @@ def test_rules_status_shape():
     for key in ("trades_today", "consecutive_losses", "market_open_now",
                 "system_halted", "symbols_in_cooldown"):
         assert key in s
+
+
+# --- Regime gate on deployed strategies -------------------------------------
+
+def test_regime_gate_blocks_incompatible_regime():
+    from app import strategy_runtime as SR
+
+    class FakeProvider:
+        pass
+
+    # Monkeypatch regime detection: strongly trending market.
+    orig = SR._regime_ok
+    try:
+        # reversion template in TRENDING -> blocked
+        import app.modules.ai_regime as ai
+        class FakeEngine:
+            def __init__(self, p): pass
+            def detect_regime(self, s): return {"regime": "TRENDING"}
+        real_engine = ai.MarketRegimeEngine
+        ai.MarketRegimeEngine = FakeEngine
+        ok, regime = SR._regime_ok("rsi_reversion", FakeProvider(), "TCS")
+        assert ok is False and regime == "TRENDING"
+        # trend template in TRENDING -> allowed
+        ok2, _ = SR._regime_ok("macd", FakeProvider(), "TCS")
+        assert ok2 is True
+        # reversion in RANGE_BOUND -> allowed
+        class FakeEngine2(FakeEngine):
+            def detect_regime(self, s): return {"regime": "RANGE_BOUND"}
+        ai.MarketRegimeEngine = FakeEngine2
+        ok3, _ = SR._regime_ok("rsi_reversion", FakeProvider(), "TCS")
+        assert ok3 is True
+    finally:
+        ai.MarketRegimeEngine = real_engine
+        assert SR._regime_ok is orig
+
+
+def test_regime_gate_fails_open_on_detection_error():
+    """Infrastructure failure must never block trades silently."""
+    from app import strategy_runtime as SR
+    import app.modules.ai_regime as ai
+
+    class Boom:
+        def __init__(self, p): raise RuntimeError("regime engine down")
+    real_engine = ai.MarketRegimeEngine
+    try:
+        ai.MarketRegimeEngine = Boom
+        ok, regime = SR._regime_ok("rsi_reversion", object(), "TCS")
+        assert ok is True and regime == "DETECTION_FAILED"
+    finally:
+        ai.MarketRegimeEngine = real_engine

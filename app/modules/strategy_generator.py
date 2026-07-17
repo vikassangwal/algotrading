@@ -275,3 +275,49 @@ def generate_strategies(df: pd.DataFrame, top_n: int = 10,
             "apply too, because a high win rate alone can still lose money."
         ),
     }
+
+
+def hunt_validated(symbols: list, min_win_rate: float = 60.0, years: int = 4,
+                   top_n: int = 3, source: str = "real") -> dict:
+    """Scan a universe for strategies that validated at min_win_rate on BOTH
+    splits — the honest way to build a '60%+ accuracy' book: trade ONLY where
+    that accuracy has been demonstrated out-of-sample, skip everything else.
+
+    Returns per-symbol validated lists + a flat 'book' ready to deploy.
+    Symbols where nothing validates are reported honestly in 'no_edge'.
+    """
+    from ..backtester import load_history
+
+    book, per_symbol, no_edge = [], {}, []
+    for sym in symbols:
+        sym = sym.upper().strip()
+        try:
+            df, actual = load_history(sym, years=years, source=source, return_source=True)
+            if source == "real" and actual != "real":
+                no_edge.append({"symbol": sym, "reason": "real data unavailable — skipped (never hunt on mock)"})
+                continue
+            r = generate_strategies(df, top_n=top_n, min_win_rate=min_win_rate)
+        except Exception as e:
+            no_edge.append({"symbol": sym, "reason": f"scan failed: {e}"})
+            continue
+        if r["validated"]:
+            per_symbol[sym] = r["validated"]
+            for v in r["validated"]:
+                book.append({"symbol": sym, **v})
+        else:
+            no_edge.append({"symbol": sym, "reason": f"nothing validated at {min_win_rate}%+ on unseen data"})
+
+    return {
+        "min_win_rate": min_win_rate,
+        "symbols_scanned": len(symbols),
+        "symbols_with_edge": len(per_symbol),
+        "book": book,
+        "per_symbol": per_symbol,
+        "no_edge": no_edge,
+        "note": (
+            f"The book contains ONLY strategy-symbol pairs that held {min_win_rate}%+ "
+            "win rate on held-out test data net of costs. Symbols under no_edge "
+            "should simply not be traded with these strategies — skipping them IS "
+            "how the system's realized accuracy stays high."
+        ),
+    }

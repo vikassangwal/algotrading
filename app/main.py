@@ -749,6 +749,26 @@ def get_scanners():
         "high_volume": high_volume[:5]
     }
 
+class HuntRequest(BaseModel):
+    symbols: List[str]
+    min_win_rate: float = 60.0
+    years: int = 4
+
+@app.post("/api/strategies/hunt", dependencies=[Depends(verify_token)])
+def hunt_strategies(req: HuntRequest):
+    """Scan a universe for strategies validated at min_win_rate on unseen data
+    (net of costs). SLOW (~60s/symbol) — max 5 symbols per call; run multiple
+    calls for a bigger universe. The honest way to a 60%+ book: trade only
+    where 60%+ has been demonstrated out-of-sample, skip the rest."""
+    from .modules.strategy_generator import hunt_validated
+    if not req.symbols:
+        raise HTTPException(status_code=400, detail="Provide at least 1 symbol.")
+    return hunt_validated(
+        req.symbols[:5],
+        min_win_rate=max(0.0, min(req.min_win_rate, 90.0)),
+        years=max(2, min(req.years, 10)),
+    )
+
 @app.get("/api/strategies/rank/{symbol}", dependencies=[Depends(verify_token)])
 def rank_strategies_for_symbol(symbol: str, years: int = 3, source: str = "real"):
     """Backtest all built-in strategies on a symbol and rank them by real edge.
