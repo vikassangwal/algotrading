@@ -1285,6 +1285,15 @@ def check_dynamic_exits():
     return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
 
 
+@app.get("/api/analysis/full/{symbol}", dependencies=[Depends(verify_token)])
+def get_full_analysis(symbol: str):
+    """FULL analysis for any symbol (e.g. ITC): 11 indicators with readings,
+    indicator consensus, regime + allowed strategy families, all base-strategy
+    signals, deployed validated strategies with stats, FII/DII + delivery% +
+    block deals, fused 4-pillar signal, and the ATR trade plan (R3 math)."""
+    from .modules.full_analysis import full_analysis
+    return full_analysis(symbol, provider, engine)
+
 @app.get("/api/rules/status", dependencies=[Depends(verify_token)])
 def get_rules_status():
     """Live state of the MANDATORY trading rules (R1–R7): trades today,
