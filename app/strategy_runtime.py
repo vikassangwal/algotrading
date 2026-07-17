@@ -1,0 +1,176 @@
+"""Runtime for DEPLOYED strategies — connects generator output to execution.
+
+A validated strategy from the generator is just a param dict. Deploying it
+stores those params; this module rebuilds the exact signal function from the
+params and evaluates it on fresh candles. When a signal fires and the caller
+asks to execute, the order goes through the SAME chain as everything else:
+
+    RiskManager.calculate_position_size (Kelly + caps + daily-loss)
+        → ExecutionEngine.execute_signal (mandatory rules R1-R7, paper/live gate)
+
+No deployed strategy can skip a single safety layer.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from typing import Callable, Optional
+
+import pandas as pd
+
+logger = logging.getLogger("elco.strategy_runtime")
+
+_MIN_BARS = 120
+
+
+def _signal_fn_from_params(params: dict) -> Optional[Callable]:
+    """Rebuild the exact generator signal function from stored params."""
+    from .modules import strategy_generator as G
+    t = params.get("template")
+    try:
+        if t == "ema_cross":
+            return G._make_ema_cross(int(params["fast"]), int(params["slow"]))
+        if t == "rsi_reversion":
+            return G._make_rsi_reversion(int(params["period"]),
+                                         int(params["oversold"]), int(params["overbought"]))
+        if t == "donchian":
+            return G._make_donchian(int(params["window"]))
+        if t == "macd":
+            return G._make_macd(int(params["fast"]), int(params["slow"]), int(params["signal"]))
+        if t == "bollinger":
+            return G._make_bollinger(int(params["period"]), float(params["std"]))
+    except (KeyError, TypeError, ValueError) as e:
+        logger.error(f"Bad deployed-strategy params {params}: {e}")
+    return None
+
+
+def _candles_frame(provider, symbol: str) -> Optional[pd.DataFrame]:
+    try:
+        candles = provider.get_candles(symbol, timeframe="1d", count=260)
+    except Exception as e:
+        logger.warning(f"Candle fetch failed for {symbol}: {e}")
+        return None
+    if not candles or len(candles) < _MIN_BARS:
+        return None
+    return pd.DataFrame({
+        "open": [c.open for c in candles],
+        "high": [c.high for c in candles],
+        "low": [c.low for c in candles],
+        "close": [c.close for c in candles],
+        "volume": [c.volume for c in candles],
+    })
+
+
+def list_deployed(active_only: bool = False) -> list:
+    from .db import SessionLocal, DeployedStrategy
+    db = SessionLocal()
+    try:
+        q = db.query(DeployedStrategy)
+        if active_only:
+            q = q.filter(DeployedStrategy.active == 1)
+        return [{
+            "id": d.id, "name": d.name, "symbol": d.symbol,
+            "params": json.loads(d.params or "{}"),
+            "active": bool(d.active),
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        } for d in q.order_by(DeployedStrategy.id.desc()).all()]
+    finally:
+        db.close()
+
+
+def deploy(name: str, symbol: str, params: dict) -> dict:
+    """Store a strategy for live evaluation. Params must rebuild cleanly."""
+    if _signal_fn_from_params(params) is None:
+        raise ValueError(f"Unknown/invalid strategy params: {params}")
+    from .db import SessionLocal, DeployedStrategy
+    db = SessionLocal()
+    try:
+        row = DeployedStrategy(
+            name=name, symbol=symbol.upper(), params=json.dumps(params), active=1
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return {"id": row.id, "name": row.name, "symbol": row.symbol}
+    finally:
+        db.close()
+
+
+def set_active(strategy_id: int, active: bool) -> bool:
+    from .db import SessionLocal, DeployedStrategy
+    db = SessionLocal()
+    try:
+        row = db.query(DeployedStrategy).filter(DeployedStrategy.id == strategy_id).first()
+        if row is None:
+            return False
+        row.active = 1 if active else 0
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
+def evaluate_deployed(provider) -> list:
+    """Evaluate every ACTIVE deployed strategy on fresh candles.
+
+    Returns a list of {id, name, symbol, signal} — signal is BUY/SELL/None.
+    Read-only: nothing here places an order.
+    """
+    results = []
+    frames: dict = {}
+    for d in list_deployed(active_only=True):
+        fn = _signal_fn_from_params(d["params"])
+        if fn is None:
+            results.append({**d, "signal": None, "error": "invalid params"})
+            continue
+        sym = d["symbol"]
+        if sym not in frames:
+            frames[sym] = _candles_frame(provider, sym)
+        df = frames[sym]
+        if df is None:
+            results.append({**d, "signal": None, "error": "insufficient candles"})
+            continue
+        try:
+            results.append({**d, "signal": fn(df)})
+        except Exception as e:
+            results.append({**d, "signal": None, "error": str(e)})
+    return results
+
+
+def execute_deployed(provider, execution_engine, risk_manager, strategy_id: int) -> dict:
+    """Execute ONE deployed strategy's current signal through the full gated
+    chain (Kelly sizing → mandatory rules → paper/live gate). Honest result."""
+    from .engine import FusedSignal
+    from .config import TradingStyle
+
+    target = next((d for d in list_deployed(active_only=True) if d["id"] == strategy_id), None)
+    if target is None:
+        return {"executed": False, "reason": "strategy not found or inactive"}
+
+    fn = _signal_fn_from_params(target["params"])
+    df = _candles_frame(provider, target["symbol"])
+    if fn is None or df is None:
+        return {"executed": False, "reason": "cannot evaluate (params/candles)"}
+
+    side = fn(df)
+    if side not in ("BUY", "SELL"):
+        return {"executed": False, "reason": "no signal right now", "signal": None}
+
+    signal = FusedSignal(
+        symbol=target["symbol"],
+        overall_score=1.0 if side == "BUY" else -1.0,
+        overall_confidence=0.75,  # deployed strategies size conservatively
+        style=TradingStyle.SWING,
+        reasons=[f"Deployed strategy '{target['name']}' fired {side}"],
+    )
+    allocation = risk_manager.calculate_position_size(signal)
+    if allocation <= 0:
+        return {"executed": False, "reason": "risk manager rejected sizing (limits/halt/off)", "signal": side}
+
+    ok = execution_engine.execute_signal(signal, allocation)
+    return {
+        "executed": bool(ok),
+        "signal": side,
+        "allocation": round(allocation, 2) if ok else 0,
+        "reason": "executed through gated chain" if ok else "blocked by mandatory rules / execution gate",
+    }

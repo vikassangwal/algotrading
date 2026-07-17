@@ -832,6 +832,48 @@ def generate_strategies_for_symbol(symbol: str, years: int = 4, source: str = "r
     report["disclaimer"] = DISCLAIMER
     return report
 
+# --- Deployed strategies: generator output -> gated execution ---------------
+
+class DeployRequest(BaseModel):
+    name: str
+    symbol: str
+    params: Dict  # template params from /api/strategies/generate output
+
+@app.post("/api/strategies/deploy", dependencies=[Depends(verify_token)])
+def deploy_strategy(req: DeployRequest):
+    """Deploy a generator-VALIDATED strategy. Its signals will run through the
+    full gated chain (Kelly sizing → mandatory rules R1-R7 → paper/live gate)."""
+    from .strategy_runtime import deploy
+    try:
+        return deploy(req.name, req.symbol, req.params)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/strategies/deployed", dependencies=[Depends(verify_token)])
+def list_deployed_strategies():
+    from .strategy_runtime import list_deployed
+    return {"deployed": list_deployed()}
+
+@app.post("/api/strategies/deployed/{strategy_id}/pause", dependencies=[Depends(verify_token)])
+def pause_deployed_strategy(strategy_id: int, active: bool = False):
+    from .strategy_runtime import set_active
+    if not set_active(strategy_id, active):
+        raise HTTPException(status_code=404, detail="Strategy not found")
+    return {"id": strategy_id, "active": active}
+
+@app.get("/api/strategies/deployed/signals", dependencies=[Depends(verify_token)])
+def deployed_signals():
+    """Evaluate all ACTIVE deployed strategies on fresh candles (read-only)."""
+    from .strategy_runtime import evaluate_deployed
+    return {"signals": evaluate_deployed(provider)}
+
+@app.post("/api/strategies/deployed/{strategy_id}/execute", dependencies=[Depends(verify_token)])
+def execute_deployed_strategy(strategy_id: int):
+    """Execute the strategy's CURRENT signal through the gated chain.
+    Paper by default; live only behind the double gate. All rules apply."""
+    from .strategy_runtime import execute_deployed
+    return execute_deployed(provider, execution_engine, risk_manager, strategy_id)
+
 @app.get("/api/scanners/historical/{symbol}", dependencies=[Depends(verify_token)])
 def get_historical_scans(symbol: str, period: str = "6mo"):
     """Vectorized historical scan (UniversalScanner) over a symbol's OHLCV.
@@ -1115,6 +1157,13 @@ def get_strategy_performance():
     """Win rate / net P&L / profit factor grouped by strategy (real GROUP BY)."""
     from .modules.trade_analytics import strategy_performance
     return {"strategies": strategy_performance()}
+
+@app.get("/api/analytics/live-readiness", dependencies=[Depends(verify_token)])
+def get_live_readiness():
+    """Honest 'ready for live?' scorecard from real closed paper trades —
+    every gate shown with actual vs required. Verdict is the AND of gates."""
+    from .modules.trade_analytics import live_readiness_scorecard
+    return live_readiness_scorecard()
 
 @app.get("/api/system/pathways", dependencies=[Depends(verify_token)])
 def get_system_pathways():

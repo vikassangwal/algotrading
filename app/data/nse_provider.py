@@ -154,31 +154,89 @@ class NSEProvider:
     def get_delivery_data(self, symbol: str) -> Optional[Dict[str, float]]:
         """Delivery quantity and delivery % for a symbol (latest session).
 
+        Primary: NSE quote-equity API (often 403s). Fallback: the daily
+        sec_bhavdata_full CSV from NSE archives (real end-of-day data,
+        publicly served without cookie games).
         Returns {'delivery_percentage': float, 'delivery_volume': float,
-        'traded_volume': float} or None.
+        'traded_volume': float, 'source': str} or None.
         """
         sym = symbol.upper()
 
         def _fetch():
             data = self._get_json(f"/api/quote-equity?symbol={sym}&section=trade_info")
-            if not isinstance(data, dict):
-                return None
-            sec = data.get("securityWiseDP") or {}
-            deliv_pct = sec.get("deliveryToTradedQuantity")
-            deliv_qty = sec.get("deliveryQuantity")
-            traded = sec.get("quantityTraded")
-            if deliv_pct is None and deliv_qty is None:
-                return None
-            try:
-                return {
-                    "delivery_percentage": float(deliv_pct) if deliv_pct is not None else None,
-                    "delivery_volume": float(deliv_qty) if deliv_qty is not None else None,
-                    "traded_volume": float(traded) if traded is not None else None,
-                }
-            except (TypeError, ValueError):
-                return None
+            if isinstance(data, dict):
+                sec = data.get("securityWiseDP") or {}
+                deliv_pct = sec.get("deliveryToTradedQuantity")
+                deliv_qty = sec.get("deliveryQuantity")
+                traded = sec.get("quantityTraded")
+                if deliv_pct is not None or deliv_qty is not None:
+                    try:
+                        return {
+                            "delivery_percentage": float(deliv_pct) if deliv_pct is not None else None,
+                            "delivery_volume": float(deliv_qty) if deliv_qty is not None else None,
+                            "traded_volume": float(traded) if traded is not None else None,
+                            "source": "nse_quote_api",
+                        }
+                    except (TypeError, ValueError):
+                        pass
+            # Fallback: end-of-day bhavcopy from NSE archives.
+            row = self._bhavcopy_row(sym)
+            if row is not None:
+                return row
+            return None
 
         return self._cached(f"deliv:{sym}", _fetch)
+
+    def _bhavcopy_row(self, sym: str) -> Optional[Dict[str, float]]:
+        """Look up a symbol in the latest sec_bhavdata_full CSV (tries today
+        back through the last 6 calendar days to skip weekends/holidays)."""
+        table = self._cached("bhavcopy", self._fetch_bhavcopy)
+        if not table:
+            return None
+        row = table.get(sym)
+        if row is None:
+            return None
+        return dict(row, source="nse_bhavcopy_eod")
+
+    def _fetch_bhavcopy(self) -> Optional[Dict[str, Dict[str, float]]]:
+        import csv
+        import io
+        from datetime import datetime, timedelta, timezone as _tz
+
+        ist_now = datetime.now(_tz(timedelta(hours=5, minutes=30)))
+        s = self._get_session()
+        for back in range(0, 7):
+            day = ist_now - timedelta(days=back)
+            if day.weekday() >= 5:
+                continue
+            url = ("https://archives.nseindia.com/products/content/"
+                   f"sec_bhavdata_full_{day.strftime('%d%m%Y')}.csv")
+            try:
+                resp = s.get(url, timeout=self.timeout)
+                if resp.status_code != 200 or len(resp.content) < 1000:
+                    continue
+                out: Dict[str, Dict[str, float]] = {}
+                reader = csv.DictReader(io.StringIO(resp.text))
+                for r in reader:
+                    r = {k.strip(): (v.strip() if isinstance(v, str) else v)
+                         for k, v in r.items() if k}
+                    if r.get("SERIES") not in ("EQ", "BE"):
+                        continue
+                    try:
+                        out[r["SYMBOL"]] = {
+                            "delivery_percentage": float(r["DELIV_PER"]),
+                            "delivery_volume": float(r["DELIV_QTY"]),
+                            "traded_volume": float(r["TTL_TRD_QNTY"]),
+                            "date": r.get("DATE1", ""),
+                        }
+                    except (KeyError, ValueError):
+                        continue
+                if out:
+                    logger.info(f"Bhavcopy loaded: {day.strftime('%d-%b')} ({len(out)} symbols).")
+                    return out
+            except Exception as e:
+                logger.warning(f"Bhavcopy fetch failed for {day.date()}: {e}")
+        return None
 
     def get_bulk_deals(self) -> Optional[List[Dict[str, Any]]]:
         """Latest bulk deals. Returns a list of deal dicts or None."""

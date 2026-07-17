@@ -118,3 +118,63 @@ def get_psychology_metrics() -> Dict[str, Any]:
         "strategy_performance": perf,
         "best_setup": best["name"] if best else None,
     }
+
+
+# Readiness gates for going live. Deliberately strict: going live early is the
+# most expensive mistake a new system can make.
+READY_MIN_TRADES = 30
+READY_MIN_PROFIT_FACTOR = 1.2
+READY_MIN_WIN_RATE = 45.0
+READY_MAX_DISCIPLINE_VIOLATIONS = 0.25  # revenge events / trades
+
+
+def live_readiness_scorecard() -> Dict[str, Any]:
+    """Honest 'ready for live?' verdict from REAL closed paper trades.
+
+    Every gate is shown with its actual value vs the requirement — the verdict
+    is the AND of all gates, never a vibe. With no history it says NOT_READY
+    with reason 'no data', not a made-up score.
+    """
+    trades = _load_closed_trades()
+    total = len(trades)
+    if total == 0:
+        return {
+            "verdict": "NOT_READY",
+            "reason": "No closed trades yet. Run paper mode and let trades complete.",
+            "gates": [],
+            "total_closed_trades": 0,
+        }
+
+    wins = sum(1 for t in trades if (t.pnl or 0) > 0)
+    win_rate = 100.0 * wins / total
+    gross_profit = sum((t.pnl or 0) for t in trades if (t.pnl or 0) > 0)
+    gross_loss = sum(-(t.pnl or 0) for t in trades if (t.pnl or 0) <= 0)
+    pf = (gross_profit / gross_loss) if gross_loss > 0 else (None if gross_profit == 0 else float("inf"))
+    revenge = sum(1 for prev, cur in zip(trades, trades[1:]) if (prev.pnl or 0) < 0)
+    revenge_rate = revenge / total
+
+    gates = [
+        {"gate": "enough_trades", "required": f">= {READY_MIN_TRADES}", "actual": total,
+         "passed": total >= READY_MIN_TRADES},
+        {"gate": "profit_factor", "required": f">= {READY_MIN_PROFIT_FACTOR}",
+         "actual": ("inf" if pf == float("inf") else (round(pf, 2) if pf is not None else None)),
+         "passed": pf is not None and pf >= READY_MIN_PROFIT_FACTOR},
+        {"gate": "win_rate_pct", "required": f">= {READY_MIN_WIN_RATE}", "actual": round(win_rate, 1),
+         "passed": win_rate >= READY_MIN_WIN_RATE},
+        {"gate": "net_pnl_positive", "required": "> 0", "actual": round(gross_profit - gross_loss, 2),
+         "passed": (gross_profit - gross_loss) > 0},
+        {"gate": "discipline", "required": f"revenge rate <= {READY_MAX_DISCIPLINE_VIOLATIONS}",
+         "actual": round(revenge_rate, 2), "passed": revenge_rate <= READY_MAX_DISCIPLINE_VIOLATIONS},
+    ]
+    all_pass = all(g["passed"] for g in gates)
+    return {
+        "verdict": "READY" if all_pass else "NOT_READY",
+        "gates": gates,
+        "total_closed_trades": total,
+        "note": (
+            "READY means the paper record clears every gate — it is still not a "
+            "guarantee. Start live with the smallest size the rules allow."
+            if all_pass else
+            "Fix the failing gates in paper mode before considering live trading."
+        ),
+    }

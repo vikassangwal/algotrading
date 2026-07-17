@@ -12,4 +12,20 @@ export default defineConfig({
     host: true,
     port: 3000,
   },
+  build: {
+    // Split heavy vendors into cacheable chunks instead of one 1MB bundle.
+    // (Vite 8 / rolldown: function-form manualChunks.)
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) return 'charts'
+            if (id.includes('lightweight-charts')) return 'lwcharts'
+            if (id.includes('react')) return 'react'
+            return 'vendor'
+          }
+        },
+      },
+    },
+  },
 })

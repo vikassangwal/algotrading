@@ -40,6 +40,11 @@ logger = logging.getLogger("elco.strategies")
 DEFAULT_SL_ATR = 1.5
 DEFAULT_TARGET_ATR = 3.0  # 2:1 reward:risk
 
+# Round-trip transaction cost as a fraction of notional: brokerage + STT +
+# exchange charges + slippage for an Indian discount broker. Applied to EVERY
+# backtested trade so reported edges are net of costs, not gross fantasy.
+DEFAULT_COST_PCT = 0.001  # 0.1% round trip
+
 
 def _atr(df: pd.DataFrame, period: int = 14) -> float:
     high, low, close = df["high"], df["low"], df["close"]
@@ -195,6 +200,7 @@ def backtest_strategy(
     warmup: int = 60,
     sl_atr: float = DEFAULT_SL_ATR,
     target_atr: float = DEFAULT_TARGET_ATR,
+    cost_pct: float = DEFAULT_COST_PCT,
 ) -> StrategyResult:
     """Walk `df` forward one bar at a time; one open position at a time.
 
@@ -242,6 +248,9 @@ def backtest_strategy(
                     pnl = exit_price - position["entry"]
                 else:
                     pnl = position["entry"] - exit_price
+                # Net of round-trip transaction costs (brokerage/STT/slippage):
+                # cost_pct of the entry notional, expressed per share here.
+                pnl -= position["entry"] * cost_pct
                 r = pnl / position["risk"] if position["risk"] > 0 else 0.0
                 trade_r.append(r)
                 if r > 0:

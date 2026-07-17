@@ -51,6 +51,20 @@ class WorkflowApproval(Base):
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     status = Column(String, default="pending") # pending, approved, rejected
 
+class DeployedStrategy(Base):
+    """A generator-VALIDATED strategy the user has chosen to run live/paper.
+    Signals from these are routed through the SAME gated execution path
+    (mandatory rules R1-R7 + risk manager) as every other trade."""
+    __tablename__ = "deployed_strategies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)              # e.g. "MACD 8/21/5 [1:1.0]"
+    symbol = Column(String, index=True)
+    params = Column(String)            # JSON of template params + exits
+    active = Column(Integer, default=1)  # 1=active, 0=paused
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class User(Base):
     __tablename__ = "users"
 

@@ -146,6 +146,9 @@ class EventDrivenBacktester:
                             pnl = (exit_price - pos["entry"]) * pos["qty"]
                         else:
                             pnl = (pos["entry"] - exit_price) * pos["qty"]
+                        # Net of round-trip costs (brokerage/STT/slippage ~0.1%
+                        # of notional) so results aren't gross fantasy.
+                        pnl -= pos["entry"] * pos["qty"] * 0.001
                         self.current_equity += pnl
                         wins += 1 if pnl > 0 else 0
                         losses += 1 if pnl <= 0 else 0

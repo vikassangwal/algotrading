@@ -66,10 +66,25 @@ def test_graceful_degradation_on_network_failure():
     # _get_json returns None (as it does on any real failure) -> all None, no crash.
     p = NSEProvider()
     p._get_json = lambda path: None
+    p._fetch_bhavcopy = lambda: None  # keep the bhavcopy fallback offline too
     assert p.get_fii_dii_activity() is None
     assert p.get_delivery_data("RELIANCE") is None
     assert p.get_block_deals() is None
     assert p.get_block_deal_sentiment("RELIANCE") is None
+
+
+def test_delivery_bhavcopy_fallback_offline():
+    # Primary API down -> bhavcopy table (stubbed) answers with source tag.
+    p = NSEProvider()
+    p._get_json = lambda path: None
+    p._fetch_bhavcopy = lambda: {
+        "RELIANCE": {"delivery_percentage": 55.95, "delivery_volume": 8745884.0,
+                      "traded_volume": 15631046.0, "date": "16-Jul-2026"},
+    }
+    d = p.get_delivery_data("RELIANCE")
+    assert d["delivery_percentage"] == 55.95
+    assert d["source"] == "nse_bhavcopy_eod"
+    assert p.get_delivery_data("TCS") is None  # not in table -> honest None
 
 
 def test_day_scoped_cache_avoids_refetch():
