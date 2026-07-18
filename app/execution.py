@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 from typing import List, Dict, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .config import config
 from .engine import FusedSignal
@@ -36,6 +36,8 @@ class TradeRecord:
     # Mandatory risk plan (R3): attached at entry — no naked positions, ever.
     stop_loss: float = 0.0
     target: float = 0.0
+    # Broker order id (live mode) — lets us VERIFY the order actually traded.
+    broker_order_id: str = ""
 
 class ExecutionEngine:
     def __init__(self, provider: DataProvider):
@@ -129,6 +131,7 @@ class ExecutionEngine:
 
         actual_allocation = qty * current_price
 
+        broker_order_id = ""
         # 1. LIVE Trading Logic (Dhan Broker) — gated behind explicit flag
         if not config.paper_mode:
             if not live_trading_enabled():
@@ -154,6 +157,7 @@ class ExecutionEngine:
                         logger.error("Dhan API rejected the live order or failed to return order_id.")
                         return False
 
+                    broker_order_id = str(order_id)
                     logger.info(f"LIVE TRADE EXECUTED on Dhan: {signal.action} {qty} {signal.symbol}. Order ID: {order_id}")
                 else:
                     logger.error("Dhan API is not initialized. Cannot execute LIVE trade.")
@@ -185,6 +189,7 @@ class ExecutionEngine:
             ],
             stop_loss=stops["stop_loss"],
             target=stops["target"],
+            broker_order_id=broker_order_id,
         )
 
         self.open_positions[signal.symbol] = trade

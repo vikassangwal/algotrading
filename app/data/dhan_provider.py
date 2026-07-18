@@ -154,6 +154,44 @@ class DhanRestClient:
             logger.error(f"Dhan order placement failed: {e}")
             return None
 
+    def get_order_status(self, order_id: str):
+        """Fetch REAL order status from Dhan (GET /v2/orders/{order-id}).
+
+        Returns {'order_id', 'status', 'filled_qty', 'avg_price', 'raw_status'}
+        or None if the lookup fails. Status is normalized to one of
+        CONFIRMED (traded), PENDING, REJECTED, CANCELLED, UNKNOWN.
+        """
+        try:
+            resp = requests.get(
+                f"{self.base_url}/orders/{order_id}", headers=self.headers, timeout=10
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Dhan order status HTTP {resp.status_code} for {order_id}")
+                return None
+            data = resp.json()
+            if isinstance(data, list):
+                data = data[0] if data else {}
+            raw = str(data.get("orderStatus", "")).upper()
+            normalized = {
+                "TRADED": "CONFIRMED",
+                "PART_TRADED": "PENDING",
+                "PENDING": "PENDING",
+                "TRANSIT": "PENDING",
+                "REJECTED": "REJECTED",
+                "CANCELLED": "CANCELLED",
+                "EXPIRED": "CANCELLED",
+            }.get(raw, "UNKNOWN")
+            return {
+                "order_id": str(order_id),
+                "status": normalized,
+                "raw_status": raw,
+                "filled_qty": data.get("filledQty") or data.get("filled_qty") or 0,
+                "avg_price": data.get("averageTradedPrice") or data.get("avg_price") or 0,
+            }
+        except Exception as e:
+            logger.warning(f"Dhan order status lookup failed for {order_id}: {e}")
+            return None
+
 class DhanProvider(DataProvider):
     def __init__(self):
         # We also keep a mock provider as fallback for things Dhan doesn't provide

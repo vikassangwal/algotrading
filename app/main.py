@@ -166,6 +166,9 @@ def _start_position_monitor():
     manual API call."""
     from .position_monitor import position_monitor
     position_monitor.start(engine, provider, execution_engine)
+    # Auto-trader thread idles until config.auto_trade == ACTIVE.
+    from .auto_trader import auto_trader
+    auto_trader.start(provider, execution_engine, risk_manager)
 
 # Register Modules
 engine.register_module(TechnicalModule(provider))
@@ -1341,6 +1344,48 @@ def get_full_analysis(symbol: str):
     block deals, fused 4-pillar signal, and the ATR trade plan (R3 math)."""
     from .modules.full_analysis import full_analysis
     return full_analysis(symbol, provider, engine)
+
+# --- AUTO-TRADER: automatic buy/sell from the validated book -----------------
+
+@app.post("/api/auto/start", dependencies=[Depends(verify_token)])
+def auto_start():
+    """Turn the auto-trader ON (paper mode unless the live double-gate is set).
+    It trades ONLY the deployed validated strategies, through rules R1-R7."""
+    from .auto_trader import auto_trader
+    config.auto_trade = AutoTradeState.ACTIVE
+    auto_trader.start(provider, execution_engine, risk_manager)
+    return {"auto_trade": "active", "mode": "PAPER" if config.paper_mode else "LIVE",
+            **auto_trader.status()}
+
+@app.post("/api/auto/stop", dependencies=[Depends(verify_token)])
+def auto_stop():
+    """Turn the auto-trader OFF. Open positions stay managed by the
+    position monitor (SL/target exits keep working)."""
+    config.auto_trade = AutoTradeState.OFF
+    from .auto_trader import auto_trader
+    return {"auto_trade": "off", **auto_trader.status()}
+
+@app.get("/api/auto/status", dependencies=[Depends(verify_token)])
+def auto_status():
+    """Auto-trader health: state, scans, and the recent buy/sell actions
+    WITH their verification results (did the trade actually happen?)."""
+    from .auto_trader import auto_trader
+    return auto_trader.status()
+
+@app.post("/api/auto/scan", dependencies=[Depends(verify_token)])
+def auto_scan_now():
+    """Run one auto-trader scan RIGHT NOW (works even when auto_trade is off —
+    useful to test what it would do). Executes + verifies like the loop."""
+    from .auto_trader import auto_trader
+    actions = auto_trader.scan_once(provider, execution_engine, risk_manager)
+    return {"actions": actions, "note": "Empty = no validated strategy fired a tradeable signal."}
+
+@app.get("/api/trades/verify", dependencies=[Depends(verify_token)])
+def verify_trades():
+    """VERIFY every open position: paper -> position+journal+DB checks;
+    live -> real Dhan order status. Evidence, never assumption."""
+    from .auto_trader import auto_trader
+    return auto_trader.verify_all(execution_engine)
 
 @app.get("/api/rules/status", dependencies=[Depends(verify_token)])
 def get_rules_status():
