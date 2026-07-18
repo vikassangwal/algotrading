@@ -1,6 +1,7 @@
 import uvicorn
 import asyncio
 import logging
+import time
 import pandas as pd
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Depends, status, WebSocket, WebSocketDisconnect
@@ -362,11 +363,41 @@ def get_history(symbol: str, interval: str = "15m", period: str = "60d"):
 def get_quote(symbol: str):
     """Latest real quote for live chart updates.
 
-    Pulls the real last price from yfinance. NOTE: NSE data via yfinance is
-    delayed (typically ~15 min), so `delayed: true` is returned — this is a
-    real price, not a live tick feed. Tick-level streaming requires a broker
-    WebSocket (e.g. Dhan) which is not wired here.
+    Speed-ordered honest chain: (1) live cache — Dhan tick or web-fallback
+    poll, ms-fast; (2) BSE website API ~300ms, few-sec delay; (3) yfinance
+    ~3s, ~15-min delay, labeled delayed:true.
     """
+    # Tier 1: live cache (Dhan ticks or BSE/NSE poller already running).
+    from .data.live_feed import live_cache
+    t1 = live_cache.get(symbol)
+    if t1 and t1.get("ltp") and time.time() - t1.get("time", 0) < 30:
+        return {
+            "symbol": symbol.upper(),
+            "time": int(t1.get("time", time.time())),
+            "price": round(float(t1["ltp"]), 2),
+            "prev_close": t1.get("prev_close"),
+            "change_pct": t1.get("change_pct", 0.0),
+            "delayed": bool(t1.get("delayed", False)),
+            "source": t1.get("source", "live_cache"),
+        }
+    # Tier 2: BSE website API (no creds, few-sec latency).
+    try:
+        from .data.bse_provider import bse_provider
+        q = bse_provider.get_quote(symbol)
+        if q:
+            return {
+                "symbol": symbol.upper(),
+                "time": int(q.get("time", time.time())),
+                "price": round(float(q["ltp"]), 2),
+                "prev_close": q.get("prev_close"),
+                "change_pct": q.get("change_pct", 0.0),
+                "delayed": False,
+                "source": "bse_web",
+                "latency_note": q.get("latency_note"),
+            }
+    except Exception:
+        pass
+    # Tier 3: yfinance (delayed ~15 min, honestly labeled).
     import yfinance as yf
     from .data.dhan_provider import _yf_symbol
     ticker_symbol = _yf_symbol(symbol)

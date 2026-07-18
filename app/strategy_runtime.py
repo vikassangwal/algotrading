@@ -151,15 +151,20 @@ def set_active(strategy_id: int, active: bool) -> bool:
         db.close()
 
 
-def evaluate_deployed(provider) -> list:
-    """Evaluate every ACTIVE deployed strategy on fresh candles.
+def evaluate_deployed(provider, symbol: str = "") -> list:
+    """Evaluate ACTIVE deployed strategies on fresh candles — all of them,
+    or only one symbol's when `symbol` is given (single-symbol callers like
+    full_analysis shouldn't pay for the whole book).
 
     Returns a list of {id, name, symbol, signal} — signal is BUY/SELL/None.
     Read-only: nothing here places an order.
     """
     results = []
     frames: dict = {}
+    want = symbol.upper().strip()
     for d in list_deployed(active_only=True):
+        if want and d["symbol"] != want:
+            continue
         fn = _signal_fn_from_params(d["params"])
         if fn is None:
             results.append({**d, "signal": None, "error": "invalid params"})

@@ -267,9 +267,7 @@ def full_analysis(symbol: str, provider, engine) -> Dict[str, Any]:
     result["base_strategy_signals"] = _base_strategy_signals(df)
     try:
         from ..strategy_runtime import evaluate_deployed
-        result["deployed_strategies"] = [
-            d for d in evaluate_deployed(provider) if d.get("symbol") == sym
-        ]
+        result["deployed_strategies"] = evaluate_deployed(provider, symbol=sym)
     except Exception as e:
         result["deployed_strategies"] = []
         logger.warning(f"Deployed evaluation failed: {e}")
