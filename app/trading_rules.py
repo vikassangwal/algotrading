@@ -174,6 +174,16 @@ def record_entry():
     """Called after a successful entry (any mode)."""
     _state.roll_day_if_needed(_now_ist())
     _state.trades_today += 1
+    _persist()
+
+
+def _persist():
+    """Rule state must survive restarts — a restart is not a rule reset."""
+    try:
+        from .state_store import persist_all
+        persist_all()
+    except Exception:  # persistence must never block trading logic
+        pass
 
 
 def record_exit(symbol: str, pnl: float, was_stop_loss: bool):
@@ -197,6 +207,7 @@ def record_exit(symbol: str, pnl: float, was_stop_loss: bool):
             )
         except Exception as e:
             logger.error(f"R7 halt trigger failed: {e}")
+    _persist()
 
 
 def rules_status() -> dict:

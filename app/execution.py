@@ -206,6 +206,13 @@ class ExecutionEngine:
 
         self.open_positions[signal.symbol] = trade
         self.journal.append(trade)
+        # Snapshot AFTER the position exists — a restart must restore it
+        # with its mandatory SL/target intact.
+        try:
+            from .state_store import persist_all
+            persist_all()
+        except Exception:
+            pass
         record_entry()  # feeds the max-trades/day brake (R5)
 
         # Derive analytics dimensions from the signal: the highest-|score|

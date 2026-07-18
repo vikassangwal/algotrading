@@ -164,6 +164,14 @@ def _start_position_monitor():
     """Mandatory-rules enforcement: the background monitor makes stop-losses
     fire automatically (30s sweeps in market hours) instead of waiting for a
     manual API call."""
+    # FIRST: restore persisted runtime state — rule counters, halt flag,
+    # daily P&L and open positions (with SL/target) survive restarts.
+    from . import state_store
+    state_store.register(execution_engine)
+    restored = state_store.restore_all()
+    if restored.get("positions"):
+        logging.getLogger("elco.boot").info(f"Startup restore: {restored}")
+
     from .position_monitor import position_monitor
     position_monitor.start(engine, provider, execution_engine)
     # Auto-trader thread idles until config.auto_trade == ACTIVE.
