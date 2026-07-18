@@ -45,7 +45,7 @@ const AuthViews = ({ setToken }) => {
           
         const headers = { 'Content-Type': 'application/json' };
 
-        const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}${endpoint}`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}${endpoint}`, {
           method: 'POST',
           headers: headers,
           body: body

@@ -2,6 +2,7 @@ import uvicorn
 import asyncio
 import logging
 import time
+from pathlib import Path
 import pandas as pd
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Query, Depends, status, WebSocket, WebSocketDisconnect
@@ -244,6 +245,15 @@ for _M in (CompanyModule, FinancialStatementModule, ValuationModule, CreditModul
 
 @app.get("/")
 def root():
+    """Serve the dashboard when built; JSON health otherwise."""
+    dist_index = Path(__file__).resolve().parent.parent / "frontend" / "dist" / "index.html"
+    if dist_index.is_file():
+        from fastapi.responses import FileResponse
+        return FileResponse(str(dist_index))
+    return {"status": "ok", "message": "ELCO API is running."}
+
+@app.get("/healthz")
+def healthz():
     return {"status": "ok", "message": "ELCO API is running."}
 
 
@@ -1725,6 +1735,32 @@ def get_institutional_flows(symbol: str = "RELIANCE"):
         "block_deal_sentiment": nse_provider.get_block_deal_sentiment(sym),
         "block_deals": sym_block,
     }
+
+
+# ---------------------------------------------------------------------------
+# Serve the built dashboard (frontend/dist) from THIS server — one port, one
+# process: http://<host>:8000/ is the whole app (API + UI). Same-origin, so
+# the frontend needs no VITE_API_URL. API routes are registered above and
+# always win; this mount only catches everything else.
+# ---------------------------------------------------------------------------
+_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    class _SPAStaticFiles(StaticFiles):
+        """Serve index.html for client-side routes (404 -> SPA fallback)."""
+        async def get_response(self, path, scope):
+            resp = await super().get_response(path, scope)
+            if resp.status_code == 404:
+                return await super().get_response("index.html", scope)
+            return resp
+
+    app.mount("/", _SPAStaticFiles(directory=str(_DIST), html=True), name="dashboard")
+    logging.getLogger("elco.boot").info(f"Dashboard mounted from {_DIST}")
+else:
+    logging.getLogger("elco.boot").warning(
+        "frontend/dist not found — run `npm run build` in frontend/ to serve the UI from :8000"
+    )
 
 
 if __name__ == "__main__":

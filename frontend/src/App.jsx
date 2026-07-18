@@ -31,7 +31,7 @@ import UltimateDashboard from './components/UltimateDashboard';
 import TradingPathways from './components/TradingPathways';
 import UniversalScreener from './components/UniversalScreener';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');

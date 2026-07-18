@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link2, CheckCircle, XCircle, Plug, Star } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Which brokers actually expose a public trading API today (honest labels).
 const BROKER_META = {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, ShieldAlert, Zap, TrendingUp, TrendingDown, Crosshair, Lock, PlayCircle, Eye, ShieldCheck, RefreshCw } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const UltimateDashboard = ({ token }) => {
   const [tradingMode, setTradingMode] = useState('Intraday');

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrainCircuit, AlertTriangle, CheckCircle, Target, Activity } from 'lucide-react';
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const CircleProgress = ({ value, label, color }) => {
   const data = [{ name: label, value: value, fill: color }];

@@ -4,7 +4,7 @@ import {
   Globe, Clock, ShieldAlert, BarChart2 
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const NewsRiskRadar = ({ token }) => {
   const [data, setData] = useState(null);

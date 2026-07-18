@@ -171,7 +171,7 @@ const StrategyLab = ({ token }) => {
     setIsOptimizing(true);
     setError(null);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/backtest/${symbol}?years=${years}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/backtest/${symbol}?years=${years}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       const data = await res.json();
