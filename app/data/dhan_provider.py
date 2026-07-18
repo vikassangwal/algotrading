@@ -405,7 +405,12 @@ class DhanProvider(DataProvider):
         return data
 
     def get_quant_data(self, symbol: str) -> dict:
-        return self.fallback.get_quant_data(symbol)
+        """HONESTY: no mock passthrough. The mock's hardcoded values
+        (xgboost_win_probability=0.75, bid_ask_imbalance, pair z-scores)
+        were inflating REAL analyses. Absent data must be absent — the
+        quant branches already skip None fields; the ML engine still gets
+        real candles via raw_data['df']."""
+        return {}
 
     def get_portfolio_data(self) -> dict:
         return self.fallback.get_portfolio_data()

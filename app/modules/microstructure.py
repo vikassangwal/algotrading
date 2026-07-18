@@ -1,109 +1,107 @@
+"""Market microstructure — HONEST version.
+
+The old engine fabricated a random L2 order book and fed fake
+"institutional walls" downstream. Real L2 depth needs a live depth feed
+(Dhan full-packet mode) which is not wired yet — so this module now returns
+ONLY what daily OHLCV can honestly support, each figure labeled as the
+model estimate it is:
+
+  * Bid-ask spread   — Corwin-Schultz (2012) high-low estimator, a
+                       published academic method for estimating spreads
+                       from OHLC data. An ESTIMATE, labeled as such.
+  * Liquidity        — real 20-day average turnover.
+  * Slippage         — square-root market-impact model (standard
+                       institutional pre-trade cost model) from real
+                       volatility + real participation rate.
+  * Order book / imbalance — available: False. Never simulated.
+"""
 import logging
+import math
+from typing import Any, Dict
+
 import numpy as np
-import pandas as pd
-from typing import Dict, Any, List
 
 logger = logging.getLogger("elco.module.microstructure")
 
+
 class MicrostructureEngine:
     def __init__(self, provider):
-        """
-        Market Microstructure Engine for Institutional Order Book Analysis.
-        Since Live L2 data might not be available, this uses simulated probabilistic L2 data
-        calibrated based on recent price action (volatility and volume).
-        """
         self.provider = provider
 
-    def analyze(self, symbol: str, current_price: float, current_volume: int = 10000) -> Dict[str, Any]:
-        """
-        Returns Market Depth, Liquidity, Slippage Estimation, and Bid-Ask Spread.
-        """
+    # -- estimators ----------------------------------------------------------
+
+    @staticmethod
+    def corwin_schultz_spread(high: np.ndarray, low: np.ndarray) -> float:
+        """Corwin-Schultz high-low spread estimator over recent bars.
+        Returns the estimated proportional spread (e.g. 0.0008 = 8 bps)."""
+        h, l = np.asarray(high, float), np.asarray(low, float)
+        n = min(len(h), len(l))
+        if n < 21:
+            return 0.0
+        h, l = h[-21:], l[-21:]
+        spreads = []
+        for i in range(1, len(h)):
+            if min(h[i - 1], h[i], l[i - 1], l[i]) <= 0:
+                continue
+            beta = (math.log(h[i - 1] / l[i - 1])) ** 2 + (math.log(h[i] / l[i])) ** 2
+            hh, ll = max(h[i - 1], h[i]), min(l[i - 1], l[i])
+            gamma = (math.log(hh / ll)) ** 2
+            denom = 3 - 2 * math.sqrt(2)
+            alpha = (math.sqrt(2 * beta) - math.sqrt(beta)) / denom - math.sqrt(gamma / denom)
+            s = 2 * (math.exp(alpha) - 1) / (1 + math.exp(alpha))
+            spreads.append(max(s, 0.0))
+        return float(np.mean(spreads)) if spreads else 0.0
+
+    @staticmethod
+    def sqrt_impact_bps(order_value: float, daily_turnover: float,
+                        daily_vol_pct: float) -> float:
+        """Square-root market-impact model: cost ≈ σ · sqrt(Q/V).
+        Standard institutional pre-trade estimate — a MODEL, not a quote."""
+        if daily_turnover <= 0 or order_value <= 0:
+            return 0.0
+        participation = order_value / daily_turnover
+        return round(daily_vol_pct * 100.0 * math.sqrt(participation), 2)  # bps
+
+    # -- public --------------------------------------------------------------
+
+    def analyze(self, symbol: str, current_price: float,
+                order_value: float = 100000.0) -> Dict[str, Any]:
+        """Honest microstructure estimates from real daily bars."""
         try:
-            # Generate simulated L2 Order Book
-            order_book = self._generate_simulated_order_book(current_price, current_volume)
-            
-            # Calculate Bid-Ask Spread
-            best_bid = order_book["bids"][0]["price"]
-            best_ask = order_book["asks"][0]["price"]
-            spread_abs = round(best_ask - best_bid, 4)
-            spread_pct = round((spread_abs / current_price) * 100, 4)
-            
-            # Analyze Liquidity (Sum of volume within 1% of current price)
-            bid_liquidity = sum([b["volume"] for b in order_book["bids"] if best_bid - b["price"] <= current_price * 0.01])
-            ask_liquidity = sum([a["volume"] for a in order_book["asks"] if a["price"] - best_ask <= current_price * 0.01])
-            total_liquidity = bid_liquidity + ask_liquidity
-            
-            # Slippage Estimation for a standard block order (e.g., 5000 shares)
-            simulated_order_size = 5000
-            estimated_slippage_bps = self._estimate_slippage(order_book["asks"], simulated_order_size, best_ask, current_price)
-            
-            # Order Flow Imbalance (Bid Vol vs Ask Vol)
-            total_bid_vol = sum([b["volume"] for b in order_book["bids"]])
-            total_ask_vol = sum([a["volume"] for a in order_book["asks"]])
-            imbalance = (total_bid_vol - total_ask_vol) / (total_bid_vol + total_ask_vol) if (total_bid_vol + total_ask_vol) > 0 else 0
-            
-            status = "STRONG" if imbalance > 0.15 else "WEAK" if imbalance < -0.15 else "NEUTRAL"
-            
+            candles = self.provider.get_candles(symbol, "1d", 40)
+            if not candles or len(candles) < 21:
+                return {"symbol": symbol, "available": False,
+                        "error": "not enough daily bars for estimates"}
+
+            high = np.array([c.high for c in candles], float)
+            low = np.array([c.low for c in candles], float)
+            close = np.array([c.close for c in candles], float)
+            volume = np.array([c.volume for c in candles], float)
+
+            spread = self.corwin_schultz_spread(high, low)
+            turnover = float((close[-20:] * volume[-20:]).mean())
+            rets = np.diff(np.log(close[-21:]))
+            daily_vol = float(np.std(rets))
+            impact_bps = self.sqrt_impact_bps(order_value, turnover, daily_vol)
+
             return {
                 "symbol": symbol,
-                "best_bid": best_bid,
-                "best_ask": best_ask,
-                "spread_abs": spread_abs,
-                "spread_pct": spread_pct,
-                "liquidity_profile": {
-                    "bid_depth_1pct": bid_liquidity,
-                    "ask_depth_1pct": ask_liquidity,
-                    "total_depth": total_liquidity,
-                },
-                "estimated_slippage_bps": estimated_slippage_bps,
-                "order_book_imbalance": round(imbalance, 3),
-                "microstructure_regime": status,
-                "simulated_l2": order_book
+                "estimated_spread_bps": round(spread * 1e4, 2),
+                "spread_method": "Corwin-Schultz high-low estimator (model, not L2 quote)",
+                "avg_daily_turnover": round(turnover, 0),
+                "turnover_cr": round(turnover / 1e7, 2),
+                "daily_volatility_pct": round(daily_vol * 100, 2),
+                "estimated_impact_bps": impact_bps,
+                "impact_model": f"square-root impact for a ₹{order_value:,.0f} order (model)",
+                "order_book": None,
+                "order_book_imbalance": None,
+                "l2_note": (
+                    "Real L2 depth/imbalance requires a live depth feed "
+                    "(Dhan full-packet mode) — reported as unavailable, "
+                    "never simulated."
+                ),
+                "available": True,
             }
         except Exception as e:
-            logger.error(f"Failed to analyze microstructure for {symbol}: {e}")
-            return {"error": str(e)}
-
-    def _generate_simulated_order_book(self, price: float, volume: int, levels: int = 10) -> Dict[str, List[Dict[str, float]]]:
-        bids = []
-        asks = []
-        
-        # Base spread 0.05%
-        spread = price * 0.0005
-        best_bid = price - (spread / 2)
-        best_ask = price + (spread / 2)
-        
-        base_vol = max(100, int(volume / 50))
-        
-        for i in range(levels):
-            # Bids go down
-            b_price = round(best_bid - (i * price * 0.001 * np.random.uniform(0.5, 1.5)), 2)
-            b_vol = int(base_vol * np.random.uniform(0.8, 2.5) * (1.1 ** i))
-            bids.append({"price": b_price, "volume": b_vol})
-            
-            # Asks go up
-            a_price = round(best_ask + (i * price * 0.001 * np.random.uniform(0.5, 1.5)), 2)
-            a_vol = int(base_vol * np.random.uniform(0.8, 2.5) * (1.1 ** i))
-            asks.append({"price": a_price, "volume": a_vol})
-            
-        return {"bids": bids, "asks": asks}
-
-    def _estimate_slippage(self, asks: List[Dict[str, float]], order_size: int, best_ask: float, current_price: float) -> float:
-        """Estimates slippage in basis points for a market buy order."""
-        remaining = order_size
-        total_cost = 0.0
-        
-        for ask in asks:
-            if remaining <= 0:
-                break
-            fill = min(remaining, ask["volume"])
-            total_cost += fill * ask["price"]
-            remaining -= fill
-            
-        if remaining > 0:
-            # If order book depletes, assume severe slippage for the rest (2% worse)
-            total_cost += remaining * (current_price * 1.02)
-            
-        avg_fill_price = total_cost / order_size
-        slippage_pct = (avg_fill_price - best_ask) / best_ask
-        return round(slippage_pct * 10000, 2) # Return in Basis Points (bps)
+            logger.error(f"Microstructure estimates failed for {symbol}: {e}")
+            return {"symbol": symbol, "available": False, "error": str(e)}

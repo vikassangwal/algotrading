@@ -1180,8 +1180,10 @@ def _get_screener():
 
 @app.get("/api/portfolio/heatmap", dependencies=[Depends(verify_token)])
 def get_portfolio_heatmap():
+    """REAL heatmap: open positions with actual P&L%, or a market view with
+    today's real changes when the book is flat. No random jitter, ever."""
     from .modules.portfolio_data import PortfolioDataEngine
-    return PortfolioDataEngine().get_heatmap_data()
+    return PortfolioDataEngine(execution_engine).get_heatmap_data()
 
 @app.get("/api/replay/{symbol}", dependencies=[Depends(verify_token)])
 def get_execution_replay(symbol: str, date: Optional[str] = None):
@@ -1432,6 +1434,32 @@ def get_rules_status():
     from .trading_rules import rules_status
     from .position_monitor import position_monitor
     return {"rules": rules_status(), "position_monitor": position_monitor.status()}
+
+@app.get("/api/analytics/quant", dependencies=[Depends(verify_token)])
+def get_quant_stats(symbols: str = ""):
+    """Institutional risk metrics: Sharpe/Sortino/Calmar/max-DD from REAL
+    closed trades (null with reason under 10 trades — never meaningless
+    numbers), Monte Carlo resampling of your actual trade sequence, and
+    correlation/beta/alpha vs NIFTY for ?symbols=TCS,INFY,... lists."""
+    from .modules.quant_stats import trade_stats, monte_carlo, correlation_and_beta
+    out = {"trade_stats": trade_stats(), "monte_carlo": monte_carlo()}
+    syms = [s for s in symbols.upper().split(",") if s.strip()]
+    if syms:
+        out["correlation_beta"] = correlation_and_beta(syms)
+    return out
+
+@app.get("/api/alerts/status", dependencies=[Depends(verify_token)])
+def get_alerts_status():
+    """Telegram alert channel health + recent sends (honest disabled state)."""
+    from . import alerts
+    return alerts.status()
+
+@app.post("/api/alerts/test", dependencies=[Depends(verify_token)])
+def send_test_alert():
+    """Send a test Telegram message to verify the channel works."""
+    from . import alerts
+    ok = alerts.send("✅ ELCO test alert — channel working.", kind="test")
+    return {"sent": ok, **alerts.status()}
 
 @app.get("/api/discipline", dependencies=[Depends(verify_token)])
 def get_discipline_report():

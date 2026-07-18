@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
@@ -203,6 +202,11 @@ class AutoTrader:
         if len(self.actions) > MAX_LOG:
             self.actions = self.actions[-MAX_LOG:]
         logger.info(f"AUTO-TRADE action: {action}")
+        try:
+            from .alerts import alert_trade
+            alert_trade(action)
+        except Exception:  # alerts must never break trading
+            pass
 
     def status(self) -> dict:
         from .config import config

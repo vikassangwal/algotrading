@@ -233,6 +233,11 @@ def auto_manage_positions(engine, provider, execution_engine) -> list:
             if ok:
                 actions.append({"symbol": symbol, "exit_price": ltp, "reason": reason})
                 logger.info(f"AUTO-EXIT {symbol} @ {ltp} ({reason})")
+                try:
+                    from .alerts import alert_exit
+                    alert_exit(symbol, ltp, reason)
+                except Exception:
+                    pass
 
     # Trailing-stop tightenings (D1/D2) mutate stop levels — snapshot them so
     # a restart never rolls a stop back to a looser level.

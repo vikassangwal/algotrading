@@ -1,169 +1,105 @@
-import yfinance as yf
 from typing import Dict, List, Any
-import datetime
 import logging
 
 logger = logging.getLogger("elco.options_data")
 
 class OptionsDataEngine:
+    """REAL options chain data from NSE's website API (option-chain-v3).
+
+    HONESTY CONTRACT: there is NO simulated fallback. If NSE is unreachable
+    the response says so — fabricated strikes/OI/IV would poison every
+    downstream number (PCR, max pain, OI build-up), so we never do it.
+    Index + equity derivatives both supported. Greeks are computed with
+    Black-Scholes from the REAL quoted IV.
     """
-    Engine to fetch live/historical Options Chain data.
-    Uses yfinance as the data source.
-    """
-    
+
+    _INDEX_SYMBOLS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50"}
+
+    def _chain_type(self, symbol: str) -> str:
+        return "Indices" if symbol.upper() in self._INDEX_SYMBOLS else "Equity"
+
     def get_expirations(self, symbol: str) -> List[str]:
-        """
-        Fetch available expiration dates for a symbol.
-        """
+        """REAL expiry dates from NSE contract info. [] when unavailable."""
         try:
-            # Map Indian indices for yfinance if needed, e.g., NIFTY -> ^NSEI
-            if symbol.upper() == "NIFTY":
-                symbol = "^NSEI"
-            elif symbol.upper() == "BANKNIFTY":
-                symbol = "^NSEBANK"
-            elif not symbol.endswith(".NS") and not symbol.startswith("^"):
-                # Default assume US symbol if no .NS for Indian testing
-                pass
-                
-            ticker = yf.Ticker(symbol)
-            exps = ticker.options
-            
-            if not exps:
-                # Fallback to simulated expirations if yf has no data
-                return self._generate_simulated_expirations()
-            return list(exps)
+            from ..data.nse_provider import nse_provider
+            info = nse_provider._get_json(
+                f"/api/option-chain-contract-info?symbol={symbol.upper()}"
+            )
+            return list((info or {}).get("expiryDates") or [])
         except Exception as e:
-            logger.warning(f"Failed to fetch expirations for {symbol}: {e}")
-            return self._generate_simulated_expirations()
+            logger.warning(f"Expiry fetch failed for {symbol}: {e}")
+            return []
 
-    def get_option_chain(self, symbol: str, date: str) -> Dict[str, Any]:
-        """
-        Fetch the full option chain (Calls and Puts) for a specific expiration date.
-        """
+    def get_option_chain(self, symbol: str, date: str = "") -> Dict[str, Any]:
+        """Full REAL chain for one expiry (nearest when date omitted):
+        per-strike CE/PE ltp, volume, OI, OI-change, IV + PCR + max pain."""
+        sym = symbol.upper().strip()
         try:
-            original_symbol = symbol
-            if symbol.upper() == "NIFTY":
-                symbol = "^NSEI"
-            elif symbol.upper() == "BANKNIFTY":
-                symbol = "^NSEBANK"
-                
-            ticker = yf.Ticker(symbol)
-            chain = ticker.option_chain(date)
-            
-            calls = chain.calls.to_dict(orient='records')
-            puts = chain.puts.to_dict(orient='records')
-            
-            # Format to a standard UI structure
-            formatted_calls = []
-            formatted_puts = []
-            strikes = set()
-            
-            for c in calls:
-                strikes.add(c['strike'])
-                formatted_calls.append({
-                    "strike": c['strike'],
-                    "ltp": c.get('lastPrice', 0),
-                    "volume": c.get('volume', 0) or 0,
-                    "oi": c.get('openInterest', 0) or 0,
-                    "iv": c.get('impliedVolatility', 0) or 0,
-                })
-                
-            for p in puts:
-                strikes.add(p['strike'])
-                formatted_puts.append({
-                    "strike": p['strike'],
-                    "ltp": p.get('lastPrice', 0),
-                    "volume": p.get('volume', 0) or 0,
-                    "oi": p.get('openInterest', 0) or 0,
-                    "iv": p.get('impliedVolatility', 0) or 0,
-                })
-                
-            # If empty (yfinance limitation for Indian stocks), fallback to synthetic
-            if not formatted_calls and not formatted_puts:
-                 return self._generate_simulated_chain(original_symbol, date)
+            from ..data.nse_provider import nse_provider
+            expiries = self.get_expirations(sym)
+            if not expiries:
+                return self._unavailable(sym, date, "NSE contract info unreachable")
+            expiry = date if date in expiries else expiries[0]
 
-            max_pain = 0
-            if formatted_calls and formatted_puts:
-                max_pain = self._calculate_max_pain(formatted_calls, formatted_puts, strikes)
+            d = nse_provider._get_json(
+                f"/api/option-chain-v3?type={self._chain_type(sym)}&symbol={sym}&expiry={expiry}"
+            )
+            rows = ((d or {}).get("records") or {}).get("data") or []
+            underlying = ((d or {}).get("records") or {}).get("underlyingValue") or 0
+            if not rows or not underlying:
+                return self._unavailable(sym, expiry, "NSE option chain returned no rows")
+
+            calls, puts, strikes = [], [], set()
+            for r in rows:
+                strike = float(r.get("strikePrice") or 0)
+                if not strike:
+                    continue
+                strikes.add(strike)
+                for side, bucket in (("CE", calls), ("PE", puts)):
+                    o = r.get(side)
+                    if not o:
+                        continue
+                    bucket.append({
+                        "strike": strike,
+                        "ltp": float(o.get("lastPrice") or 0),
+                        "volume": int(o.get("totalTradedVolume") or 0),
+                        "oi": int(o.get("openInterest") or 0),
+                        "oi_change": int(o.get("changeinOpenInterest") or 0),
+                        # NSE quotes IV in percent; Greeks math wants a fraction.
+                        "iv": round(float(o.get("impliedVolatility") or 0) / 100.0, 4),
+                    })
+
+            total_ce_oi = sum(c["oi"] for c in calls)
+            total_pe_oi = sum(p["oi"] for p in puts)
+            pcr = round(total_pe_oi / total_ce_oi, 2) if total_ce_oi else None
 
             return {
-                "symbol": original_symbol,
-                "expirationDate": date,
-                "underlyingPrice": ticker.fast_info.last_price,
-                "calls": self._enrich_with_greeks(formatted_calls, "call", ticker.fast_info.last_price),
-                "puts": self._enrich_with_greeks(formatted_puts, "put", ticker.fast_info.last_price),
-                "strikes": sorted(list(strikes)),
-                "max_pain": max_pain
+                "symbol": sym,
+                "expirationDate": expiry,
+                "expirations": expiries[:8],
+                "underlyingPrice": float(underlying),
+                "calls": self._enrich_with_greeks(calls, "call", float(underlying)),
+                "puts": self._enrich_with_greeks(puts, "put", float(underlying)),
+                "strikes": sorted(strikes),
+                "max_pain": self._calculate_max_pain(calls, puts, sorted(strikes)) if calls and puts else None,
+                "pcr": pcr,
+                "total_ce_oi": total_ce_oi,
+                "total_pe_oi": total_pe_oi,
+                "source": "nse_option_chain",
+                "available": True,
             }
         except Exception as e:
-            logger.warning(f"Failed to fetch option chain for {symbol} on {date}: {e}")
-            return self._generate_simulated_chain(symbol, date)
+            logger.warning(f"Option chain failed for {sym}: {e}")
+            return self._unavailable(sym, date, str(e))
 
-    def _generate_simulated_expirations(self) -> List[str]:
-        """Simulate next 4 weekly expirations."""
-        today = datetime.date.today()
-        # Find next Thursday (typical Indian expiry)
-        days_ahead = 3 - today.weekday()
-        if days_ahead <= 0: # Target next week if we've passed Thursday
-            days_ahead += 7
-        next_expiry = today + datetime.timedelta(days_ahead)
-        
-        exps = []
-        for i in range(4):
-            exps.append((next_expiry + datetime.timedelta(weeks=i)).strftime('%Y-%m-%d'))
-        return exps
-
-    def _generate_simulated_chain(self, symbol: str, date: str) -> Dict[str, Any]:
-        """Simulate realistic option chain data centered around a fake price."""
-        underlying = 23500.0 if symbol.upper() == "NIFTY" else 50000.0 if symbol.upper() == "BANKNIFTY" else 150.0
-        
-        strikes = []
-        calls = []
-        puts = []
-        
-        # Generate 10 strikes above and below ATM
-        step = 100 if underlying > 10000 else 5
-        atm_strike = round(underlying / step) * step
-        
-        import random
-        random.seed(symbol + date) # deterministic mock
-        
-        for i in range(-10, 11):
-            strike = atm_strike + (i * step)
-            strikes.append(strike)
-            
-            # Synthetic Call Pricing
-            c_ltp = max(0.5, (atm_strike - strike) * 0.5 + random.uniform(10, 50)) if i <= 0 else max(0.5, random.uniform(5, 40) - (i*2))
-            calls.append({
-                "strike": strike,
-                "ltp": round(c_ltp, 2),
-                "volume": random.randint(100, 50000),
-                "oi": random.randint(1000, 200000),
-                "iv": round(random.uniform(0.12, 0.25), 4)
-            })
-            
-            # Synthetic Put Pricing
-            p_ltp = max(0.5, (strike - atm_strike) * 0.5 + random.uniform(10, 50)) if i >= 0 else max(0.5, random.uniform(5, 40) + (i*2))
-            puts.append({
-                "strike": strike,
-                "ltp": round(p_ltp, 2),
-                "volume": random.randint(100, 50000),
-                "oi": random.randint(1000, 200000),
-                "iv": round(random.uniform(0.12, 0.25), 4)
-            })
-            
-        max_pain = 0
-        if calls and puts:
-            max_pain = self._calculate_max_pain(calls, puts, strikes)
-            
+    @staticmethod
+    def _unavailable(symbol: str, date: str, why: str) -> Dict[str, Any]:
+        """The honest empty response — never simulated numbers."""
         return {
-            "symbol": symbol,
-            "expirationDate": date,
-            "underlyingPrice": underlying,
-            "calls": self._enrich_with_greeks(calls, "call", underlying),
-            "puts": self._enrich_with_greeks(puts, "put", underlying),
-            "strikes": strikes,
-            "max_pain": max_pain
+            "symbol": symbol, "expirationDate": date, "available": False,
+            "calls": [], "puts": [], "strikes": [], "max_pain": None, "pcr": None,
+            "error": f"Real option data unavailable: {why}. "
+                     "Nothing is simulated — retry when NSE is reachable.",
         }
 
     def _enrich_with_greeks(self, options_list: List[Dict], opt_type: str, underlying: float) -> List[Dict]:

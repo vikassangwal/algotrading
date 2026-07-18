@@ -111,6 +111,11 @@ class RiskManager:
         """Halts all automated trading activities immediately and requests manual override."""
         config.auto_trade = AutoTradeState.HALTED
         logger.critical(f"SYSTEM HALTED. Reason: {reason}")
+        try:
+            from .alerts import alert_halt
+            alert_halt(reason)
+        except Exception:
+            pass
         
         # Create a Workflow Approval Request for manual override
         try:
