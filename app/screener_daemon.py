@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -22,7 +23,8 @@ logger = logging.getLogger("elco.screener_daemon")
 IST = timezone(timedelta(hours=5, minutes=30))
 RUN_AFTER_HHMM = (19, 7)          # bhavcopy is reliably up by then
 CHECK_INTERVAL_SEC = 600          # poll clock every 10 min
-RESULTS_PATH = Path(__file__).resolve().parent.parent / "screener_daily.json"
+_STATE_DIR = Path(os.getenv("ELCO_STATE_DIR", "")) if os.getenv("ELCO_STATE_DIR") else Path(__file__).resolve().parent.parent
+RESULTS_PATH = _STATE_DIR / "screener_daily.json"
 
 
 class ScreenerDaemon:

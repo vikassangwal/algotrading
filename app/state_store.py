@@ -26,7 +26,8 @@ from typing import Optional
 
 logger = logging.getLogger("elco.state")
 
-STATE_PATH = Path(__file__).resolve().parent.parent / "runtime_state.json"
+_STATE_DIR = Path(os.getenv("ELCO_STATE_DIR", "")) if os.getenv("ELCO_STATE_DIR") else Path(__file__).resolve().parent.parent
+STATE_PATH = _STATE_DIR / "runtime_state.json"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 _lock = threading.Lock()

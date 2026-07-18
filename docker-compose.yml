@@ -12,6 +12,9 @@ services:
       - elco_data:/app/data_store
     environment:
       - ELCO_DB_PATH=/app/data_store/elco.db
+      # Rule counters / halt flag / open positions / daemon results survive
+      # container restarts — same volume as the DB.
+      - ELCO_STATE_DIR=/app/data_store
 
   frontend:
     build: ./frontend

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -30,7 +31,8 @@ RUN_AFTER_HOUR = 10             # 10:00 IST
 CHECK_INTERVAL_SEC = 1800       # poll every 30 min
 HUNT_MAX = 5                    # symbols per weekend run
 MIN_WIN_RATE = 60.0
-STATE_PATH = Path(__file__).resolve().parent.parent / "hunt_daemon.json"
+_STATE_DIR = Path(os.getenv("ELCO_STATE_DIR", "")) if os.getenv("ELCO_STATE_DIR") else Path(__file__).resolve().parent.parent
+STATE_PATH = _STATE_DIR / "hunt_daemon.json"
 
 
 class HuntDaemon:
