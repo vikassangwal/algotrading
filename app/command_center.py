@@ -207,9 +207,11 @@ def auto_manage_positions(engine, provider, execution_engine) -> list:
             elif ltp <= target:
                 reason = "target"
 
-        # 2. D4 — live positions are INTRADAY product at the broker: square
-        # off ourselves at 15:15 instead of eating the broker's auto-square.
-        if reason is None and live_eod:
+        # 2. D4 — square off at 15:15 IST: ALL positions in live mode (they're
+        # INTRADAY product at the broker), and intraday-style positions even
+        # in paper mode (paper must mirror what live would do).
+        is_intraday_trade = getattr(trade, "timeframe", "") == "intraday"
+        if reason is None and (live_eod or (is_intraday_trade and _is_live_eod())):
             reason = "eod_squareoff"
 
         # 3. D3 — time stop: capital doesn't stay parked in going-nowhere trades.

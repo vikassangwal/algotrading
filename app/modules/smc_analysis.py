@@ -20,7 +20,7 @@ detection. Pretending to derive those from OHLCV would be fake analysis.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -66,9 +66,9 @@ def label_structure(swings: List[Dict]) -> List[Dict]:
     return labeled
 
 
-def detect_structure(df: pd.DataFrame) -> Dict[str, Any]:
+def detect_structure(df: pd.DataFrame, lookback: int = SWING_LOOKBACK) -> Dict[str, Any]:
     """Trend from recent swing labels + BOS/CHOCH off the latest close."""
-    swings = label_structure(find_swings(df))
+    swings = label_structure(find_swings(df, lookback=lookback))
     if len(swings) < 4:
         return {"trend": "UNDEFINED", "swings": [], "bos": None, "choch": None,
                 "note": "Not enough swings to define structure."}

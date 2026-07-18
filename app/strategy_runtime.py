@@ -81,13 +81,17 @@ def _signal_fn_from_params(params: dict) -> Optional[Callable]:
     return None
 
 
-def _candles_frame(provider, symbol: str) -> Optional[pd.DataFrame]:
+def _candles_frame(provider, symbol: str, timeframe: str = "1d") -> Optional[pd.DataFrame]:
+    """Bars on the strategy's own timeframe. Intraday note: the yfinance
+    fallback path is ~15min delayed — on 15m bars that means the last bar may
+    be one bar behind; the Dhan feed (when connected) is current."""
     try:
-        candles = provider.get_candles(symbol, timeframe="1d", count=260)
+        candles = provider.get_candles(symbol, timeframe=timeframe, count=400)
     except Exception as e:
         logger.warning(f"Candle fetch failed for {symbol}: {e}")
         return None
-    if not candles or len(candles) < _MIN_BARS:
+    min_bars = _MIN_BARS if timeframe == "1d" else 100
+    if not candles or len(candles) < min_bars:
         return None
     return pd.DataFrame({
         "open": [c.open for c in candles],
@@ -161,9 +165,10 @@ def evaluate_deployed(provider) -> list:
             results.append({**d, "signal": None, "error": "invalid params"})
             continue
         sym = d["symbol"]
-        if sym not in frames:
-            frames[sym] = _candles_frame(provider, sym)
-        df = frames[sym]
+        tf = d["params"].get("timeframe", "1d")
+        if (sym, tf) not in frames:
+            frames[(sym, tf)] = _candles_frame(provider, sym, timeframe=tf)
+        df = frames[(sym, tf)]
         if df is None:
             results.append({**d, "signal": None, "error": "insufficient candles"})
             continue
@@ -189,7 +194,8 @@ def execute_deployed(provider, execution_engine, risk_manager, strategy_id: int)
         return {"executed": False, "reason": "strategy not found or inactive"}
 
     fn = _signal_fn_from_params(target["params"])
-    df = _candles_frame(provider, target["symbol"])
+    tf = target["params"].get("timeframe", "1d")
+    df = _candles_frame(provider, target["symbol"], timeframe=tf)
     if fn is None or df is None:
         return {"executed": False, "reason": "cannot evaluate (params/candles)"}
 
@@ -210,12 +216,13 @@ def execute_deployed(provider, execution_engine, risk_manager, strategy_id: int)
             ),
         }
 
+    style = TradingStyle.INTRADAY if tf != "1d" else TradingStyle.SWING
     signal = FusedSignal(
         symbol=target["symbol"],
         overall_score=1.0 if side == "BUY" else -1.0,
         overall_confidence=0.75,  # deployed strategies size conservatively
-        style=TradingStyle.SWING,
-        reasons=[f"Deployed strategy '{target['name']}' fired {side}"],
+        style=style,
+        reasons=[f"Deployed strategy '{target['name']}' fired {side} on {tf} bars"],
     )
     allocation = risk_manager.calculate_position_size(signal)
     if allocation <= 0:

@@ -53,6 +53,39 @@ def load_history(symbol: str, years: int = 2, source: str = "mock",
     return (mock_df, "mock") if return_source else mock_df
 
 
+def load_intraday_history(symbol: str, interval: str = "15m", days: int = 60,
+                          return_source: bool = False):
+    """Real INTRADAY bars from yfinance (oldest first). NSE intraday history
+    only goes back ~60 days for 15m (30 for 5m), so `days` is capped.
+
+    There is deliberately NO mock fallback here: validating an intraday
+    strategy on synthetic bars would be self-deception. On failure this
+    raises ValueError so callers must handle the honest 'no data' case.
+    """
+    interval = interval if interval in ("5m", "15m", "30m", "60m") else "15m"
+    max_days = {"5m": 30, "15m": 60, "30m": 60, "60m": 240}[interval]
+    days = max(5, min(days, max_days))
+    try:
+        import yfinance as yf
+        ticker = symbol if "." in symbol else f"{symbol}.NS"
+        df = yf.download(ticker, period=f"{days}d", interval=interval,
+                         progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            raise ValueError(f"yfinance returned no {interval} data for {symbol}")
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df = df.rename(columns=str.lower)[["open", "high", "low", "close", "volume"]]
+        df = df.dropna().reset_index(drop=True)
+        if len(df) < 300:
+            raise ValueError(f"Only {len(df)} {interval} bars for {symbol} — too few to validate")
+        logger.info(f"Loaded {len(df)} real {interval} bars for {symbol}.")
+        return (df, "real") if return_source else df
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Intraday fetch failed for {symbol}: {e}")
+
+
 def _mock_history(symbol: str, years: int) -> pd.DataFrame:
     """Deterministic seeded random walk with mild trend + noise."""
     n = max(WARMUP_BARS + 60, years * 252)

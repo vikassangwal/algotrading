@@ -764,20 +764,26 @@ class HuntRequest(BaseModel):
     symbols: List[str]
     min_win_rate: float = 60.0
     years: int = 4
+    interval: str = "1d"  # "1d" (daily) or "15m"/"5m"/"30m"/"60m" (INTRADAY)
 
 @app.post("/api/strategies/hunt", dependencies=[Depends(verify_token)])
 def hunt_strategies(req: HuntRequest):
     """Scan a universe for strategies validated at min_win_rate on unseen data
     (net of costs). SLOW (~60s/symbol) — max 5 symbols per call; run multiple
     calls for a bigger universe. The honest way to a 60%+ book: trade only
-    where 60%+ has been demonstrated out-of-sample, skip the rest."""
+    where 60%+ has been demonstrated out-of-sample, skip the rest.
+
+    interval="15m" hunts INTRADAY strategies (real ~60-day 15m history, no
+    mock fallback). Intraday deployments auto square-off at 15:15 IST (D4)."""
     from .modules.strategy_generator import hunt_validated
     if not req.symbols:
         raise HTTPException(status_code=400, detail="Provide at least 1 symbol.")
+    interval = req.interval if req.interval in ("1d", "5m", "15m", "30m", "60m") else "1d"
     return hunt_validated(
         req.symbols[:5],
         min_win_rate=max(0.0, min(req.min_win_rate, 90.0)),
         years=max(2, min(req.years, 10)),
+        interval=interval,
     )
 
 @app.get("/api/strategies/rank/{symbol}", dependencies=[Depends(verify_token)])

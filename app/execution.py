@@ -41,6 +41,9 @@ class TradeRecord:
     # Exit discipline (D1/D2): original 1R distance + best price seen so far.
     initial_risk: float = 0.0
     peak_price: float = 0.0
+    # Trading style ('intraday'/'swing'/...) — intraday positions get the D4
+    # EOD square-off even in paper mode (paper must mirror live behavior).
+    timeframe: str = ""
 
 class ExecutionEngine:
     def __init__(self, provider: DataProvider):
@@ -198,6 +201,7 @@ class ExecutionEngine:
             broker_order_id=broker_order_id,
             initial_risk=round(abs(current_price - stops["stop_loss"]), 2),
             peak_price=current_price,
+            timeframe=getattr(getattr(signal, "style", None), "value", "") or "",
         )
 
         self.open_positions[signal.symbol] = trade

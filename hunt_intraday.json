@@ -1,0 +1,86 @@
+{
+ "interval": "15m",
+ "min_win_rate": 60.0,
+ "symbols_scanned": 5,
+ "symbols_with_edge": 1,
+ "book": [
+  {
+   "symbol": "SBIN",
+   "name": "RSI(14) Reversion 25/75 [1:1.0]",
+   "params": {
+    "template": "rsi_reversion",
+    "period": 14,
+    "oversold": 25,
+    "overbought": 75,
+    "sl_atr": 2.0,
+    "target_atr": 2.0,
+    "timeframe": "15m"
+   },
+   "train": {
+    "trades": 25,
+    "win_rate_pct": 68.0,
+    "profit_factor": 1.57,
+    "expectancy_r": 0.212,
+    "max_drawdown_pct": 2.41
+   },
+   "test": {
+    "trades": 11,
+    "win_rate_pct": 63.6,
+    "profit_factor": 1.23,
+    "expectancy_r": 0.1,
+    "max_drawdown_pct": 2.4
+   },
+   "status": "VALIDATED"
+  }
+ ],
+ "per_symbol": {
+  "SBIN": [
+   {
+    "name": "RSI(14) Reversion 25/75 [1:1.0]",
+    "params": {
+     "template": "rsi_reversion",
+     "period": 14,
+     "oversold": 25,
+     "overbought": 75,
+     "sl_atr": 2.0,
+     "target_atr": 2.0,
+     "timeframe": "15m"
+    },
+    "train": {
+     "trades": 25,
+     "win_rate_pct": 68.0,
+     "profit_factor": 1.57,
+     "expectancy_r": 0.212,
+     "max_drawdown_pct": 2.41
+    },
+    "test": {
+     "trades": 11,
+     "win_rate_pct": 63.6,
+     "profit_factor": 1.23,
+     "expectancy_r": 0.1,
+     "max_drawdown_pct": 2.4
+    },
+    "status": "VALIDATED"
+   }
+  ]
+ },
+ "no_edge": [
+  {
+   "symbol": "RELIANCE",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "TCS",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "ITC",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "HDFCBANK",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  }
+ ],
+ "note": "The book contains ONLY strategy-symbol pairs that held 60.0%+ win rate on held-out test data net of costs. Symbols under no_edge should simply not be traded with these strategies \u2014 skipping them IS how the system's realized accuracy stays high."
+}

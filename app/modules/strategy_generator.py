@@ -113,7 +113,7 @@ def _make_bos_follow(swing_lookback: int):
         if len(df) < 60:
             return None
         from .smc_analysis import detect_structure
-        s = detect_structure(df.iloc[-120:].reset_index(drop=True))
+        s = detect_structure(df.iloc[-120:].reset_index(drop=True), lookback=swing_lookback)
         bos = s.get("bos")
         if bos and bos["direction"] == "BULLISH":
             return "BUY"
@@ -344,36 +344,46 @@ def generate_strategies(df: pd.DataFrame, top_n: int = 10,
 
 
 def hunt_validated(symbols: list, min_win_rate: float = 60.0, years: int = 4,
-                   top_n: int = 3, source: str = "real") -> dict:
+                   top_n: int = 3, source: str = "real",
+                   interval: str = "1d") -> dict:
     """Scan a universe for strategies that validated at min_win_rate on BOTH
     splits — the honest way to build a '60%+ accuracy' book: trade ONLY where
     that accuracy has been demonstrated out-of-sample, skip everything else.
 
+    interval="15m"/"5m" hunts INTRADAY strategies on real intraday history
+    (~60 days for 15m — less history than daily, so treat intraday validation
+    as weaker evidence; there is no mock fallback for intraday).
+
     Returns per-symbol validated lists + a flat 'book' ready to deploy.
     Symbols where nothing validates are reported honestly in 'no_edge'.
     """
-    from ..backtester import load_history
+    from ..backtester import load_history, load_intraday_history
 
     book, per_symbol, no_edge = [], {}, []
     for sym in symbols:
         sym = sym.upper().strip()
         try:
-            df, actual = load_history(sym, years=years, source=source, return_source=True)
-            if source == "real" and actual != "real":
-                no_edge.append({"symbol": sym, "reason": "real data unavailable — skipped (never hunt on mock)"})
-                continue
+            if interval == "1d":
+                df, actual = load_history(sym, years=years, source=source, return_source=True)
+                if source == "real" and actual != "real":
+                    no_edge.append({"symbol": sym, "reason": "real data unavailable — skipped (never hunt on mock)"})
+                    continue
+            else:
+                df = load_intraday_history(sym, interval=interval)
             r = generate_strategies(df, top_n=top_n, min_win_rate=min_win_rate)
         except Exception as e:
             no_edge.append({"symbol": sym, "reason": f"scan failed: {e}"})
             continue
         if r["validated"]:
-            per_symbol[sym] = r["validated"]
             for v in r["validated"]:
+                v["params"]["timeframe"] = interval   # deploy carries the bar size
                 book.append({"symbol": sym, **v})
+            per_symbol[sym] = r["validated"]
         else:
             no_edge.append({"symbol": sym, "reason": f"nothing validated at {min_win_rate}%+ on unseen data"})
 
     return {
+        "interval": interval,
         "min_win_rate": min_win_rate,
         "symbols_scanned": len(symbols),
         "symbols_with_edge": len(per_symbol),
