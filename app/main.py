@@ -185,6 +185,16 @@ def _start_position_monitor():
     # auto-deploy of whatever passes the 60%+ gate.
     from .hunt_daemon import hunt_daemon
     hunt_daemon.start()
+    # Live-price fallback poller: pre-subscribe the deployed book + indices
+    # so Monday's quotes are warm without waiting for a chart to open.
+    try:
+        from .data.live_feed import fallback_poller
+        from .strategy_runtime import list_deployed
+        book_syms = sorted({d["symbol"] for d in list_deployed(active_only=True)})
+        fallback_poller.subscribe(book_syms + ["NIFTY", "BANKNIFTY"])
+        fallback_poller.ensure_running()
+    except Exception as e:
+        logging.getLogger("elco.boot").warning(f"Fallback poller pre-subscribe failed: {e}")
 
 # Register Modules
 engine.register_module(TechnicalModule(provider))
