@@ -42,3 +42,4 @@ app/data/dhan_api/__pycache__/
 compliance.log
 runtime_state.json
 screener_daily.json
+hunt_daemon.json

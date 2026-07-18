@@ -181,6 +181,10 @@ def _start_position_monitor():
     # Daily full-market auto-screener (runs post-bhavcopy, ~19:07 IST).
     from .screener_daemon import screener_daemon
     screener_daemon.start()
+    # Weekend auto-hunt: screener top picks -> out-of-sample validation ->
+    # auto-deploy of whatever passes the 60%+ gate.
+    from .hunt_daemon import hunt_daemon
+    hunt_daemon.start()
 
 # Register Modules
 engine.register_module(TechnicalModule(provider))
@@ -1359,6 +1363,23 @@ def auto_screener_run_now():
     """Force the daily scan RIGHT NOW (2-3 min) — same save + alert path."""
     from .screener_daemon import screener_daemon
     return screener_daemon.run_scan()
+
+@app.get("/api/hunt/auto/status", dependencies=[Depends(verify_token)])
+def auto_hunt_status():
+    """Weekend auto-hunt health + last run: which screener picks were
+    hunted, what validated (auto-deployed) and what had no edge."""
+    from .hunt_daemon import hunt_daemon
+    return hunt_daemon.status()
+
+@app.post("/api/hunt/auto/run", dependencies=[Depends(verify_token)])
+def auto_hunt_run_now(symbols: str = ""):
+    """Force the auto-hunt NOW (~1-2 min per symbol). Default: top fresh
+    screener picks; or pass ?symbols=TITAN,OFSS for explicit names."""
+    from .hunt_daemon import hunt_daemon
+    if hunt_daemon.running_now:
+        return {"ok": False, "reason": "a hunt is already running"}
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()][:5] or None
+    return hunt_daemon.run_hunt(syms)
 
 @app.get("/api/screener/best", dependencies=[Depends(verify_token)])
 def screen_best_stocks(top_n: int = 10):

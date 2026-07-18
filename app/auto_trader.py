@@ -110,10 +110,49 @@ class AutoTrader:
             }
             if result.get("executed"):
                 action["verification"] = self.verify_trade(sym, execution_engine)
+                action["options_piggyback"] = self._options_piggyback(sym, d.get("signal"))
             taken.append(action)
             self._log(action)
 
         return taken
+
+    @staticmethod
+    def _options_piggyback(symbol: str, side: Optional[str]) -> dict:
+        """When an equity signal executes, mirror it with a small PAPER
+        option position at the REAL chain LTP: BUY -> ATM CE, SELL -> ATM PE.
+        Premium capped tighter than manual trades (0.5% of capital). Fails
+        soft: no chain (non-F&O stock / NSE down) = no option trade, stated."""
+        if side not in ("BUY", "SELL"):
+            return {"attempted": False, "reason": "no directional side"}
+        try:
+            from .config import config
+            from .options_trader import _chain, _find_ltp, open_trade
+
+            chain = _chain(symbol)
+            if not chain.get("available"):
+                return {"attempted": False,
+                        "reason": "no option chain for this symbol (not F&O or NSE unreachable)"}
+            spot = float(chain.get("underlyingPrice") or 0)
+            strikes = chain.get("strikes") or []
+            if not spot or not strikes:
+                return {"attempted": False, "reason": "chain missing spot/strikes"}
+            atm = min(strikes, key=lambda s: abs(s - spot))
+            opt_type = "CE" if side == "BUY" else "PE"
+            ltp = _find_ltp(chain, atm, opt_type)
+            if not ltp:
+                return {"attempted": False, "reason": f"no LTP at ATM {atm} {opt_type}"}
+            budget = config.capital * 0.005  # 0.5% — piggyback stays small
+            qty = int(budget // ltp)
+            if qty < 1:
+                return {"attempted": False,
+                        "reason": f"premium ₹{ltp} exceeds piggyback budget ₹{budget:,.0f}"}
+            r = open_trade(symbol, atm, opt_type, qty, chain.get("expirationDate", ""))
+            return {"attempted": True, "ok": r.get("ok", False),
+                    "detail": r if r.get("ok") else r.get("reason"),
+                    "mode": "PAPER"}
+        except Exception as e:
+            logger.warning(f"Options piggyback failed for {symbol}: {e}")
+            return {"attempted": True, "ok": False, "detail": str(e)[:100]}
 
     # -- verification ------------------------------------------------------------
 

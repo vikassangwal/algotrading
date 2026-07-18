@@ -142,3 +142,77 @@ def test_rules_still_gate_auto_trades():
     assert len(actions) == 1
     assert actions[0]["executed"] is False
     assert "RELIANCE" not in ee.open_positions
+
+
+# --- Auto-hunt daemon + options piggyback ------------------------------------
+
+def test_hunt_daemon_weekend_gate(monkeypatch, tmp_path):
+    from app import hunt_daemon as HD
+    from datetime import datetime
+
+    monkeypatch.setattr(HD, "STATE_PATH", tmp_path / "hunt.json")
+    d = HD.HuntDaemon()
+
+    class Wednesday:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 7, 15, 12, 0, tzinfo=HD.IST)
+    monkeypatch.setattr(HD, "datetime", Wednesday)
+    assert d._should_run() is False  # weekday
+
+    class SaturdayNoon:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 7, 18, 12, 0, tzinfo=HD.IST)
+    monkeypatch.setattr(HD, "datetime", SaturdayNoon)
+    assert d._should_run() is True
+    (tmp_path / "hunt.json").write_text('{"weekend": "2026-07-18"}', encoding="utf-8")
+    assert d._should_run() is False  # once per weekend
+
+
+def test_hunt_daemon_deploys_validated(monkeypatch, tmp_path):
+    from unittest.mock import patch
+    from app import hunt_daemon as HD
+
+    monkeypatch.setattr(HD, "STATE_PATH", tmp_path / "hunt.json")
+    d = HD.HuntDaemon()
+    fake_hunt = {
+        "book": [{"symbol": "TITAN", "name": "EMA X",
+                  "params": {"template": "ema_cross", "fast": 10, "slow": 20,
+                             "sl_atr": 1.5, "target_atr": 1.5},
+                  "test": {"win_rate_pct": 70.0, "profit_factor": 2.0, "trades": 8}}],
+        "no_edge": [{"symbol": "NTPC", "reason": "nothing validated"}],
+    }
+    with patch("app.modules.strategy_generator.hunt_validated", return_value=fake_hunt), \
+         patch("app.strategy_runtime.deploy", return_value={"id": 99}) as dep:
+        out = d.run_hunt(["TITAN", "NTPC"])
+    assert dep.called
+    assert out["result"]["deployed"][0]["symbol"] == "TITAN"
+    assert out["result"]["no_edge"][0]["symbol"] == "NTPC"
+
+
+def test_options_piggyback_buy_becomes_atm_ce():
+    from unittest.mock import patch
+    from app.auto_trader import AutoTrader
+
+    fake_chain = {"available": True, "underlyingPrice": 24334.0,
+                  "strikes": [24300.0, 24350.0, 24400.0],
+                  "expirationDate": "21-Jul-2026",
+                  "calls": [{"strike": 24350.0, "ltp": 115.0}],
+                  "puts": [{"strike": 24350.0, "ltp": 110.0}]}
+    with patch("app.options_trader._chain", return_value=fake_chain), \
+         patch("app.options_trader.open_trade",
+               return_value={"ok": True, "id": 7, "entry_ltp": 115.0}) as ot:
+        r = AutoTrader._options_piggyback("NIFTY", "BUY")
+    assert r["attempted"] and r["ok"]
+    args = ot.call_args[0]
+    assert args[1] == 24350.0 and args[2] == "CE"   # ATM call for a BUY
+
+
+def test_options_piggyback_no_chain_fails_soft():
+    from unittest.mock import patch
+    from app.auto_trader import AutoTrader
+    with patch("app.options_trader._chain", return_value={"available": False}):
+        r = AutoTrader._options_piggyback("SOMESMALLCAP", "BUY")
+    assert r["attempted"] is False
+    assert "option chain" in r["reason"]
