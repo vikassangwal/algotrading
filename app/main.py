@@ -1435,6 +1435,51 @@ def get_rules_status():
     from .position_monitor import position_monitor
     return {"rules": rules_status(), "position_monitor": position_monitor.status()}
 
+# --- Options PAPER trading (real chain prices; live F&O deliberately absent) --
+
+class OptionTradeRequest(BaseModel):
+    underlying: str
+    strike: float
+    opt_type: str      # CE / PE
+    qty: int
+    expiry: str = ""   # default: nearest
+
+@app.post("/api/options/paper/trade", dependencies=[Depends(verify_token)])
+def open_option_paper_trade(req: OptionTradeRequest):
+    """Open a PAPER long CE/PE at the REAL NSE quoted LTP. BUY-only (selling
+    has unlimited-loss tails paper can't honestly simulate); premium capped
+    at 2% of capital; max 3 open option positions; R1 halt applies."""
+    from .options_trader import open_trade
+    return open_trade(req.underlying, req.strike, req.opt_type, req.qty, req.expiry)
+
+@app.get("/api/options/paper/positions", dependencies=[Depends(verify_token)])
+def get_option_paper_positions():
+    """Open PAPER option positions re-priced at the current real chain LTP."""
+    from .options_trader import positions
+    return positions()
+
+@app.post("/api/options/paper/{trade_id}/close", dependencies=[Depends(verify_token)])
+def close_option_paper_trade(trade_id: int):
+    """Close a PAPER option position at the current real LTP."""
+    from .options_trader import close_trade
+    return close_trade(trade_id)
+
+@app.get("/api/pairs/scan", dependencies=[Depends(verify_token)])
+def scan_pairs_endpoint(sectors: str = ""):
+    """Stat-arb pairs scanner: correlated same-sector pairs + spread z-scores.
+    SIGNALS ONLY (no auto-execution — overnight cash shorting isn't possible;
+    stated in the response). ~30-60s."""
+    from .modules.pairs_scanner import scan_pairs
+    secs = [s.strip() for s in sectors.split(",") if s.strip()] or None
+    return scan_pairs(secs)
+
+@app.get("/api/macro/assets", dependencies=[Depends(verify_token)])
+def get_macro_assets():
+    """Gold/Silver/Crude/USDINR/BTC/ETH real snapshot + NIFTY correlations.
+    Analysis only — no multi-asset execution (honestly absent)."""
+    from .modules.macro_assets import macro_watch
+    return macro_watch()
+
 @app.get("/api/analytics/quant", dependencies=[Depends(verify_token)])
 def get_quant_stats(symbols: str = ""):
     """Institutional risk metrics: Sharpe/Sortino/Calmar/max-DD from REAL

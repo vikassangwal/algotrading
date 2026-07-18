@@ -51,6 +51,27 @@ class WorkflowApproval(Base):
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     status = Column(String, default="pending") # pending, approved, rejected
 
+class OptionsPaperTrade(Base):
+    """PAPER options positions priced off the REAL NSE option chain.
+    Live options execution is deliberately absent — cash-equity live comes
+    first, and only after the readiness scorecard says READY."""
+    __tablename__ = "options_paper_trades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    underlying = Column(String, index=True)   # NIFTY / RELIANCE / ...
+    strike = Column(Float)
+    opt_type = Column(String)                 # CE / PE
+    expiry = Column(String)                   # as NSE returns it (21-Jul-2026)
+    qty = Column(Integer)                     # units (not lots)
+    entry_ltp = Column(Float)
+    exit_ltp = Column(Float, default=0.0)
+    status = Column(String, default="OPEN")   # OPEN / CLOSED
+    pnl = Column(Float, default=0.0)
+    opened_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    closed_at = Column(DateTime, nullable=True)
+    note = Column(String, default="")
+
+
 class DeployedStrategy(Base):
     """A generator-VALIDATED strategy the user has chosen to run live/paper.
     Signals from these are routed through the SAME gated execution path
