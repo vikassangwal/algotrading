@@ -1293,6 +1293,46 @@ def check_dynamic_exits():
     return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
 
 
+@app.get("/api/setup/{symbol}", dependencies=[Depends(verify_token)])
+def get_trade_setup(symbol: str):
+    """CONFLUENCE TRADE SETUP — every analysis votes (validated strategies,
+    market structure, BOS/CHOCH, indicator consensus, fused signal,
+    premium/discount, liquidity sweeps, FII/DII, delivery %, ADX).
+    Clear margin required or the verdict is NO_TRADE with the reason."""
+    from .modules.confluence import build_trade_setup
+    return build_trade_setup(symbol, provider, engine)
+
+@app.post("/api/setup/{symbol}/execute", dependencies=[Depends(verify_token)])
+def execute_trade_setup(symbol: str):
+    """Execute the confluence setup IF it says BUY/SELL — through the same
+    gated chain as everything else (Kelly sizing → rules R1-R7 → paper/live
+    double gate). NO_TRADE setups refuse to execute."""
+    from .modules.confluence import build_trade_setup
+    setup = build_trade_setup(symbol, provider, engine)
+    if setup.get("verdict") not in ("BUY", "SELL"):
+        return {"executed": False, "reason": setup.get("reason", "no setup"), "setup": setup}
+
+    conf = setup["confluence"]
+    total = conf["bull_points"] + conf["bear_points"]
+    signal = FusedSignal(
+        symbol=setup["symbol"],
+        overall_score=1.0 if setup["verdict"] == "BUY" else -1.0,
+        overall_confidence=min(0.9, 0.5 + conf["margin"] / (2.0 * max(total, 1))),
+        style=TradingStyle.SWING,
+        reasons=[f"Confluence setup: {f['name']} ({f['direction']})"
+                 for f in conf["factors"][:5]],
+    )
+    allocation = risk_manager.calculate_position_size(signal)
+    if allocation <= 0:
+        return {"executed": False, "reason": "risk manager rejected sizing", "setup": setup}
+    ok = execution_engine.execute_signal(signal, allocation)
+    return {
+        "executed": bool(ok),
+        "allocation": round(allocation, 2) if ok else 0,
+        "reason": "executed through gated chain" if ok else "blocked by mandatory rules/gates",
+        "setup": setup,
+    }
+
 @app.get("/api/analysis/full/{symbol}", dependencies=[Depends(verify_token)])
 def get_full_analysis(symbol: str):
     """FULL analysis for any symbol (e.g. ITC): 11 indicators with readings,
