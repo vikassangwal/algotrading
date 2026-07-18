@@ -1311,6 +1311,20 @@ def screen_best_stocks(top_n: int = 10):
     from .modules.stock_ranker import rank_universe
     return rank_universe(top_n=max(1, min(top_n, 25)))
 
+@app.get("/api/screener/market", dependencies=[Depends(verify_token)])
+def screen_full_market(top_n: int = 15, max_symbols: int = 300,
+                       min_turnover_cr: float = 5.0):
+    """FULL-MARKET scan: EVERY NSE stock from today's bhavcopy (~2000
+    symbols), liquidity-gated (default ₹5cr/day), top-N by turnover scored
+    in chunks. BSE-only listings counted but excluded (micro-caps below any
+    tradeable liquidity). SLOW: ~1-2 min for 300 symbols."""
+    from .modules.stock_ranker import market_scan
+    return market_scan(
+        top_n=max(1, min(top_n, 50)),
+        max_symbols=max(50, min(max_symbols, 600)),
+        min_turnover_cr=max(0.5, min(min_turnover_cr, 100.0)),
+    )
+
 @app.get("/api/setup/{symbol}", dependencies=[Depends(verify_token)])
 def get_trade_setup(symbol: str):
     """CONFLUENCE TRADE SETUP — every analysis votes (validated strategies,

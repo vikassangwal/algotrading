@@ -1,0 +1,567 @@
+{
+ "nse_total_symbols": 2380,
+ "bse_only_symbols_count": 0,
+ "liquid_universe_size": 300,
+ "scored": 282,
+ "skipped_count": 18,
+ "best_long": [
+  {
+   "symbol": "EXIDEIND",
+   "score": 10,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 32.1 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 87 bullish zone",
+    "+1 1-month return +13.6%",
+    "+1 3-month return +31.3%",
+    "+1 within 5% of 52w high",
+    "+1 volume surge with up move"
+   ],
+   "liquidity_cr": 191.5,
+   "price": 435.2,
+   "rsi": 87.0,
+   "adx": 32.1
+  },
+  {
+   "symbol": "SONACOMS",
+   "score": 10,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 50.4 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 84 bullish zone",
+    "+1 1-month return +16.8%",
+    "+1 3-month return +21.6%",
+    "+1 within 5% of 52w high",
+    "+1 volume surge with up move"
+   ],
+   "liquidity_cr": 153.7,
+   "price": 704.85,
+   "rsi": 84.5,
+   "adx": 50.4
+  },
+  {
+   "symbol": "ICICIBANK",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 33.7 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 66 bullish zone",
+    "+1 1-month return +7.6%",
+    "+1 3-month return +4.0%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 1674.0,
+   "price": 1444.3,
+   "rsi": 66.0,
+   "adx": 33.7
+  },
+  {
+   "symbol": "HSCL",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 65 bullish zone",
+    "+1 1-month return +7.4%",
+    "+1 3-month return +46.6%",
+    "+1 within 5% of 52w high",
+    "+1 volume surge with up move"
+   ],
+   "liquidity_cr": 820.6,
+   "price": 741.55,
+   "rsi": 65.0,
+   "adx": 17.4
+  },
+  {
+   "symbol": "ADANIENSOL",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 34.4 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 77 bullish zone",
+    "+1 1-month return +13.3%",
+    "+1 3-month return +34.2%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 399.8,
+   "price": 1689.5,
+   "rsi": 76.6,
+   "adx": 34.4
+  },
+  {
+   "symbol": "SUNPHARMA",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 37.9 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 74 bullish zone",
+    "+1 1-month return +7.4%",
+    "+1 3-month return +17.2%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 367.0,
+   "price": 1950.1,
+   "rsi": 73.8,
+   "adx": 37.9
+  },
+  {
+   "symbol": "OFSS",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 32.3 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 74 bullish zone",
+    "+1 1-month return +25.2%",
+    "+1 3-month return +52.7%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 371.3,
+   "price": 11771.0,
+   "rsi": 73.8,
+   "adx": 32.3
+  },
+  {
+   "symbol": "TITAN",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 30.7 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 84 bullish zone",
+    "+1 1-month return +6.0%",
+    "+1 3-month return +3.9%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 405.0,
+   "price": 4638.1,
+   "rsi": 84.2,
+   "adx": 30.7
+  },
+  {
+   "symbol": "INDUSINDBK",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 33.0 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 77 bullish zone",
+    "+1 1-month return +9.6%",
+    "+1 3-month return +20.1%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 216.6,
+   "price": 1027.2,
+   "rsi": 77.4,
+   "adx": 33.0
+  },
+  {
+   "symbol": "WELCORP",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 38.2 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 75 bullish zone",
+    "+1 1-month return +21.2%",
+    "+1 3-month return +56.9%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 230.5,
+   "price": 1684.0,
+   "rsi": 74.5,
+   "adx": 38.2
+  },
+  {
+   "symbol": "GRANULES",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 45.4 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 95 bullish zone",
+    "+1 1-month return +21.8%",
+    "+1 3-month return +35.9%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 104.5,
+   "price": 903.25,
+   "rsi": 94.6,
+   "adx": 45.4
+  },
+  {
+   "symbol": "UJJIVANSFB",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 41.5 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 73 bullish zone",
+    "+1 1-month return +15.6%",
+    "+1 3-month return +14.3%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 103.9,
+   "price": 65.62,
+   "rsi": 73.1,
+   "adx": 41.5
+  },
+  {
+   "symbol": "CEMPRO",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 66.5 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 93 bullish zone",
+    "+1 1-month return +35.4%",
+    "+1 3-month return +152.1%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 85.3,
+   "price": 1603.2,
+   "rsi": 93.1,
+   "adx": 66.5
+  },
+  {
+   "symbol": "RAIN",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 40.7 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 74 bullish zone",
+    "+1 1-month return +8.3%",
+    "+1 3-month return +60.5%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 90.3,
+   "price": 213.64,
+   "rsi": 74.3,
+   "adx": 40.7
+  },
+  {
+   "symbol": "JSWINFRA",
+   "score": 9,
+   "direction": "LONG",
+   "factors": [
+    "+2 bullish structure (HH/HL)",
+    "+1 ADX 34.0 strong trend",
+    "+1 perfect bullish EMA stack",
+    "+1 MACD histogram positive",
+    "+1 RSI 63 bullish zone",
+    "+1 1-month return +11.1%",
+    "+1 3-month return +24.1%",
+    "+1 within 5% of 52w high"
+   ],
+   "liquidity_cr": 210.7,
+   "price": 342.15,
+   "rsi": 63.0,
+   "adx": 34.0
+  }
+ ],
+ "best_short": [
+  {
+   "symbol": "PATANJALI",
+   "score": -9,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 48.6 strong trend",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 10 bearish zone",
+    "-1 1-month return -20.4%",
+    "-1 3-month return -27.6%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 255.6,
+   "price": 337.7,
+   "rsi": 9.6,
+   "adx": 48.6
+  },
+  {
+   "symbol": "TATAELXSI",
+   "score": -9,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 30.7 strong trend",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 30 bearish zone",
+    "-1 1-month return -14.9%",
+    "-1 3-month return -23.3%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 175.4,
+   "price": 3503.2,
+   "rsi": 30.0,
+   "adx": 30.7
+  },
+  {
+   "symbol": "KPITTECH",
+   "score": -9,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 46.5 strong trend",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 15 bearish zone",
+    "-1 1-month return -25.7%",
+    "-1 3-month return -25.6%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 244.7,
+   "price": 554.05,
+   "rsi": 14.9,
+   "adx": 46.5
+  },
+  {
+   "symbol": "ICICIGI",
+   "score": -8,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 28 bearish zone",
+    "-1 1-month return -9.3%",
+    "-1 3-month return -13.1%",
+    "-1 volume surge with down move"
+   ],
+   "liquidity_cr": 221.4,
+   "price": 1623.8,
+   "rsi": 28.1,
+   "adx": 13.5
+  },
+  {
+   "symbol": "ITC",
+   "score": -8,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 34 bearish zone",
+    "-1 1-month return -3.6%",
+    "-1 3-month return -6.9%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 349.0,
+   "price": 280.7,
+   "rsi": 33.8,
+   "adx": 23.2
+  },
+  {
+   "symbol": "WAAREEENER",
+   "score": -8,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 25.0 strong trend",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 34 bearish zone",
+    "-1 1-month return -8.1%",
+    "-1 3-month return -18.9%"
+   ],
+   "liquidity_cr": 232.7,
+   "price": 2830.3,
+   "rsi": 34.4,
+   "adx": 25.0
+  },
+  {
+   "symbol": "CENTRALBK",
+   "score": -8,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 35 bearish zone",
+    "-1 1-month return -4.4%",
+    "-1 3-month return -11.3%",
+    "-1 volume surge with down move"
+   ],
+   "liquidity_cr": 40.2,
+   "price": 31.66,
+   "rsi": 35.3,
+   "adx": 20.7
+  },
+  {
+   "symbol": "INOXWIND",
+   "score": -8,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 20 bearish zone",
+    "-1 1-month return -13.4%",
+    "-1 3-month return -19.1%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 90.2,
+   "price": 78.79,
+   "rsi": 20.0,
+   "adx": 22.6
+  },
+  {
+   "symbol": "VEDL",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 35.7 strong trend",
+    "-1 perfect bearish EMA stack",
+    "+1 MACD histogram positive",
+    "-1 RSI 16 bearish zone",
+    "-1 1-month return -17.3%",
+    "-1 3-month return -67.0%",
+    "-1 within 5% of 52w low"
+   ],
+   "liquidity_cr": 705.7,
+   "price": 253.05,
+   "rsi": 16.3,
+   "adx": 35.7
+  },
+  {
+   "symbol": "POLICYBZR",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 43 bearish zone",
+    "-1 1-month return -3.9%",
+    "-1 3-month return -3.4%"
+   ],
+   "liquidity_cr": 486.4,
+   "price": 1561.1,
+   "rsi": 43.2,
+   "adx": 11.9
+  },
+  {
+   "symbol": "NTPC",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 26.0 strong trend",
+    "-1 MACD histogram negative",
+    "-1 RSI 29 bearish zone",
+    "-1 1-month return -5.6%",
+    "-1 3-month return -13.7%"
+   ],
+   "liquidity_cr": 418.7,
+   "price": 341.85,
+   "rsi": 29.4,
+   "adx": 26.0
+  },
+  {
+   "symbol": "TMPV",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 42 bearish zone",
+    "-1 1-month return -7.2%",
+    "-1 3-month return -4.9%"
+   ],
+   "liquidity_cr": 375.7,
+   "price": 335.6,
+   "rsi": 42.0,
+   "adx": 19.2
+  },
+  {
+   "symbol": "TATACONSUM",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 43 bearish zone",
+    "-1 1-month return -2.1%",
+    "-1 3-month return -3.9%"
+   ],
+   "liquidity_cr": 176.9,
+   "price": 1088.6,
+   "rsi": 43.0,
+   "adx": 22.6
+  },
+  {
+   "symbol": "VBL",
+   "score": -7,
+   "direction": "SHORT",
+   "factors": [
+    "-2 bearish structure (LH/LL)",
+    "-1 ADX 25.3 strong trend",
+    "-1 MACD histogram negative",
+    "-1 RSI 29 bearish zone",
+    "-1 1-month return -12.8%",
+    "-1 3-month return -4.4%"
+   ],
+   "liquidity_cr": 280.5,
+   "price": 463.35,
+   "rsi": 28.5,
+   "adx": 25.3
+  },
+  {
+   "symbol": "AFCONS",
+   "score": -6,
+   "direction": "SHORT",
+   "factors": [
+    "-1 perfect bearish EMA stack",
+    "-1 MACD histogram negative",
+    "-1 RSI 16 bearish zone",
+    "-1 1-month return -10.6%",
+    "-1 3-month return -14.6%",
+    "-1 volume surge with down move"
+   ],
+   "liquidity_cr": 10.9,
+   "price": 285.4,
+   "rsi": 16.1,
+   "adx": 18.0
+  }
+ ],
+ "note": "Universe = every NSE EQ/BE symbol from today's bhavcopy passing the \u20b95.0cr/day turnover gate (top 300 by turnover). BSE-only listings are counted but excluded by default \u2014 they are overwhelmingly micro-caps below any tradeable liquidity. Screening only \u2014 hunt+validate before trading."
+}

@@ -209,11 +209,19 @@ class NSEProvider:
             day = ist_now - timedelta(days=back)
             if day.weekday() >= 5:
                 continue
-            url = ("https://archives.nseindia.com/products/content/"
-                   f"sec_bhavdata_full_{day.strftime('%d%m%Y')}.csv")
+            # NSE serves archives from two hosts; either can 503 at times.
+            fname = f"sec_bhavdata_full_{day.strftime('%d%m%Y')}.csv"
+            resp = None
+            for host in ("nsearchives.nseindia.com", "archives.nseindia.com"):
+                try:
+                    r = s.get(f"https://{host}/products/content/{fname}", timeout=self.timeout)
+                    if r.status_code == 200 and len(r.content) > 1000:
+                        resp = r
+                        break
+                except Exception:
+                    continue
             try:
-                resp = s.get(url, timeout=self.timeout)
-                if resp.status_code != 200 or len(resp.content) < 1000:
+                if resp is None:
                     continue
                 out: Dict[str, Dict[str, float]] = {}
                 reader = csv.DictReader(io.StringIO(resp.text))
@@ -223,12 +231,20 @@ class NSEProvider:
                     if r.get("SERIES") not in ("EQ", "BE"):
                         continue
                     try:
-                        out[r["SYMBOL"]] = {
+                        row = {
                             "delivery_percentage": float(r["DELIV_PER"]),
                             "delivery_volume": float(r["DELIV_QTY"]),
                             "traded_volume": float(r["TTL_TRD_QNTY"]),
                             "date": r.get("DATE1", ""),
                         }
+                        # Close + turnover let the market scanner rank the
+                        # ENTIRE exchange's liquidity from this one file.
+                        try:
+                            row["close"] = float(r.get("CLOSE_PRICE") or 0)
+                            row["turnover"] = float(r.get("TURNOVER_LACS") or 0) * 1e5
+                        except (TypeError, ValueError):
+                            pass
+                        out[r["SYMBOL"]] = row
                     except (KeyError, ValueError):
                         continue
                 if out:

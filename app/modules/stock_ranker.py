@@ -127,6 +127,51 @@ def score_stock(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
             "price": round(price, 2), "rsi": round(rsi, 1), "adx": a["adx"]}
 
 
+def full_market_universe(min_turnover_cr: float = MIN_TURNOVER_CR,
+                         max_symbols: int = 300) -> Dict[str, Any]:
+    """Build the tradeable universe from the ENTIRE NSE (+BSE-only extras).
+
+    NSE: one bhavcopy file covers every EQ/BE symbol with real turnover —
+    filter to stocks trading >= min_turnover_cr daily value, ranked by
+    turnover, capped at max_symbols (scoring cost is per-symbol).
+    BSE-only: symbols in the BSE scrip master but NOT on NSE are listed for
+    reference; they're mostly micro-caps that fail any liquidity gate.
+    """
+    from ..data.nse_provider import nse_provider
+
+    table = nse_provider._cached("bhavcopy", nse_provider._fetch_bhavcopy) or {}
+    liquid = []
+    for sym, row in table.items():
+        to = row.get("turnover") or 0.0
+        if to >= min_turnover_cr * 1e7:
+            liquid.append({"symbol": sym, "turnover_cr": round(to / 1e7, 1)})
+    liquid.sort(key=lambda x: x["turnover_cr"], reverse=True)
+
+    bse_only_count = 0
+    try:
+        from ..data.bse_provider import bse_provider
+        if bse_provider._ensure_scrips():
+            nse_syms = set(table.keys())
+            bse_only_count = sum(1 for s in bse_provider._scrip_map if s not in nse_syms)
+    except Exception as e:
+        logger.warning(f"BSE scrip comparison failed: {e}")
+
+    return {
+        "nse_total_symbols": len(table),
+        "liquid_universe": [x["symbol"] for x in liquid[:max_symbols]],
+        "liquid_count": len(liquid),
+        "capped_at": max_symbols,
+        "turnover_floor_cr": min_turnover_cr,
+        "bse_only_symbols_count": bse_only_count,
+        "note": (
+            "Universe = every NSE EQ/BE symbol from today's bhavcopy passing "
+            f"the ₹{min_turnover_cr}cr/day turnover gate (top {max_symbols} by "
+            "turnover). BSE-only listings are counted but excluded by default — "
+            "they are overwhelmingly micro-caps below any tradeable liquidity."
+        ),
+    }
+
+
 def rank_universe(symbols: Optional[List[str]] = None, top_n: int = 10) -> Dict[str, Any]:
     """Batch-download the universe and rank by |score|. Real data only —
     symbols that fail to download are listed in 'skipped', never guessed."""
@@ -168,4 +213,42 @@ def rank_universe(symbols: Optional[List[str]] = None, top_n: int = 10) -> Dict[
             "screen -> strategy-hunt the top names -> deploy only what "
             "validates out-of-sample -> auto-trader trades the validated book."
         ),
+    }
+
+
+def market_scan(top_n: int = 15, max_symbols: int = 300,
+                min_turnover_cr: float = MIN_TURNOVER_CR,
+                chunk_size: int = 50) -> Dict[str, Any]:
+    """FULL-MARKET scan: every liquid NSE stock (bhavcopy universe), scored
+    in batched chunks. This is the whole exchange minus what you couldn't
+    exit anyway — not a hand-picked list."""
+    uni = full_market_universe(min_turnover_cr=min_turnover_cr, max_symbols=max_symbols)
+    symbols = uni.get("liquid_universe") or []
+    if not symbols:
+        return {"error": "Could not build market universe (bhavcopy unavailable)", **uni}
+
+    all_long, all_short, scored, skipped = [], [], 0, []
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i:i + chunk_size]
+        try:
+            r = rank_universe(chunk, top_n=len(chunk))
+            scored += r["scored"]
+            skipped.extend(r["skipped"])
+            all_long.extend(r["best_long"])
+            all_short.extend(r["best_short"])
+        except Exception as e:
+            logger.warning(f"Market-scan chunk {i // chunk_size} failed: {e}")
+            skipped.extend({"symbol": s, "reason": "chunk failed"} for s in chunk)
+
+    all_long.sort(key=lambda x: x["score"], reverse=True)
+    all_short.sort(key=lambda x: x["score"])
+    return {
+        "nse_total_symbols": uni["nse_total_symbols"],
+        "bse_only_symbols_count": uni["bse_only_symbols_count"],
+        "liquid_universe_size": len(symbols),
+        "scored": scored,
+        "skipped_count": len(skipped),
+        "best_long": all_long[:top_n],
+        "best_short": all_short[:top_n],
+        "note": uni["note"] + " Screening only — hunt+validate before trading.",
     }
