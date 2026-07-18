@@ -300,6 +300,9 @@ export default function App() {
           </div>
           
           <div className="content-body">
+            {activeTab === 'command-center' && (
+              <CommandCenter />
+            )}
             {activeTab === 'ultimate-dashboard' && (
               <UltimateDashboard token={token} />
             )}
