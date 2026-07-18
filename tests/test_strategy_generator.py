@@ -89,7 +89,7 @@ def test_exit_profiles_are_gridded():
     df = _random_walk(n=900, seed=5)
     r = G.generate_strategies(df, top_n=3)
     # variants_tried now counts entry-variants × exit-profiles.
-    assert r["variants_tried"] == 28 * len(G.EXIT_PROFILES)
+    assert r["variants_tried"] == len(G.build_variants()) * len(G.EXIT_PROFILES)
     # Every result carries its exit params.
     for v in r["validated"] + r["overfit"]:
         assert "sl_atr" in v["params"] and "target_atr" in v["params"]

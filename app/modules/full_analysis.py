@@ -241,6 +241,17 @@ def full_analysis(symbol: str, provider, engine) -> Dict[str, Any]:
     result["indicators"] = indicators
     result["indicator_consensus"] = _consensus(indicators)
 
+    # 3b. Market structure + Smart Money Concepts (real OHLCV-derived)
+    try:
+        from .smc_analysis import smc_report
+        result["smc"] = smc_report(df)
+        adx_r = result["smc"].get("adx", {})
+        if adx_r:
+            indicators["adx_14"] = adx_r
+            result["indicator_consensus"] = _consensus(indicators)
+    except Exception as e:
+        result["smc"] = {"error": str(e)}
+
     # 4. Regime + allowed strategy families
     try:
         from .ai_regime import MarketRegimeEngine

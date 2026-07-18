@@ -33,6 +33,9 @@ REGIME_COMPAT = {
     "ema_cross": {"TRENDING", "TRANSITIONING"},
     "macd": {"TRENDING", "TRANSITIONING"},
     "donchian": {"TRENDING"},
+    "bos_follow": {"TRENDING", "TRANSITIONING"},
+    "sweep_reversal": {"RANGE_BOUND", "TRANSITIONING"},
+    "sr_bounce": {"RANGE_BOUND", "TRANSITIONING"},
 }
 
 
@@ -67,6 +70,12 @@ def _signal_fn_from_params(params: dict) -> Optional[Callable]:
             return G._make_macd(int(params["fast"]), int(params["slow"]), int(params["signal"]))
         if t == "bollinger":
             return G._make_bollinger(int(params["period"]), float(params["std"]))
+        if t == "bos_follow":
+            return G._make_bos_follow(int(params["swing_lookback"]))
+        if t == "sweep_reversal":
+            return G._make_sweep_reversal(int(params["recent_bars"]))
+        if t == "sr_bounce":
+            return G._make_sr_bounce(float(params["tolerance_pct"]))
     except (KeyError, TypeError, ValueError) as e:
         logger.error(f"Bad deployed-strategy params {params}: {e}")
     return None

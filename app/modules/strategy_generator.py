@@ -105,6 +105,61 @@ def _make_bollinger(period: int, std: float):
     return signal
 
 
+# --- SMC / price-action templates (from smc_analysis) ------------------------
+
+def _make_bos_follow(swing_lookback: int):
+    """Trade a Break of Structure in the direction of the trend."""
+    def signal(df: pd.DataFrame) -> Optional[str]:
+        if len(df) < 60:
+            return None
+        from .smc_analysis import detect_structure
+        s = detect_structure(df.iloc[-120:].reset_index(drop=True))
+        bos = s.get("bos")
+        if bos and bos["direction"] == "BULLISH":
+            return "BUY"
+        if bos and bos["direction"] == "BEARISH":
+            return "SELL"
+        return None
+    return signal
+
+
+def _make_sweep_reversal(recent_bars: int):
+    """Fade a liquidity sweep: sell-side sweep (stop hunt below) -> BUY."""
+    def signal(df: pd.DataFrame) -> Optional[str]:
+        if len(df) < 60:
+            return None
+        from .smc_analysis import liquidity_sweeps
+        sweeps = liquidity_sweeps(df.iloc[-120:].reset_index(drop=True), recent_bars=recent_bars)
+        fresh = [s for s in sweeps if s["bars_ago"] == 0]
+        if any(s["kind"] == "SELL_SIDE_SWEEP" for s in fresh):
+            return "BUY"
+        if any(s["kind"] == "BUY_SIDE_SWEEP" for s in fresh):
+            return "SELL"
+        return None
+    return signal
+
+
+def _make_sr_bounce(tolerance_pct: float):
+    """Bounce off a multi-touch S/R zone: near support+green -> BUY, near
+    resistance+red -> SELL."""
+    def signal(df: pd.DataFrame) -> Optional[str]:
+        if len(df) < 60:
+            return None
+        from .smc_analysis import support_resistance_zones
+        zones = support_resistance_zones(df.iloc[-150:].reset_index(drop=True))
+        close = float(df["close"].iloc[-1])
+        opn = float(df["open"].iloc[-1])
+        for z in zones:
+            if z["touches"] < 3 or abs(z["distance_pct"]) > tolerance_pct:
+                continue
+            if z["kind"] == "SUPPORT" and close > opn:
+                return "BUY"
+            if z["kind"] == "RESISTANCE" and close < opn:
+                return "SELL"
+        return None
+    return signal
+
+
 def build_variants(max_variants: int = 120) -> list:
     """Enumerate parameterized strategy variants across all templates.
 
@@ -134,6 +189,17 @@ def build_variants(max_variants: int = 120) -> list:
     for period, std in product((20, 30), (2.0, 2.5)):
         variants.append((f"Bollinger {period}/{std}", _make_bollinger(period, std),
                          {"template": "bollinger", "period": period, "std": std}))
+
+    # SMC / price-action — validated exactly like everything else.
+    for lb in (3, 5):
+        variants.append((f"BOS Follow (swing {lb})", _make_bos_follow(lb),
+                         {"template": "bos_follow", "swing_lookback": lb}))
+    for rb in (5, 10):
+        variants.append((f"Liquidity Sweep Reversal ({rb}b)", _make_sweep_reversal(rb),
+                         {"template": "sweep_reversal", "recent_bars": rb}))
+    for tol in (1.0, 2.0):
+        variants.append((f"S/R Zone Bounce ({tol}%)", _make_sr_bounce(tol),
+                         {"template": "sr_bounce", "tolerance_pct": tol}))
 
     return variants[:max_variants]
 
