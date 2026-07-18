@@ -248,7 +248,7 @@ const AdvancedChartEngine = ({ token }) => {
             if (t && typeof t.ltp === 'number') {
               setWsLive(true);
               markStale();
-              setLastQuote({ price: t.ltp, change_pct: t.change_pct ?? 0, delayed: false, source: 'dhan' });
+              setLastQuote({ price: t.ltp, change_pct: t.change_pct ?? 0, delayed: !!t.delayed, source: t.source || 'dhan' });
               applyPriceRef.current(t.ltp);
             }
           }

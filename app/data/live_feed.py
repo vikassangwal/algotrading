@@ -324,6 +324,127 @@ class DhanLiveFeed:
         self.last_tick_ts = now
 
 
+class FallbackPoller:
+    """SECOND OPTION when the Dhan feed can't deliver: near-real-time quotes
+    from public exchange websites, honestly labeled.
+
+      Tier 2a  equities → BSE website API  (source='bse_web', ~few sec delay)
+      Tier 2b  indices  → NSE allIndices   (source='nse_web', ~few sec delay)
+
+    The poller only writes a symbol into the cache when the Dhan feed hasn't
+    ticked it recently — real ticks always win. Tier 3 (yfinance, ~15 min)
+    stays in the frontend/quote endpoint as the last resort.
+    """
+
+    POLL_SEC = 5
+    IDLE_SEC = 120           # off-market cadence
+    DHAN_FRESH_SEC = 10      # if Dhan ticked within this, it owns the symbol
+
+    _NSE_INDEX_NAMES = {
+        "NIFTY": "NIFTY 50",
+        "BANKNIFTY": "NIFTY BANK",
+        "FINNIFTY": "NIFTY FINANCIAL SERVICES",
+    }
+
+    def __init__(self, cache: LiveTickCache, dhan_feed: DhanLiveFeed):
+        self.cache = cache
+        self.dhan = dhan_feed
+        self._wanted: set = set()
+        self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+        self._stop = threading.Event()
+        self.last_poll_ts: Optional[float] = None
+        self.last_error: Optional[str] = None
+
+    def subscribe(self, symbols: List[str]):
+        with self._lock:
+            for s in symbols:
+                s = s.upper().strip()
+                if s:
+                    self._wanted.add(s)
+
+    def ensure_running(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._stop.clear()
+            self._thread = threading.Thread(
+                target=self._loop, daemon=True, name="FallbackPoller"
+            )
+            self._thread.start()
+            logger.info("Fallback quote poller started (BSE equities + NSE indices).")
+
+    def status(self) -> dict:
+        return {
+            "running": self._thread is not None and self._thread.is_alive(),
+            "subscribed": sorted(self._wanted),
+            "last_poll_age_sec": round(time.time() - self.last_poll_ts, 1) if self.last_poll_ts else None,
+            "last_error": self.last_error,
+        }
+
+    # -- internals -----------------------------------------------------------
+
+    def _dhan_owns(self, symbol: str) -> bool:
+        t = self.cache.get(symbol)
+        return bool(
+            t and t.get("source") == "dhan"
+            and time.time() - t.get("time", 0) < self.DHAN_FRESH_SEC
+        )
+
+    def _loop(self):
+        while not self._stop.is_set():
+            try:
+                in_hours = DhanLiveFeed._market_open()
+                with self._lock:
+                    wanted = list(self._wanted)
+                if wanted and in_hours:
+                    self._poll(wanted)
+                self.last_poll_ts = time.time()
+                wait = self.POLL_SEC if in_hours else self.IDLE_SEC
+            except Exception as e:
+                self.last_error = str(e)
+                logger.warning(f"Fallback poll failed: {e}")
+                wait = self.POLL_SEC * 3
+            self._stop.wait(wait)
+
+    def _poll(self, symbols: List[str]):
+        indices = [s for s in symbols if s in INDEX_IDS or s in self._NSE_INDEX_NAMES]
+        equities = [s for s in symbols if s not in indices and not self._dhan_owns(s)]
+
+        # Equities via BSE website API.
+        if equities:
+            try:
+                from .bse_provider import bse_provider
+                for sym, q in bse_provider.get_many(equities).items():
+                    if not self._dhan_owns(sym):
+                        self.cache.put(sym, q)
+            except Exception as e:
+                logger.warning(f"BSE fallback failed: {e}")
+
+        # Indices via NSE allIndices (one request covers all).
+        need_idx = [s for s in indices if not self._dhan_owns(s)]
+        if need_idx:
+            try:
+                from .nse_provider import nse_provider
+                data = nse_provider._get_json("/api/allIndices")
+                rows = (data or {}).get("data") or []
+                by_name = {r.get("index"): r for r in rows}
+                for sym in need_idx:
+                    row = by_name.get(self._NSE_INDEX_NAMES.get(sym, sym))
+                    if row and row.get("last"):
+                        self.cache.put(sym, {
+                            "symbol": sym,
+                            "ltp": float(row["last"]),
+                            "change_pct": float(row.get("percentChange") or 0),
+                            "prev_close": float(row.get("previousClose") or 0) or None,
+                            "source": "nse_web",
+                            "delayed": False,
+                            "latency_note": "NSE website feed (~few seconds behind exchange)",
+                            "time": time.time(),
+                        })
+            except Exception as e:
+                logger.warning(f"NSE index fallback failed: {e}")
+
+
 # Process-wide singletons.
 live_cache = LiveTickCache()
 live_feed = DhanLiveFeed(live_cache)
+fallback_poller = FallbackPoller(live_cache, live_feed)

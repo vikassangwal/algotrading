@@ -400,18 +400,21 @@ DEFAULT_LIVE_SYMBOLS = ["NIFTY", "BANKNIFTY", "RELIANCE", "TCS", "HDFCBANK", "IN
 
 @app.get("/api/live/status", dependencies=[Depends(verify_token)])
 def live_feed_status():
-    """Health of the real-time Dhan feed: connected, subscribed symbols,
-    seconds since last tick, and the last error (e.g. expired token)."""
-    from .data.live_feed import live_feed
-    return live_feed.status()
+    """Health of the live pipeline: Dhan WS (tier 1) + web fallback poller
+    (tier 2: BSE equities / NSE indices). Tier 3 = delayed yfinance quotes."""
+    from .data.live_feed import live_feed, fallback_poller
+    return {"dhan": live_feed.status(), "fallback": fallback_poller.status()}
 
 @app.post("/api/live/subscribe", dependencies=[Depends(verify_token)])
 def live_subscribe(symbols: List[str]):
-    """Subscribe symbols on the Dhan real-time feed (equities + NIFTY/BANKNIFTY...)."""
-    from .data.live_feed import live_feed
+    """Subscribe symbols on the live pipeline. Dhan delivers ticks when it
+    can; the web fallback poller covers the same symbols otherwise."""
+    from .data.live_feed import live_feed, fallback_poller
     live_feed.ensure_running()
     live_feed.subscribe(symbols[:100])
-    return live_feed.status()
+    fallback_poller.subscribe(symbols[:100])
+    fallback_poller.ensure_running()
+    return {"dhan": live_feed.status(), "fallback": fallback_poller.status()}
 
 @app.get("/api/live/quotes", dependencies=[Depends(verify_token)])
 def live_quotes(symbols: str = ""):
@@ -448,6 +451,11 @@ async def ws_live(websocket: WebSocket):
     await websocket.accept()
     live_feed.ensure_running()
     live_feed.subscribe(symbols)
+    # Second option: web fallback poller covers these symbols whenever the
+    # Dhan feed can't (no/expired token, disconnect). Real ticks still win.
+    from .data.live_feed import fallback_poller
+    fallback_poller.subscribe(symbols)
+    fallback_poller.ensure_running()
 
     # Tell the client upfront whether real-time data is even possible.
     await websocket.send_json({"type": "status", **live_feed.status()})
