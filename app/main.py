@@ -1389,12 +1389,52 @@ def verify_trades():
 
 @app.get("/api/rules/status", dependencies=[Depends(verify_token)])
 def get_rules_status():
-    """Live state of the MANDATORY trading rules (R1–R7): trades today,
+    """Live state of the MANDATORY trading rules (R1–R9): trades today,
     consecutive losses, symbols in cooldown, market-hours gate, halt state —
     plus the background position monitor's health."""
     from .trading_rules import rules_status
     from .position_monitor import position_monitor
     return {"rules": rules_status(), "position_monitor": position_monitor.status()}
+
+@app.get("/api/discipline", dependencies=[Depends(verify_token)])
+def get_discipline_report():
+    """FULL discipline report: every enforced rule (R1-R9 entry rules +
+    D1-D4 exit discipline) with its live state, plus real adherence numbers
+    from the closed-trade journal — never a made-up score."""
+    from .trading_rules import rules_status, MAX_OPEN_POSITIONS
+    from .modules.trade_analytics import get_psychology_metrics, live_readiness_scorecard
+    from .position_monitor import position_monitor
+    from .auto_trader import auto_trader
+
+    psych = get_psychology_metrics()
+    return {
+        "entry_rules": rules_status(),
+        "open_positions": {
+            "count": len(execution_engine.open_positions),
+            "max_allowed": MAX_OPEN_POSITIONS,
+            "symbols": sorted(execution_engine.open_positions.keys()),
+        },
+        "exit_discipline_enforcers": {
+            "position_monitor": position_monitor.status(),
+            "auto_trader": {k: v for k, v in auto_trader.status().items()
+                            if k in ("thread_running", "auto_trade_state", "scans_done")},
+        },
+        "adherence_from_real_trades": {
+            "has_data": psych.get("has_data", False),
+            "total_closed_trades": psych.get("total_closed_trades", 0),
+            "overall_win_rate": psych.get("overall_win_rate"),
+            "discipline_score": psych.get("discipline_score"),
+            "revenge_events": psych.get("revenge_events"),
+            "coaching": psych.get("ai_coaching", []),
+        },
+        "live_readiness": live_readiness_scorecard(),
+        "note": (
+            "Discipline here is ENFORCED in code, not advisory: entries pass "
+            "R1-R9 inside the execution engine; exits (SL/target/breakeven/"
+            "trail/time-stop/EOD) run on the 30s monitor. The adherence block "
+            "is computed from real closed trades."
+        ),
+    }
 
 
 # --- Quant & Statistical metrics (real math from app/modules/quant_metrics.py) ---

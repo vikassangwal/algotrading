@@ -177,3 +177,71 @@ def test_regime_gate_fails_open_on_detection_error():
         assert ok is True and regime == "DETECTION_FAILED"
     finally:
         ai.MarketRegimeEngine = real_engine
+
+
+# --- R8/R9 entry rules + D1-D3 exit discipline -------------------------------
+
+def test_r9_max_open_positions():
+    v = R.check_entry_rules("TCS", is_live=False, open_positions_count=R.MAX_OPEN_POSITIONS)
+    assert not v.allowed
+    assert "R9" in v.reason
+    v2 = R.check_entry_rules("TCS", is_live=False, open_positions_count=R.MAX_OPEN_POSITIONS - 1)
+    assert v2.allowed
+
+
+def test_r8_daily_loss_limit_blocks_entry():
+    from app.risk_manager import risk_manager
+    from app.config import config as cfg
+    old = risk_manager.daily_pnl
+    try:
+        risk_manager.daily_pnl = -(cfg.capital * cfg.risk.daily_loss_limit_pct / 100.0) - 1
+        v = R.check_entry_rules("TCS", is_live=False)
+        assert not v.allowed
+        assert "R8" in v.reason
+    finally:
+        risk_manager.daily_pnl = old
+
+
+def _paper_trade(action="BUY", entry=100.0, risk=2.0):
+    from app.execution import TradeRecord
+    sl = entry - risk if action == "BUY" else entry + risk
+    return TradeRecord(
+        trade_id="T1", symbol="X", action=action, qty=10, entry_price=entry,
+        timestamp="2026-07-17T10:00:00", reasons=[], stop_loss=sl,
+        target=entry + 2 * risk if action == "BUY" else entry - 2 * risk,
+        initial_risk=risk, peak_price=entry,
+    )
+
+
+def test_d1_breakeven_move_long():
+    from app.command_center import _apply_trailing_discipline
+    t = _paper_trade()
+    _apply_trailing_discipline(t, 102.0)  # +1R
+    assert t.stop_loss == 100.0  # breakeven
+
+
+def test_d2_trailing_long_and_never_loosens():
+    from app.command_center import _apply_trailing_discipline
+    t = _paper_trade()
+    _apply_trailing_discipline(t, 103.0)  # +1.5R -> trail = 103-2 = 101
+    assert t.stop_loss == 101.0
+    _apply_trailing_discipline(t, 105.0)  # peak 105 -> trail 103
+    assert t.stop_loss == 103.0
+    _apply_trailing_discipline(t, 101.0)  # price falls back — stop must NOT loosen
+    assert t.stop_loss == 103.0
+
+
+def test_d1_d2_short_mirror():
+    from app.command_center import _apply_trailing_discipline
+    t = _paper_trade(action="SELL", entry=100.0, risk=2.0)
+    _apply_trailing_discipline(t, 98.0)   # +1R for a short
+    assert t.stop_loss == 100.0           # breakeven
+    _apply_trailing_discipline(t, 96.0)   # +2R -> trail = 96+2 = 98
+    assert t.stop_loss == 98.0
+
+
+def test_d3_time_stop_age():
+    from app.command_center import _trade_age_days
+    t = _paper_trade()
+    t.timestamp = "2020-01-01T09:30:00"
+    assert _trade_age_days(t) > R.TIME_STOP_DAYS

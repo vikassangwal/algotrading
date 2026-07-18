@@ -38,6 +38,9 @@ class TradeRecord:
     target: float = 0.0
     # Broker order id (live mode) — lets us VERIFY the order actually traded.
     broker_order_id: str = ""
+    # Exit discipline (D1/D2): original 1R distance + best price seen so far.
+    initial_risk: float = 0.0
+    peak_price: float = 0.0
 
 class ExecutionEngine:
     def __init__(self, provider: DataProvider):
@@ -108,7 +111,10 @@ class ExecutionEngine:
         # caller, no bypass. A rejected trade never reaches sizing or a broker.
         from .trading_rules import check_entry_rules
         is_live = (not config.paper_mode) and live_trading_enabled()
-        verdict = check_entry_rules(signal.symbol, is_live=is_live)
+        verdict = check_entry_rules(
+            signal.symbol, is_live=is_live,
+            open_positions_count=len(self.open_positions),
+        )
         if not verdict.allowed:
             logger.warning(f"TRADE BLOCKED by rules: {verdict.reason}")
             return False
@@ -190,6 +196,8 @@ class ExecutionEngine:
             stop_loss=stops["stop_loss"],
             target=stops["target"],
             broker_order_id=broker_order_id,
+            initial_risk=round(abs(current_price - stops["stop_loss"]), 2),
+            peak_price=current_price,
         )
 
         self.open_positions[signal.symbol] = trade

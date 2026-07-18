@@ -15,6 +15,19 @@ Rules enforced:
   R5  Max trades per day (overtrading brake).
   R6  Cooldown after a stop-loss exit on the same symbol (revenge-trade brake).
   R7  Max consecutive losing trades in a day → auto-halt for the day.
+  R8  Daily loss limit checked DIRECTLY at entry (defense in depth — the
+      risk manager also halts, but no entry may even be attempted past it).
+  R9  Max concurrent open positions (concentration brake).
+
+Exit discipline (enforced by command_center.auto_manage_positions):
+  D1  Breakeven move: after +1R in favor, SL moves to entry — a winner is
+      never allowed to become a full loser.
+  D2  Trailing stop: after +1.5R, SL trails 1R behind the peak. Stops only
+      ever TIGHTEN, never loosen.
+  D3  Time stop: positions older than TIME_STOP_DAYS are closed — capital
+      is not left parked in trades that go nowhere.
+  D4  Live EOD square-off: live positions (INTRADAY product at the broker)
+      are force-closed at 15:15 IST — never carried into broker auto-square.
 
 Position-size, exposure, and daily-loss rules already live in RiskManager
 (calculate_position_size) — these are the EXECUTION-level rules that complete
@@ -25,7 +38,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Optional
+from typing import Dict
 
 from .config import config, AutoTradeState
 
@@ -40,6 +53,12 @@ MAX_CONSECUTIVE_LOSSES = 3        # third straight loser halts the day
 MIN_REWARD_RISK = 1.0             # target distance must be >= SL distance
 SL_ATR_MULT = 1.5                 # mandatory SL distance
 TARGET_ATR_MULT = 2.25            # default target (1:1.5 R:R)
+MAX_OPEN_POSITIONS = 3            # R9: concentration brake
+# Exit discipline (D1-D4), consumed by command_center.auto_manage_positions:
+BREAKEVEN_AT_R = 1.0              # D1: +1R in favor -> SL to entry
+TRAIL_START_R = 1.5               # D2: +1.5R -> trail SL 1R behind peak
+TIME_STOP_DAYS = 10               # D3: close positions older than this
+EOD_SQUARE_OFF_HHMM = (15, 15)    # D4: live INTRADAY square-off time (IST)
 
 
 @dataclass
@@ -79,10 +98,33 @@ def _market_open(now: datetime) -> bool:
     return (9 * 60 + 15) <= minutes <= (15 * 60 + 30)
 
 
-def check_entry_rules(symbol: str, is_live: bool) -> RuleVerdict:
-    """R1, R2, R5, R6, R7 — called by execute_signal BEFORE placing anything."""
+def check_entry_rules(symbol: str, is_live: bool,
+                      open_positions_count: int = 0) -> RuleVerdict:
+    """R1, R2, R5-R9 — called by execute_signal BEFORE placing anything."""
     now = _now_ist()
     _state.roll_day_if_needed(now)
+
+    # R9 — concentration brake: never more than MAX_OPEN_POSITIONS at once.
+    if open_positions_count >= MAX_OPEN_POSITIONS:
+        return RuleVerdict(
+            False,
+            f"R9: {open_positions_count} positions already open — max "
+            f"{MAX_OPEN_POSITIONS} concurrent positions (concentration brake)."
+        )
+
+    # R8 — daily loss limit checked directly at entry (defense in depth).
+    try:
+        from .risk_manager import risk_manager
+        from .config import config as _cfg
+        max_daily_loss = _cfg.capital * (_cfg.risk.daily_loss_limit_pct / 100.0)
+        if risk_manager.daily_pnl <= -max_daily_loss:
+            return RuleVerdict(
+                False,
+                f"R8: daily loss ₹{-risk_manager.daily_pnl:,.0f} has hit the "
+                f"limit (₹{max_daily_loss:,.0f}) — no more entries today."
+            )
+    except Exception as e:
+        logger.warning(f"R8 daily-loss check unavailable ({e}) — continuing with other rules.")
 
     # R1 — halted system trades nothing, ever.
     if config.auto_trade == AutoTradeState.HALTED:
@@ -177,4 +219,11 @@ def rules_status() -> dict:
         "system_halted": config.auto_trade == AutoTradeState.HALTED,
         "mandatory_sl_atr_mult": SL_ATR_MULT,
         "target_atr_mult": TARGET_ATR_MULT,
+        "max_open_positions": MAX_OPEN_POSITIONS,
+        "exit_discipline": {
+            "breakeven_at_r": BREAKEVEN_AT_R,
+            "trail_start_r": TRAIL_START_R,
+            "time_stop_days": TIME_STOP_DAYS,
+            "live_eod_square_off": f"{EOD_SQUARE_OFF_HHMM[0]:02d}:{EOD_SQUARE_OFF_HHMM[1]:02d} IST",
+        },
     }

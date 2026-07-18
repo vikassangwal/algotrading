@@ -112,19 +112,85 @@ def build_command_center(symbol: str, engine, provider) -> dict:
     }
 
 
-def auto_manage_positions(engine, provider, execution_engine) -> list:
-    """For every open position: exit on target, exit on stop-loss, or exit if
-    the market mood has flipped against it. Returns a list of actions taken.
+def _apply_trailing_discipline(trade, ltp: float) -> None:
+    """D1 + D2: breakeven move at +1R, then trail 1R behind the peak.
+    The stop only ever TIGHTENS — a winner is never allowed to become a
+    full loser. Mutates trade.stop_loss / trade.peak_price in place."""
+    from .trading_rules import BREAKEVEN_AT_R, TRAIL_START_R
 
-    Called on each tick/refresh. Uses the same real signal the panel shows.
+    risk = getattr(trade, "initial_risk", 0.0) or 0.0
+    if risk <= 0:
+        return
+    entry = trade.entry_price
+
+    if trade.action == "BUY":
+        trade.peak_price = max(getattr(trade, "peak_price", entry) or entry, ltp)
+        gain = trade.peak_price - entry
+        if gain >= TRAIL_START_R * risk:
+            new_sl = trade.peak_price - risk          # D2: trail 1R behind peak
+        elif gain >= BREAKEVEN_AT_R * risk:
+            new_sl = entry                            # D1: breakeven
+        else:
+            return
+        if new_sl > (trade.stop_loss or 0.0):
+            trade.stop_loss = round(new_sl, 2)
+    else:  # SELL / short — mirror image
+        low = min(getattr(trade, "peak_price", entry) or entry, ltp)
+        trade.peak_price = low
+        gain = entry - low
+        if gain >= TRAIL_START_R * risk:
+            new_sl = low + risk
+        elif gain >= BREAKEVEN_AT_R * risk:
+            new_sl = entry
+        else:
+            return
+        if new_sl < (trade.stop_loss or float("inf")):
+            trade.stop_loss = round(new_sl, 2)
+
+
+def _trade_age_days(trade) -> float:
+    """Age of the position in days from its entry timestamp (0.0 on parse failure)."""
+    try:
+        from datetime import datetime
+        ts = str(getattr(trade, "timestamp", "") or "")
+        entry_time = datetime.fromisoformat(ts.split("+")[0])
+        return (datetime.now() - entry_time).total_seconds() / 86400.0
+    except Exception:
+        return 0.0
+
+
+def _is_live_eod() -> bool:
+    """D4 window: at/after the live square-off time during a weekday (IST)."""
+    from datetime import datetime, timezone, timedelta
+    from .trading_rules import EOD_SQUARE_OFF_HHMM
+    now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    if now.weekday() >= 5:
+        return False
+    minutes = now.hour * 60 + now.minute
+    return minutes >= EOD_SQUARE_OFF_HHMM[0] * 60 + EOD_SQUARE_OFF_HHMM[1]
+
+
+def auto_manage_positions(engine, provider, execution_engine) -> list:
+    """Full exit discipline for every open position:
+    stop-loss / target / mood-flip exits, breakeven + trailing stop (D1/D2),
+    time stop (D3) and live end-of-day square-off (D4).
+
+    Called by the 30s position monitor and the dashboard endpoint alike.
     """
+    from .trading_rules import TIME_STOP_DAYS
+
     actions = []
+    live_eod = (not config.paper_mode) and _is_live_eod()
+
     for symbol in list(execution_engine.open_positions.keys()):
         trade = execution_engine.open_positions[symbol]
         try:
             ltp = provider.get_quote(symbol).ltp
         except Exception:
             continue
+
+        # 0. D1/D2 — tighten the stop BEFORE checking exits this sweep.
+        _apply_trailing_discipline(trade, ltp)
 
         # 1. Target / stop-loss from the stored trade plan (fallback to %).
         sl = getattr(trade, "stop_loss", 0.0) or trade.entry_price * 0.98
@@ -141,7 +207,16 @@ def auto_manage_positions(engine, provider, execution_engine) -> list:
             elif ltp <= target:
                 reason = "target"
 
-        # 2. Mood flip — re-score and exit if conviction turned against us.
+        # 2. D4 — live positions are INTRADAY product at the broker: square
+        # off ourselves at 15:15 instead of eating the broker's auto-square.
+        if reason is None and live_eod:
+            reason = "eod_squareoff"
+
+        # 3. D3 — time stop: capital doesn't stay parked in going-nowhere trades.
+        if reason is None and _trade_age_days(trade) >= TIME_STOP_DAYS:
+            reason = "time_stop"
+
+        # 4. Mood flip — re-score and exit if conviction turned against us.
         if reason is None:
             try:
                 s = engine.analyze(symbol)
