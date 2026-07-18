@@ -1,0 +1,392 @@
+{
+ "interval": "1d",
+ "min_win_rate": 60.0,
+ "symbols_scanned": 5,
+ "symbols_with_edge": 3,
+ "book": [
+  {
+   "symbol": "TITAN",
+   "name": "EMA Cross 5/20 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 5,
+    "slow": 20,
+    "sl_atr": 1.5,
+    "target_atr": 1.5,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 27,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.88,
+    "expectancy_r": 0.303,
+    "max_drawdown_pct": 2.11
+   },
+   "test": {
+    "trades": 12,
+    "win_rate_pct": 75.0,
+    "profit_factor": 2.8,
+    "expectancy_r": 0.467,
+    "max_drawdown_pct": 1.1
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "TITAN",
+   "name": "EMA Cross 10/20 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 10,
+    "slow": 20,
+    "sl_atr": 1.5,
+    "target_atr": 1.5,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 25,
+    "win_rate_pct": 60.0,
+    "profit_factor": 1.41,
+    "expectancy_r": 0.169,
+    "max_drawdown_pct": 3.13
+   },
+   "test": {
+    "trades": 9,
+    "win_rate_pct": 88.9,
+    "profit_factor": 7.58,
+    "expectancy_r": 0.747,
+    "max_drawdown_pct": 1.02
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "INDUSINDBK",
+   "name": "S/R Zone Bounce (2.0%) [1:1.0]",
+   "params": {
+    "template": "sr_bounce",
+    "tolerance_pct": 2.0,
+    "sl_atr": 2.0,
+    "target_atr": 2.0,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 16,
+    "win_rate_pct": 68.8,
+    "profit_factor": 2.11,
+    "expectancy_r": 0.354,
+    "max_drawdown_pct": 3.02
+   },
+   "test": {
+    "trades": 9,
+    "win_rate_pct": 88.9,
+    "profit_factor": 7.69,
+    "expectancy_r": 0.76,
+    "max_drawdown_pct": 1.02
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "INDUSINDBK",
+   "name": "BOS Follow (swing 3) [1:1.0]",
+   "params": {
+    "template": "bos_follow",
+    "swing_lookback": 3,
+    "sl_atr": 2.0,
+    "target_atr": 2.0,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 16,
+    "win_rate_pct": 62.5,
+    "profit_factor": 1.6,
+    "expectancy_r": 0.228,
+    "max_drawdown_pct": 1.1
+   },
+   "test": {
+    "trades": 6,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.92,
+    "expectancy_r": 0.313,
+    "max_drawdown_pct": 1.02
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "TECHM",
+   "name": "EMA Cross 5/100 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 5,
+    "slow": 100,
+    "sl_atr": 1.5,
+    "target_atr": 1.5,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 12,
+    "win_rate_pct": 83.3,
+    "profit_factor": 4.7,
+    "expectancy_r": 0.637,
+    "max_drawdown_pct": 2.05
+   },
+   "test": {
+    "trades": 6,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.9,
+    "expectancy_r": 0.309,
+    "max_drawdown_pct": 2.04
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "TECHM",
+   "name": "EMA Cross 5/50 [1:1.0]",
+   "params": {
+    "template": "ema_cross",
+    "fast": 5,
+    "slow": 50,
+    "sl_atr": 1.5,
+    "target_atr": 1.5,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 15,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.89,
+    "expectancy_r": 0.304,
+    "max_drawdown_pct": 2.13
+   },
+   "test": {
+    "trades": 10,
+    "win_rate_pct": 60.0,
+    "profit_factor": 1.43,
+    "expectancy_r": 0.175,
+    "max_drawdown_pct": 3.03
+   },
+   "status": "VALIDATED"
+  },
+  {
+   "symbol": "TECHM",
+   "name": "Donchian Breakout 20 [1:1.0]",
+   "params": {
+    "template": "donchian",
+    "window": 20,
+    "sl_atr": 1.5,
+    "target_atr": 1.5,
+    "timeframe": "1d"
+   },
+   "train": {
+    "trades": 30,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.89,
+    "expectancy_r": 0.304,
+    "max_drawdown_pct": 3.17
+   },
+   "test": {
+    "trades": 15,
+    "win_rate_pct": 66.7,
+    "profit_factor": 1.88,
+    "expectancy_r": 0.303,
+    "max_drawdown_pct": 2.04
+   },
+   "status": "VALIDATED"
+  }
+ ],
+ "per_symbol": {
+  "TITAN": [
+   {
+    "name": "EMA Cross 5/20 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 5,
+     "slow": 20,
+     "sl_atr": 1.5,
+     "target_atr": 1.5,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 27,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.88,
+     "expectancy_r": 0.303,
+     "max_drawdown_pct": 2.11
+    },
+    "test": {
+     "trades": 12,
+     "win_rate_pct": 75.0,
+     "profit_factor": 2.8,
+     "expectancy_r": 0.467,
+     "max_drawdown_pct": 1.1
+    },
+    "status": "VALIDATED"
+   },
+   {
+    "name": "EMA Cross 10/20 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 10,
+     "slow": 20,
+     "sl_atr": 1.5,
+     "target_atr": 1.5,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 25,
+     "win_rate_pct": 60.0,
+     "profit_factor": 1.41,
+     "expectancy_r": 0.169,
+     "max_drawdown_pct": 3.13
+    },
+    "test": {
+     "trades": 9,
+     "win_rate_pct": 88.9,
+     "profit_factor": 7.58,
+     "expectancy_r": 0.747,
+     "max_drawdown_pct": 1.02
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "INDUSINDBK": [
+   {
+    "name": "S/R Zone Bounce (2.0%) [1:1.0]",
+    "params": {
+     "template": "sr_bounce",
+     "tolerance_pct": 2.0,
+     "sl_atr": 2.0,
+     "target_atr": 2.0,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 16,
+     "win_rate_pct": 68.8,
+     "profit_factor": 2.11,
+     "expectancy_r": 0.354,
+     "max_drawdown_pct": 3.02
+    },
+    "test": {
+     "trades": 9,
+     "win_rate_pct": 88.9,
+     "profit_factor": 7.69,
+     "expectancy_r": 0.76,
+     "max_drawdown_pct": 1.02
+    },
+    "status": "VALIDATED"
+   },
+   {
+    "name": "BOS Follow (swing 3) [1:1.0]",
+    "params": {
+     "template": "bos_follow",
+     "swing_lookback": 3,
+     "sl_atr": 2.0,
+     "target_atr": 2.0,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 16,
+     "win_rate_pct": 62.5,
+     "profit_factor": 1.6,
+     "expectancy_r": 0.228,
+     "max_drawdown_pct": 1.1
+    },
+    "test": {
+     "trades": 6,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.92,
+     "expectancy_r": 0.313,
+     "max_drawdown_pct": 1.02
+    },
+    "status": "VALIDATED"
+   }
+  ],
+  "TECHM": [
+   {
+    "name": "EMA Cross 5/100 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 5,
+     "slow": 100,
+     "sl_atr": 1.5,
+     "target_atr": 1.5,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 12,
+     "win_rate_pct": 83.3,
+     "profit_factor": 4.7,
+     "expectancy_r": 0.637,
+     "max_drawdown_pct": 2.05
+    },
+    "test": {
+     "trades": 6,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.9,
+     "expectancy_r": 0.309,
+     "max_drawdown_pct": 2.04
+    },
+    "status": "VALIDATED"
+   },
+   {
+    "name": "EMA Cross 5/50 [1:1.0]",
+    "params": {
+     "template": "ema_cross",
+     "fast": 5,
+     "slow": 50,
+     "sl_atr": 1.5,
+     "target_atr": 1.5,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 15,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.89,
+     "expectancy_r": 0.304,
+     "max_drawdown_pct": 2.13
+    },
+    "test": {
+     "trades": 10,
+     "win_rate_pct": 60.0,
+     "profit_factor": 1.43,
+     "expectancy_r": 0.175,
+     "max_drawdown_pct": 3.03
+    },
+    "status": "VALIDATED"
+   },
+   {
+    "name": "Donchian Breakout 20 [1:1.0]",
+    "params": {
+     "template": "donchian",
+     "window": 20,
+     "sl_atr": 1.5,
+     "target_atr": 1.5,
+     "timeframe": "1d"
+    },
+    "train": {
+     "trades": 30,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.89,
+     "expectancy_r": 0.304,
+     "max_drawdown_pct": 3.17
+    },
+    "test": {
+     "trades": 15,
+     "win_rate_pct": 66.7,
+     "profit_factor": 1.88,
+     "expectancy_r": 0.303,
+     "max_drawdown_pct": 2.04
+    },
+    "status": "VALIDATED"
+   }
+  ]
+ },
+ "no_edge": [
+  {
+   "symbol": "ADANIENT",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  },
+  {
+   "symbol": "NTPC",
+   "reason": "nothing validated at 60.0%+ on unseen data"
+  }
+ ],
+ "note": "The book contains ONLY strategy-symbol pairs that held 60.0%+ win rate on held-out test data net of costs. Symbols under no_edge should simply not be traded with these strategies \u2014 skipping them IS how the system's realized accuracy stays high."
+}

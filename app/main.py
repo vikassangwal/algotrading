@@ -1302,6 +1302,15 @@ def check_dynamic_exits():
     return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
 
 
+@app.get("/api/screener/best", dependencies=[Depends(verify_token)])
+def screen_best_stocks(top_n: int = 10):
+    """Rank the NIFTY-50 universe by aligned multi-factor evidence (structure,
+    ADX, EMA stack, MACD, RSI, momentum, 52w position, volume) with a
+    liquidity gate. Returns best_long + best_short. ~10-20s (one batched
+    yfinance download). Screening only — hunt+validate before trading."""
+    from .modules.stock_ranker import rank_universe
+    return rank_universe(top_n=max(1, min(top_n, 25)))
+
 @app.get("/api/setup/{symbol}", dependencies=[Depends(verify_token)])
 def get_trade_setup(symbol: str):
     """CONFLUENCE TRADE SETUP — every analysis votes (validated strategies,
