@@ -41,3 +41,4 @@ app/data/dhan_api/__pycache__/
 *.xlsx
 compliance.log
 runtime_state.json
+screener_daily.json

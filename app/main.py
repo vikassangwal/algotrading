@@ -178,6 +178,9 @@ def _start_position_monitor():
     # Auto-trader thread idles until config.auto_trade == ACTIVE.
     from .auto_trader import auto_trader
     auto_trader.start(provider, execution_engine, risk_manager)
+    # Daily full-market auto-screener (runs post-bhavcopy, ~19:07 IST).
+    from .screener_daemon import screener_daemon
+    screener_daemon.start()
 
 # Register Modules
 engine.register_module(TechnicalModule(provider))
@@ -1342,6 +1345,20 @@ def check_dynamic_exits():
     actions = auto_manage_positions(engine, provider, execution_engine)
     return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
 
+
+@app.get("/api/screener/auto/status", dependencies=[Depends(verify_token)])
+def auto_screener_status():
+    """Auto-screener health + LAST daily scan results (runs itself every
+    trading evening after the bhavcopy lands, ~19:07 IST, and alerts top
+    picks on Telegram). Results persist across restarts."""
+    from .screener_daemon import screener_daemon
+    return screener_daemon.status()
+
+@app.post("/api/screener/auto/run", dependencies=[Depends(verify_token)])
+def auto_screener_run_now():
+    """Force the daily scan RIGHT NOW (2-3 min) — same save + alert path."""
+    from .screener_daemon import screener_daemon
+    return screener_daemon.run_scan()
 
 @app.get("/api/screener/best", dependencies=[Depends(verify_token)])
 def screen_best_stocks(top_n: int = 10):

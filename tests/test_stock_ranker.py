@@ -80,3 +80,62 @@ def test_market_scan_reports_error_without_universe(monkeypatch):
     monkeypatch.setattr(NP.nse_provider, "_cached", lambda key, fn: None)
     r = SR.market_scan()
     assert "error" in r
+
+
+# --- auto-screener daemon scheduling ------------------------------------------
+
+def test_screener_daemon_runs_once_per_day(monkeypatch, tmp_path):
+    from app import screener_daemon as SD
+    from datetime import datetime, timezone, timedelta
+
+    monkeypatch.setattr(SD, "RESULTS_PATH", tmp_path / "screener_daily.json")
+    d = SD.ScreenerDaemon()
+
+    class FakeDT:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 7, 17, 19, 30, tzinfo=SD.IST)  # Fri evening
+    monkeypatch.setattr(SD, "datetime", FakeDT)
+
+    assert d._should_run() is True
+    # Simulate a completed run today -> must not run again.
+    (tmp_path / "screener_daily.json").write_text(
+        '{"run_day": "2026-07-17"}', encoding="utf-8")
+    assert d._should_run() is False
+
+
+def test_screener_daemon_skips_weekend_and_early(monkeypatch, tmp_path):
+    from app import screener_daemon as SD
+    from datetime import datetime
+
+    monkeypatch.setattr(SD, "RESULTS_PATH", tmp_path / "screener_daily.json")
+    d = SD.ScreenerDaemon()
+
+    class Saturday:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 7, 18, 20, 0, tzinfo=SD.IST)
+    monkeypatch.setattr(SD, "datetime", Saturday)
+    assert d._should_run() is False  # weekend
+
+    class FridayMorning:
+        @staticmethod
+        def now(tz=None):
+            return datetime(2026, 7, 17, 10, 0, tzinfo=SD.IST)
+    monkeypatch.setattr(SD, "datetime", FridayMorning)
+    assert d._should_run() is False  # before 19:07
+
+
+def test_screener_daemon_saves_and_status(monkeypatch, tmp_path):
+    from unittest.mock import patch
+    from app import screener_daemon as SD
+
+    monkeypatch.setattr(SD, "RESULTS_PATH", tmp_path / "screener_daily.json")
+    d = SD.ScreenerDaemon()
+    fake = {"scored": 2, "best_long": [{"symbol": "X", "score": 5}], "best_short": []}
+    with patch("app.modules.stock_ranker.market_scan", return_value=fake):
+        out = d.run_scan()
+    assert out["result"]["scored"] == 2
+    st = d.status()
+    assert st["last_result"]["scored"] == 2
+    assert st["last_run_at"] is not None
