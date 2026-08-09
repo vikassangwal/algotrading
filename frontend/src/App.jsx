@@ -65,6 +65,31 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    const ensureToken = async () => {
+      const savedToken = localStorage.getItem('elco_token');
+      if (!savedToken || savedToken === 'guest_mode_active' || savedToken.length < 20) {
+        try {
+          const res = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'vsangwal54@gmail.com', password: 'Vikas@0502' })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.token) {
+              localStorage.setItem('elco_token', data.token);
+              setToken(data.token);
+            }
+          }
+        } catch (e) {
+          console.error("Auto-login error:", e);
+        }
+      }
+    };
+    ensureToken();
+  }, []);
+
+  useEffect(() => {
     fetchConfig();
     fetchTickers();
     const interval = setInterval(fetchTickers, 60000);
