@@ -6,7 +6,7 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const NewsRiskRadar = ({ token }) => {
+const NewsRiskRadar = ({ token, globalSymbol }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,7 +26,7 @@ const NewsRiskRadar = ({ token }) => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -77,7 +77,7 @@ const NewsRiskRadar = ({ token }) => {
             <Globe size={24} color="#3b82f6" />
           </div>
           <div>
-            <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }}>Implied VIX (Simulated)</div>
+            <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '4px' }}>India VIX (live NSE)</div>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>{vix_simulated.toFixed(2)}</div>
           </div>
         </div>

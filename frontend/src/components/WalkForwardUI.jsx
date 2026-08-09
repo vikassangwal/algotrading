@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const WalkForwardUI = () => {
+const WalkForwardUI = ({ globalSymbol }) => {
   const [activeTab, setActiveTab] = useState('walkforward');
   const [inSampleSize, setInSampleSize] = useState(70);
   const [outOfSampleSize, setOutOfSampleSize] = useState(30);

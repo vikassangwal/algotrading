@@ -4,7 +4,7 @@ import ToolboxSidebar from './ToolboxSidebar';
 import VisualStrategyTree from './VisualStrategyTree';
 import NodeConfigurator from './NodeConfigurator';
 
-const StrategyBuilderLayout = () => {
+const StrategyBuilderLayout = ({ globalSymbol }) => {
   // Modes: 'Beginner', 'Advanced', 'Pro', 'Institutional'
   const [builderMode, setBuilderMode] = useState('Beginner');
   const [strategyNodes, setStrategyNodes] = useState([

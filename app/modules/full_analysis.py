@@ -298,11 +298,61 @@ def full_analysis(symbol: str, provider, engine) -> Dict[str, Any]:
     # 8. ATR trade plan — same R3 math execution enforces
     from ..trading_rules import compute_mandatory_stops
     atr = _atr14(df)
+    
+    # 8b. Multi-style Trading Plans with custom analysis weightages
+    trade_style_plans = {
+        "intraday": {
+            "title": "Intraday Trading (1 Day)",
+            "timeframe": "1m - 15m (Exit by 3:15 PM)",
+            "analysis_weightage": {"Technical & Momentum": "70%", "Volume & Order Flow": "20%", "Market Sentiment": "10%"},
+            "entry_price": round(price, 2),
+            "stop_loss": round(price - (1.0 * atr), 2),
+            "target_1": round(price + (1.2 * atr), 2),
+            "target_2": round(price + (2.0 * atr), 2),
+            "risk_reward": "1:1.5",
+            "key_focus": "RSI(14), Supertrend, VWAP, Volume Spikes"
+        },
+        "swing": {
+            "title": "Swing Trading (1-3 Weeks)",
+            "timeframe": "1H - 1D (5 to 15 Days)",
+            "analysis_weightage": {"Technical & Patterns": "50%", "SMC / Structure": "30%", "Sector Momentum": "20%"},
+            "entry_price": round(price, 2),
+            "stop_loss": round(price - (2.0 * atr), 2),
+            "target_1": round(price + (2.8 * atr), 2),
+            "target_2": round(price + (5.0 * atr), 2),
+            "risk_reward": "1:2.5",
+            "key_focus": "EMA 20 Pullbacks, MACD Crossovers, Order Blocks"
+        },
+        "positional": {
+            "title": "Positional Trading (1-6 Months)",
+            "timeframe": "Daily - Weekly (1 to 6 Months)",
+            "analysis_weightage": {"Trend & Structure": "40%", "Earnings & Growth": "30%", "Institutional Flow": "30%"},
+            "entry_price": round(price, 2),
+            "stop_loss": round(price - (3.5 * atr), 2),
+            "target_1": round(price + (6.0 * atr), 2),
+            "target_2": round(price + (10.0 * atr), 2),
+            "risk_reward": "1:3.0",
+            "key_focus": "Golden Cross (EMA 50/200), FII/DII Buying, Sector Leadership"
+        },
+        "investment": {
+            "title": "Long-Term Investment (1-5 Years)",
+            "timeframe": "Weekly - Monthly (1+ Years)",
+            "analysis_weightage": {"Fundamental Valuation & ROE": "50%", "Business Moat & Growth": "30%", "Macro & Management": "20%"},
+            "entry_price": round(price * 0.98, 2), # Buy Zone 2% dip
+            "stop_loss": round(price * 0.82, 2),  # 18% Trailing SL
+            "target_1": round(price * 1.35, 2),   # +35%
+            "target_2": round(price * 1.75, 2),   # +75%
+            "risk_reward": "1:4.0",
+            "key_focus": "P/E Ratio, ROE, Debt/Equity, Promoter Holding, Market Cap Growth"
+        }
+    }
+
     result["trade_plan"] = {
         "atr_14": round(atr, 2),
         "if_buy": compute_mandatory_stops("BUY", price, atr),
         "if_sell": compute_mandatory_stops("SELL", price, atr),
-        "note": "ATR-based SL/target identical to what execution attaches (R3).",
+        "styles": trade_style_plans,
+        "note": "Multi-style trade plans tailored by timeframe, risk limits, and analysis focus.",
     }
 
     result["disclaimer"] = (

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const SmartAlerts = () => {
+const SmartAlerts = ({ token, globalSymbol }) => {
   const [alerts, setAlerts] = useState([
     { id: 1, type: 'Price', asset: 'BTC/USD', condition: 'Crosses Above', value: '65000', status: 'Active' },
     { id: 2, type: 'Indicator', asset: 'ETH/USD', condition: 'RSI >', value: '70', status: 'Active' },
@@ -13,6 +13,12 @@ const SmartAlerts = () => {
     condition: '',
     value: '',
   });
+
+  useEffect(() => {
+    if (globalSymbol) {
+      setNewAlert(prev => ({ ...prev, asset: globalSymbol }));
+    }
+  }, [globalSymbol]);
 
   const handleAddAlert = (e) => {
     e.preventDefault();

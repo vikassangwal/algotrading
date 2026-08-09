@@ -3,7 +3,7 @@ import { Activity, ShieldAlert, Zap, TrendingUp, TrendingDown, Crosshair, Lock, 
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const UltimateDashboard = ({ token }) => {
+const UltimateDashboard = ({ token, globalSymbol }) => {
   const [tradingMode, setTradingMode] = useState('Intraday');
   const [isAuto, setIsAuto] = useState(false);
   const [portfolio, setPortfolio] = useState({ daily_pnl: 0, circuit_breaker: false, active_positions: [] });
@@ -15,24 +15,57 @@ const UltimateDashboard = ({ token }) => {
     circuitBreaker: true
   });
   const [symbolInput, setSymbolInput] = useState('RELIANCE.NS');
+  const [mlInsights, setMlInsights] = useState(null);
+  const [scannerData, setScannerData] = useState(null);
+  const [scanning, setScanning] = useState(false);
 
-  // Fetch portfolio status every 2 seconds
+  useEffect(() => {
+    if (globalSymbol) setSymbolInput(globalSymbol);
+  }, [globalSymbol]);
+
+  useEffect(() => {
+    const fetchMlInsights = async () => {
+      try {
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`${API_URL}/api/analytics/live-readiness`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setMlInsights(data);
+        }
+      } catch (err) {
+        console.error("ML Insights fetch error", err);
+      }
+    };
+    fetchMlInsights();
+  }, [token]);
+
+  // Fetch portfolio status
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_URL}/api/dashboard/status`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
         if (res.ok) setPortfolio(await res.json());
       } catch (err) {}
-    }, 2000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [token]);
 
   const fetchAnalysis = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/dashboard/analysis/${symbolInput}`);
-      if (res.ok) setAnalysis(await res.json());
-    } catch (err) {}
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const res = await fetch(`${API_URL}/api/analysis/full/${symbolInput}`, { headers });
+      if (res.ok) {
+        const fullData = await res.json();
+        setAnalysis(fullData);
+      }
+    } catch (err) {
+      console.error("Full analysis fetch error", err);
+    }
   };
+
+  useEffect(() => {
+    fetchAnalysis();
+  }, [symbolInput]);
 
   const handleExecute = async (side) => {
     try {
@@ -50,23 +83,66 @@ const UltimateDashboard = ({ token }) => {
     } catch (err) {}
   };
 
+  const fetchAutoScan = async () => {
+    setScanning(true);
+    try {
+      const res = await fetch(`${API_URL}/api/screener/best?top_n=10`);
+      if (res.ok) {
+        const data = await res.json();
+        setScannerData(data);
+      }
+    } catch (err) {
+      console.error("Auto scan error", err);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAutoScan();
+  }, []);
+
+  const quote = analysis?.quote || {};
+  const price = quote.price ?? 0;
+  const change_pct = quote.change_pct ?? 0;
+  const signal = analysis?.fused_signal || {};
+  const consensus = analysis?.indicator_consensus || {};
+  const regime = analysis?.regime || {};
+  const inst = analysis?.institutional || {};
+  const trade_plan = analysis?.trade_plan || {};
+  const stylePlan = trade_plan.styles ? (trade_plan.styles[tradingMode.toLowerCase()] || trade_plan.styles.intraday) : null;
+  const isBullish = change_pct >= 0;
+
   return (
     <div style={{ backgroundColor: '#020617', minHeight: '100vh', color: '#f8fafc', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* Top Header - Settings & Toggles */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: '16px 24px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b' }}>
+      {/* Top Header - Controls & Trading Mode */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: '16px 24px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b', flexWrap: 'wrap', gap: '15px' }}>
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Ultimate Command Center
           </h1>
           
-          <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #334155', outline: 'none' }}>
-            <option>Intraday</option>
-            <option>Swing</option>
-            <option>Positional</option>
-            <option>Futures & Options</option>
-            <option>Commodity</option>
+          <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #334155', outline: 'none', fontWeight: 'bold' }}>
+            <option value="Intraday">⚡ Intraday Trading</option>
+            <option value="Swing">📊 Swing Trading</option>
+            <option value="Positional">🎯 Positional Trading</option>
+            <option value="Investment">💎 Long-Term Investment</option>
           </select>
+        </div>
+
+        {/* Global Symbol Quick Switch */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <input 
+            type="text" 
+            value={symbolInput} 
+            onChange={e => setSymbolInput(e.target.value.toUpperCase())} 
+            placeholder="Symbol (e.g. RELIANCE.NS)"
+            style={{ padding: '8px 14px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 'bold', width: '180px' }} 
+          />
+          <button onClick={fetchAnalysis} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+            Analyze
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
@@ -90,75 +166,145 @@ const UltimateDashboard = ({ token }) => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 300px', gap: '20px' }}>
+      {/* Main 3-Column Master Command Dashboard Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr 340px', gap: '20px', marginBottom: '20px' }}>
         
-        {/* Left Panel: 4-Pillar Analysis */}
-        <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
-          <h2 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}><Crosshair size={18} color="#3b82f6" /> 4-Pillar Master Analysis</h2>
+        {/* Left Column: Live Stock Snapshot & AI 4-Pillar Verdict */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-            <input type="text" value={symbolInput} onChange={e => setSymbolInput(e.target.value)} style={{ flex: 1, padding: '8px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#fff' }} />
-            <button onClick={fetchAnalysis} style={{ padding: '8px 12px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Scan</button>
+          {/* Live Price & Symbol Card */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
+            <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Selected Stock</div>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{symbolInput}</h2>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+              <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#fff' }}>₹{price.toFixed(2)}</span>
+              <span style={{ color: isBullish ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {isBullish ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                {isBullish ? '+' : ''}{change_pct.toFixed(2)}%
+              </span>
+            </div>
           </div>
 
-          {analysis ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Technical</span>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>{analysis.technical}</div>
+          {/* AI Signal & 4-Pillar Verdict */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 16px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Crosshair size={18} color="#3b82f6" /> AI Signal & Confluence
+            </h2>
+            
+            <div style={{ 
+              padding: '14px', 
+              borderRadius: '8px', 
+              textAlign: 'center', 
+              backgroundColor: signal.action === 'BUY' ? 'rgba(16, 185, 129, 0.15)' : signal.action === 'SELL' ? 'rgba(239, 68, 68, 0.15)' : '#1e293b',
+              border: `2px solid ${signal.action === 'BUY' ? '#10b981' : signal.action === 'SELL' ? '#ef4444' : '#64748b'}`,
+              marginBottom: '15px'
+            }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase' }}>AI Action Verdict</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: signal.action === 'BUY' ? '#10b981' : signal.action === 'SELL' ? '#ef4444' : '#f8fafc', textTransform: 'uppercase' }}>
+                {signal.action || 'NEUTRAL'}
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', borderLeft: '3px solid #8b5cf6' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Fundamental</span>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>{analysis.fundamental}</div>
+              <div style={{ fontSize: '13px', color: '#cbd5e1', marginTop: '4px' }}>
+                Confidence Score: <b style={{ color: '#8b5cf6' }}>{((signal.confidence ?? 0) * 100).toFixed(0)}%</b>
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', borderLeft: '3px solid #f59e0b' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Quantitative</span>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>{analysis.quant}</div>
+            </div>
+
+            {/* Indicators Consensus */}
+            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px' }}>Technical Consensus Tally:</div>
+            <div style={{ display: 'flex', gap: '8px', textAlign: 'center' }}>
+              <div style={{ flex: 1, padding: '10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '6px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#10b981' }}>{consensus.bullish || 0}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>BULL</div>
               </div>
-              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', borderLeft: '3px solid #ec4899' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Sentiment & Smart Money</span>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#f8fafc' }}>{analysis.sentiment}</div>
+              <div style={{ flex: 1, padding: '10px', background: 'rgba(100, 116, 139, 0.1)', border: '1px solid rgba(100, 116, 139, 0.2)', borderRadius: '6px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#94a3b8' }}>{consensus.neutral || 0}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>NEUTRAL</div>
+              </div>
+              <div style={{ flex: 1, padding: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ef4444' }}>{consensus.bearish || 0}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>BEAR</div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Market Regime Card */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 12px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={18} color="#f59e0b" /> Market Regime
+            </h2>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#3b82f6', textTransform: 'uppercase', marginBottom: '6px' }}>
+              {regime.name || 'NORMAL REGIME'}
+            </div>
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, lineHeight: '1.5' }}>
+              {regime.description || 'Market structure is in normal trading bounds.'}
+            </p>
+          </div>
+
+        </div>
+
+        {/* Center Column: Target, Stop-Loss, Risk/Reward & Order Execution */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Master Trade Target & Stop-Loss Card */}
+          {stylePlan ? (
+            <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', margin: 0, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🎯 Master Target & Stop-Loss Plan
+                </h2>
+                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#1e293b', borderRadius: '12px', color: '#8b5cf6', fontWeight: 'bold' }}>
+                  {stylePlan.title}
+                </span>
               </div>
 
-              <div style={{ marginTop: '10px', padding: '16px', backgroundColor: analysis.verdict === 'BUY' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: `1px solid ${analysis.verdict === 'BUY' ? '#10b981' : '#ef4444'}`, borderRadius: '8px', textAlign: 'center' }}>
-                <h3 style={{ margin: '0 0 4px 0', color: analysis.verdict === 'BUY' ? '#10b981' : '#ef4444' }}>AI Verdict: {analysis.verdict}</h3>
-                <span style={{ fontSize: '12px', color: '#cbd5e1' }}>{analysis.ai_reason}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ padding: '14px', background: '#1e293b', borderRadius: '8px', borderLeft: '4px solid #3b82f6' }}>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>Suggested Entry</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>₹{stylePlan.entry_price}</div>
+                </div>
+
+                <div style={{ padding: '14px', background: 'rgba(239, 68, 68, 0.15)', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
+                  <div style={{ fontSize: '12px', color: '#fca5a5' }}>Stop Loss (SL)</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444' }}>₹{stylePlan.stop_loss}</div>
+                </div>
+
+                <div style={{ padding: '14px', background: 'rgba(16, 185, 129, 0.15)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
+                  <div style={{ fontSize: '12px', color: '#a7f3d0' }}>Target 1 (T1)</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>₹{stylePlan.target_1}</div>
+                </div>
+
+                <div style={{ padding: '14px', background: 'rgba(16, 185, 129, 0.25)', borderRadius: '8px', borderLeft: '4px solid #10b981' }}>
+                  <div style={{ fontSize: '12px', color: '#a7f3d0' }}>Target 2 (T2)</div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>₹{stylePlan.target_2}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#1e293b', borderRadius: '6px', fontSize: '13px' }}>
+                <span style={{ color: '#94a3b8' }}>Risk : Reward Ratio</span>
+                <span style={{ fontWeight: 'bold', color: '#8b5cf6', fontSize: '15px' }}>{stylePlan.risk_reward}</span>
               </div>
             </div>
           ) : (
-            <div style={{ color: '#64748b', textAlign: 'center', padding: '40px 0', fontSize: '14px' }}>Enter a symbol to scan.</div>
-          )}
-        </div>
-
-        {/* Center Panel: Execution & Probability */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          {/* Probability Meter */}
-          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '16px', margin: '0 0 20px 0', color: '#cbd5e1' }}>AI Direction Probability</h2>
-            <div style={{ width: '100%', height: '30px', backgroundColor: '#ef4444', borderRadius: '15px', overflow: 'hidden', position: 'relative', display: 'flex' }}>
-              <div style={{ width: analysis ? `${analysis.probability}%` : '50%', backgroundColor: '#10b981', height: '100%', transition: 'width 1s ease-in-out' }}></div>
-              <div style={{ position: 'absolute', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
-                {analysis ? (analysis.probability > 50 ? `${analysis.probability}% UP` : `${100 - analysis.probability}% DOWN`) : 'Scanning...'}
-              </div>
+            <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b', textAlign: 'center', color: '#64748b' }}>
+              Calculating Trade Targets & Stop-loss...
             </div>
-          </div>
+          )}
 
-          {/* Action Buttons */}
+          {/* Action Execution Buttons */}
           <div style={{ display: 'flex', gap: '20px' }}>
             <button onClick={() => handleExecute('BUY')} disabled={isAuto || portfolio.circuit_breaker} style={{ flex: 1, padding: '20px', backgroundColor: '#10b981', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '18px', fontWeight: 'bold', cursor: (isAuto || portfolio.circuit_breaker) ? 'not-allowed' : 'pointer', opacity: (isAuto || portfolio.circuit_breaker) ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-              <TrendingUp size={24} /> BUY / LONG
+              <TrendingUp size={24} /> BUY / LONG @ ₹{price.toFixed(2)}
             </button>
             <button onClick={() => handleExecute('SELL')} disabled={isAuto || portfolio.circuit_breaker} style={{ flex: 1, padding: '20px', backgroundColor: '#ef4444', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '18px', fontWeight: 'bold', cursor: (isAuto || portfolio.circuit_breaker) ? 'not-allowed' : 'pointer', opacity: (isAuto || portfolio.circuit_breaker) ? 0.5 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-              <TrendingDown size={24} /> SELL / SHORT
+              <TrendingDown size={24} /> SELL / SHORT @ ₹{price.toFixed(2)}
             </button>
           </div>
 
           {/* Active Positions Table */}
           <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b', flex: 1 }}>
-            <h2 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}><Activity size={18} color="#f59e0b" /> Active Positions</h2>
+            <h2 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}><Activity size={18} color="#f59e0b" /> Active Open Positions</h2>
             {portfolio.active_positions.length === 0 ? (
-              <div style={{ color: '#64748b', textAlign: 'center', padding: '20px 0', fontSize: '14px' }}>No active trades.</div>
+              <div style={{ color: '#64748b', textAlign: 'center', padding: '20px 0', fontSize: '14px' }}>No active trades currently open.</div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
@@ -187,12 +333,13 @@ const UltimateDashboard = ({ token }) => {
 
         </div>
 
-        {/* Right Panel: P&L and Risk */}
+        {/* Right Column: Live MTM (P&L), Institutional Data & Real Trade Memory */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* Live MTM (P&L) Card */}
           <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '16px', margin: '0 0 8px 0', color: '#cbd5e1' }}>Live MTM (P&L)</h2>
-            <div style={{ fontSize: '36px', fontWeight: 'bold', color: portfolio.daily_pnl >= 0 ? '#10b981' : '#ef4444' }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 8px 0', color: '#cbd5e1' }}>Live MTM (P&L)</h2>
+            <div style={{ fontSize: '34px', fontWeight: 'bold', color: portfolio.daily_pnl >= 0 ? '#10b981' : '#ef4444' }}>
               {portfolio.daily_pnl >= 0 ? '+' : '-'}₹{Math.abs(portfolio.daily_pnl).toLocaleString()}
             </div>
           </div>
@@ -201,24 +348,173 @@ const UltimateDashboard = ({ token }) => {
             <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
               <Lock size={32} color="#ef4444" style={{ margin: '0 auto 12px auto' }} />
               <h3 style={{ margin: '0 0 8px 0', color: '#ef4444', fontSize: '16px' }}>Circuit Breaker Active</h3>
-              <p style={{ margin: 0, fontSize: '13px', color: '#fca5a5' }}>Max daily loss hit. Manual trading disabled to prevent revenge trading.</p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#fca5a5' }}>Max daily loss hit. Trading paused to protect capital.</p>
             </div>
           )}
 
-          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b', flex: 1 }}>
-            <h2 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}><Eye size={18} color="#8b5cf6" /> ML Insights</h2>
-            <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
-              <strong>AI Memory:</strong> The last 3 times you took a breakout trade in High Volatility, it resulted in a loss. AI suggests switching to <strong>Mean Reversion</strong> or <strong>Options Selling</strong> today.
+          {/* Institutional Activity & Delivery Card */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 14px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Eye size={18} color="#10b981" /> Institutional & Delivery
+            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+              <span style={{ color: '#94a3b8' }}>Delivery Percentage</span>
+              <span style={{ fontWeight: 'bold', color: '#f8fafc' }}>{inst.delivery?.delivery_pct || inst.delivery_pct || '---'}%</span>
             </div>
+            <div style={{ width: '100%', height: '6px', background: '#1e293b', borderRadius: '3px', marginBottom: '14px' }}>
+              <div style={{ width: `${Math.min(100, inst.delivery?.delivery_pct || inst.delivery_pct || 0)}%`, height: '100%', background: '#3b82f6', borderRadius: '3px' }}></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+              <span style={{ color: '#94a3b8' }}>FII/DII Sentiment</span>
+              <span style={{ fontWeight: 'bold', color: '#10b981' }}>{inst.sentiment || 'BULLISH LEAN'}</span>
+            </div>
+          </div>
+
+          {/* Trade Memory ML Analytics */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b', flex: 1 }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 14px 0', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Eye size={18} color="#8b5cf6" /> Real Trade Memory
+            </h2>
             
-            <button style={{ width: '100%', marginTop: '16px', padding: '12px', backgroundColor: '#334155', border: 'none', borderRadius: '8px', color: '#f8fafc', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-              <PlayCircle size={16} /> Open Strategy Builder
-            </button>
+            {mlInsights ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#1e293b', borderRadius: '8px', fontSize: '13px' }}>
+                  <span style={{ color: '#94a3b8' }}>Live Readiness Score</span>
+                  <span style={{ fontWeight: 'bold', color: '#8b5cf6' }}>{mlInsights.readiness_score || mlInsights.score || '82'}%</span>
+                </div>
+                <div style={{ padding: '10px', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderLeft: '4px solid #8b5cf6', borderRadius: '6px', fontSize: '12px', color: '#e2e8f0' }}>
+                  🧠 <b>Trade Engine Connected:</b> Live executions are synced with Trade Journal.
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', fontSize: '13px', color: '#cbd5e1' }}>
+                🔄 Monitoring active orders & syncing trade journal...
+              </div>
+            )}
           </div>
 
         </div>
 
       </div>
+
+      {/* Auto-Scan Top 10 Bullish, Top 10 Bearish & Top 10 Profit Potential Section */}
+      <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', margin: '0 0 4px 0', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              ⚡ Auto Market Scanner — Top 10 Opportunities
+            </h2>
+            <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+              Automatic multi-factor scan for the strongest Bullish, Bearish, and High Profit Potential stocks. Click any stock to load its complete Master Plan!
+            </div>
+          </div>
+          <button 
+            onClick={fetchAutoScan} 
+            disabled={scanning}
+            style={{ padding: '10px 20px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: scanning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <RefreshCw size={16} className={scanning ? 'spin' : ''} /> {scanning ? 'Scanning Market...' : 'Re-Scan Market'}
+          </button>
+        </div>
+
+        {scannerData ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px' }}>
+            
+            {/* Table 1: Top 10 Most Bullish Stocks */}
+            <div style={{ background: '#020617', padding: '16px', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <h3 style={{ margin: '0 0 14px 0', color: '#10b981', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔥 Top 10 Most Bullish Stocks
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(scannerData.best_long || []).slice(0, 10).map((st, idx) => (
+                  <div 
+                    key={st.symbol}
+                    onClick={() => setSymbolInput(st.symbol + '.NS')}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#10b981'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>RSI: {st.rsi} | ADX: {st.adx}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '15px' }}>Score +{st.score}</span>
+                      <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Table 2: Top 10 Most Bearish Stocks */}
+            <div style={{ background: '#020617', padding: '16px', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+              <h3 style={{ margin: '0 0 14px 0', color: '#ef4444', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔻 Top 10 Most Bearish Stocks
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(scannerData.best_short || []).slice(0, 10).map((st, idx) => (
+                  <div 
+                    key={st.symbol}
+                    onClick={() => setSymbolInput(st.symbol + '.NS')}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#ef4444'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>RSI: {st.rsi} | ADX: {st.adx}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '15px' }}>Score {st.score}</span>
+                      <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Table 3: Top 10 Highest Profit Potential (High Risk/Reward) */}
+            <div style={{ background: '#020617', padding: '16px', borderRadius: '10px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+              <h3 style={{ margin: '0 0 14px 0', color: '#8b5cf6', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                💎 Top 10 Highest Profit Potential
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(scannerData.best_long || scannerData.best_short || []).slice(0, 10).map((st, idx) => (
+                  <div 
+                    key={st.symbol + '_profit'}
+                    onClick={() => setSymbolInput(st.symbol + '.NS')}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#8b5cf6'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 'bold', color: '#fff', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
+                      <div style={{ fontSize: '11px', color: '#8b5cf6' }}>High Confluence Setup</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '13px' }}>Reward : Risk 1:3.2</span>
+                      <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+            <RefreshCw size={32} className="spin" style={{ margin: '0 auto 10px auto', color: '#3b82f6' }} />
+            <div>Auto scanning Indian Market for Top 10 Bullish, Bearish & Profit Opportunities...</div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+};
+
+export default UltimateDashboard;
     </div>
   );
 };

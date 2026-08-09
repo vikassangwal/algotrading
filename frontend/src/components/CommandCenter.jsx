@@ -55,8 +55,12 @@ function ScoreBar({ score }) {
   );
 }
 
-const CommandCenter = () => {
+const CommandCenter = ({ globalSymbol }) => {
   const [symbol, setSymbol] = useState('RELIANCE');
+
+  useEffect(() => {
+    if (globalSymbol) setSymbol(globalSymbol);
+  }, [globalSymbol]);
   const [input, setInput] = useState('RELIANCE');
   const [data, setData] = useState(null);
   const [pnl, setPnl] = useState(null);

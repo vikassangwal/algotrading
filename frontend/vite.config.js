@@ -7,6 +7,44 @@ export default defineConfig({
   server: {
     host: true,      // listen on 0.0.0.0 so Docker port mapping works
     port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/config': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/login': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/journal': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/portfolio': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/radar': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/workflows': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/healthz': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/analyze': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    }
   },
   preview: {
     host: true,

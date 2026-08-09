@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const OptionChain = ({ token }) => {
+const OptionChain = ({ token, globalSymbol }) => {
   const [symbol, setSymbol] = useState('NIFTY');
+
+  useEffect(() => {
+    if (globalSymbol) setSymbol(globalSymbol);
+  }, [globalSymbol]);
   const [expirations, setExpirations] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
   
@@ -41,7 +45,7 @@ const OptionChain = ({ token }) => {
     if (!symbol || !selectedDate) return;
     fetchChain();
     // Refresh every 10s
-    const interval = setInterval(fetchChain, 10000);
+    const interval = setInterval(fetchChain, 30000);
     return () => clearInterval(interval);
   }, [symbol, selectedDate]);
 
@@ -55,7 +59,7 @@ const OptionChain = ({ token }) => {
         setMaxPain(data.max_pain || 0);
         
         // Map data into rows by strike
-        const rows = data.strikes.map(strike => {
+        const rows = (data.strikes || []).map(strike => {
           const call = data.calls.find(c => c.strike === strike) || {};
           const put = data.puts.find(p => p.strike === strike) || {};
           return { strike, call, put };

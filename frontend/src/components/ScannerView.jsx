@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const ScannerView = ({ token }) => {
+const ScannerView = ({ token, globalSymbol }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [scanned, setScanned] = useState(false);

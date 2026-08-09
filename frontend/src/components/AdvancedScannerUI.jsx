@@ -43,7 +43,7 @@ const StockCard = ({ data, type }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#f8fafc' }}>{data.symbol}</span>
             <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', backgroundColor: color, color: '#fff', fontWeight: 'bold' }}>
-              {data.chance_pct}% Chance
+              Score {data.chance_pct}
             </span>
           </div>
           <span style={{ color: '#94a3b8', fontSize: '14px' }}>LTP: ₹{data.current_price.toFixed(2)}</span>
@@ -128,7 +128,7 @@ const StockCard = ({ data, type }) => {
   );
 };
 
-const AdvancedScannerUI = ({ token }) => {
+const AdvancedScannerUI = ({ token, globalSymbol }) => {
   const [data, setData] = useState({ top_bullish: [], top_bearish: [] });
   const [loading, setLoading] = useState(true);
 

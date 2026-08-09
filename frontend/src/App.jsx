@@ -30,11 +30,18 @@ import AdvancedScannerUI from './components/AdvancedScannerUI';
 import UltimateDashboard from './components/UltimateDashboard';
 import TradingPathways from './components/TradingPathways';
 import UniversalScreener from './components/UniversalScreener';
+import StockProfile from './components/StockProfile';
+import GlobalSearch from './components/GlobalSearch';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Tabs whose UI shipped without any backend — pure demo screens. We label them
+// honestly instead of letting sample data pass for real engine output.
+const DEMO_TABS = [];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [globalSymbol, setGlobalSymbol] = useState('RELIANCE.NS');
   const [config, setConfig] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('elco_token'));
   const [loginError, setLoginError] = useState('');
@@ -195,10 +202,11 @@ export default function App() {
               <div className="category-items">
                 <div className={`nav-item ${activeTab === 'universal' ? 'active' : ''}`} onClick={() => setActiveTab('universal')}><Crosshair size={20} /> Global Radar</div>
                 <div className={`nav-item ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}><ListFilter size={20} /> Scanners</div>
-                <div className={`nav-item ${activeTab === 'market-scanner' ? 'active' : ''}`} onClick={() => setActiveTab('market-scanner')}><Activity size={20} /> Market Scanner UI</div>
+                <div className={`nav-item ${activeTab === 'market-scanner' ? 'active' : ''}`} onClick={() => setActiveTab('market-scanner')}><ListFilter size={20} /> Pattern Scanner</div>
                 <div className={`nav-item ${activeTab === 'options' ? 'active' : ''}`} onClick={() => setActiveTab('options')}><Layers size={20} /> Option Chain</div>
-                <div className={`nav-item ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}><ShieldAlert size={20} /> News Risk Radar</div>
+                <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}><BookOpen size={20} /> Stock Biodata</div>
                 <div className={`nav-item ${activeTab === 'heatmap' ? 'active' : ''}`} onClick={() => setActiveTab('heatmap')}><Grid size={20} /> Portfolio Heatmap</div>
+                <div className={`nav-item ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}><ShieldAlert size={20} /> Crash-Risk Radar</div>
               </div>
             )}
 
@@ -262,9 +270,12 @@ export default function App() {
 
         {/* Main Content */}
         <div className="main-content">
-          <div className="header">
-            <div className="header-title">
+          <div className="header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'nowrap' }}>
+            <div className="header-title" style={{ whiteSpace: 'nowrap', minWidth: 'fit-content' }}>
               {activeTab === 'dashboard' && 'Market Overview'}
+              {activeTab === 'profile' && 'Stock Biodata'}
+              {activeTab === 'command-center' && 'AI Command Center'}
+              {activeTab === 'ultimate-dashboard' && 'Ultimate Command Center'}
               {activeTab === 'oms' && 'Order Management System'}
               {activeTab === 'charts' && 'Pro Candlestick Charts'}
               {activeTab === 'scanner' && 'Real-time Scanners'}
@@ -278,9 +289,6 @@ export default function App() {
               {activeTab === 'pathways' && 'Syllabus Matrix'}
               {activeTab === 'diary' && 'Trading Psychology & Discipline'}
               {activeTab === 'ai' && 'AI Market Intelligence'}
-              {activeTab === 'sso-settings' && 'Enterprise Security Settings'}
-              {activeTab === 'tenant-dashboard' && 'SaaS Tenant Management'}
-              {activeTab === 'workflow-approvals' && '4-Eyes Operational Approvals'}
               {activeTab === 'market-scanner' && 'Advanced Market Scanners'}
               {activeTab === 'system-dashboard' && 'System Analytics'}
               {activeTab === 'strategy-canvas' && 'Strategy Canvas'}
@@ -291,50 +299,64 @@ export default function App() {
               {activeTab === 'workflow' && '4-Eyes Operational Approvals'}
               {activeTab === 'sso' && 'Enterprise Security Settings'}
               {activeTab === 'tenant' && 'SaaS Tenant Management'}
-              {activeTab === 'admin' && 'System Configuration'}
+              {activeTab === 'config' && 'System Configuration'}
             </div>
-            <div>
-              <span style={{marginRight: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Capital: </span>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+              <GlobalSearch token={token} onSelect={(sym) => setGlobalSymbol(sym)} />
+            </div>
+            <div style={{ whiteSpace: 'nowrap' }}>
+              <span style={{marginRight: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Capital:</span>
               <span style={{fontWeight: 600}}>₹ {config?.capital != null ? config.capital.toLocaleString() : '---'}</span>
             </div>
           </div>
           
           <div className="content-body">
+            {DEMO_TABS.includes(activeTab) && (
+              <div style={{ background: '#7c2d12', border: '1px solid #f97316', color: '#ffedd5',
+                padding: '10px 16px', borderRadius: 8, marginBottom: 14, fontSize: 14 }}>
+                ⚠️ <b>DEMO SCREEN</b> — ye tab abhi trading engine se juda <b>nahi</b> hai.
+                Isme dikhne wala data sample hai, asli nahi. (Asli tabs: Command Center,
+                Pro Charts, Market Scanner, Option Chain, Order Mgmt, Portfolio, Journal, Config.)
+              </div>
+            )}
             {activeTab === 'command-center' && (
-              <CommandCenter />
+              <CommandCenter globalSymbol={globalSymbol} />
             )}
             {activeTab === 'ultimate-dashboard' && (
-              <UltimateDashboard token={token} />
+              <UltimateDashboard token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'dashboard' && (
               <DashboardView config={config} token={token} />
             )}
             {activeTab === 'oms' && (
-              <OMSView token={token} />
+              <OMSView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'charts' && (
-              <AdvancedChartEngine token={token} />
+              <AdvancedChartEngine token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'scanner' && (
-              <ScannerView token={token} />
+              <ScannerView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'universal' && (
-              <UniversalScreener token={token} />
+              <UniversalScreener token={token} globalSymbol={globalSymbol} />
+            )}
+            {activeTab === 'profile' && (
+              <StockProfile token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'options' && (
-              <OptionChain token={token} />
+              <OptionChain token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'reports' && (
-              <ReportsView token={token} />
+              <ReportsView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'heatmap' && (
-              <PortfolioHeatmap token={token} />
+              <PortfolioHeatmap token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'alerts' && (
-              <SmartAlerts token={token} />
+              <SmartAlerts token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'radar' && (
-              <NewsRiskRadar token={token} />
+              <NewsRiskRadar token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'journal' && (
               <TradeJournal token={token} />
@@ -346,16 +368,16 @@ export default function App() {
               <TradingPathways token={token} />
             )}
             {activeTab === 'ai' && (
-              <AIAssistant token={token} />
+              <AIAssistant token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'strategy-lab' && (
-              <StrategyLab token={token} />
+              <StrategyLab token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'execution-replay' && (
-              <ExecutionReplay token={token} />
+              <ExecutionReplay token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'stress-test' && (
-              <StressTest token={token} />
+              <StressTest token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'workflow' && (
               <WorkflowApprovals token={token} />
@@ -377,16 +399,16 @@ export default function App() {
               )
             )}
             {activeTab === 'market-scanner' && (
-              <AdvancedScannerUI token={token} />
+              <AdvancedScannerUI token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'system-dashboard' && (
               <SystemDashboard token={token} />
             )}
             {activeTab === 'strategy-canvas' && (
-              <StrategyBuilderLayout token={token} />
+              <StrategyBuilderLayout token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'walk-forward' && (
-              <WalkForwardUI token={token} />
+              <WalkForwardUI token={token} globalSymbol={globalSymbol} />
             )}
           </div>
         </div>
@@ -863,7 +885,7 @@ function DashboardView({ config, token }) {
 
   const confidenceData = symbols.map(sym => ({
     name: sym,
-    confidence: analysis[sym] ? analysis[sym].analytical_score * 100 : 0
+    confidence: analysis[sym] ? (analysis[sym].overall_confidence ?? 0) * 100 : 0
   }));
 
   return (
@@ -950,7 +972,7 @@ function DashboardView({ config, token }) {
                   <td style={{padding: '1rem 0.5rem'}}>{(pos.entry_price ?? 0).toFixed(2)}</td>
                   <td style={{padding: '1rem 0.5rem'}}>{(pos.ltp ?? 0).toFixed(2)}</td>
                   <td style={{padding: '1rem 0.5rem', color: pos.unrealized_pnl >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)', fontWeight: 'bold'}}>
-                    {pos.unrealized_pnl >= 0 ? '+' : ''}{pos.unrealized_pnl.toFixed(2)}
+                    {pos.unrealized_pnl >= 0 ? '+' : ''}{(pos.unrealized_pnl ?? 0).toFixed(2)}
                   </td>
                 </tr>
               ))
@@ -992,8 +1014,8 @@ function DashboardView({ config, token }) {
                       {data.action}
                     </span>
                   </td>
-                  <td style={{padding: '1rem 0.5rem'}}>{(data.overall_confidence * 100).toFixed(1)}%</td>
-                  <td style={{padding: '1rem 0.5rem'}}>{data.overall_score.toFixed(2)}</td>
+                  <td style={{padding: '1rem 0.5rem'}}>{((data.overall_confidence ?? 0) * 100).toFixed(1)}%</td>
+                  <td style={{padding: '1rem 0.5rem'}}>{(data.overall_score ?? 0).toFixed(2)}</td>
                   <td style={{padding: '1rem 0.5rem', verticalAlign: 'top'}}>
                     {data.executed ? 
                       <span style={{color: 'var(--signal-buy)', fontWeight: 'bold'}}>Executed</span> :

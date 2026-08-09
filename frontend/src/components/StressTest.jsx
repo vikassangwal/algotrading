@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const StressTest = () => {
+const StressTest = ({ globalSymbol }) => {
   const [portfolio, setPortfolio] = useState({
     equities: 60,
     bonds: 20,

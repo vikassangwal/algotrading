@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { Route, BrainCircuit, Target, Briefcase, Zap } from 'lucide-react';
+import { Route, BrainCircuit, Target, Briefcase, Zap, Activity, TrendingUp, Layers } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const TradingPathways = ({ token }) => {
   const [profiles, setProfiles] = useState(null);
-  const [selectedRole, setSelectedRole] = useState('Intraday Scalper');
+  const [selectedRole, setSelectedRole] = useState('Intraday');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ const TradingPathways = ({ token }) => {
     return <div style={{ padding: '24px', color: '#94a3b8' }}>Loading Syllabus Configurator...</div>;
   }
 
-  const roleData = profiles[selectedRole];
+  const roleData = profiles[selectedRole] || { description: '', weights: [], guidance: '' };
   
   // Custom icons mapping for roles
   const roleIcons = {

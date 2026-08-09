@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createChart } from 'lightweight-charts';
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const AdvancedChartEngine = ({ token }) => {
+const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [activeChartType, setActiveChartType] = useState('candlestick');
   const [drawingToolsEnabled, setDrawingToolsEnabled] = useState(false);
-  const [symbol, setSymbol] = useState('RELIANCE'); // Default symbol
+  const [symbol, setSymbol] = useState(globalSymbol || 'RELIANCE'); // Default symbol
+
+  useEffect(() => {
+    if (globalSymbol && globalSymbol !== symbol) {
+      setSymbol(globalSymbol);
+    }
+  }, [globalSymbol]);
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState(true);
@@ -110,7 +117,7 @@ const AdvancedChartEngine = ({ token }) => {
         }
       });
       
-      volumeSeriesRef.current = chartRef.current.addHistogramSeries({
+      volumeSeriesRef.current = chartRef.current.addSeries(HistogramSeries, {
         color: '#26a69a',
         priceFormat: {
           type: 'volume',
@@ -131,7 +138,7 @@ const AdvancedChartEngine = ({ token }) => {
     }
 
     if (activeChartType === 'candlestick') {
-      seriesRef.current = chart.addCandlestickSeries({
+      seriesRef.current = chart.addSeries(CandlestickSeries, {
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderVisible: false,
@@ -140,7 +147,7 @@ const AdvancedChartEngine = ({ token }) => {
       });
       seriesRef.current.setData(data);
     } else if (activeChartType === 'heikin_ashi') {
-      seriesRef.current = chart.addCandlestickSeries({
+      seriesRef.current = chart.addSeries(CandlestickSeries, {
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderVisible: false,
@@ -150,7 +157,7 @@ const AdvancedChartEngine = ({ token }) => {
       seriesRef.current.setData(getHeikinAshiData(data));
     } else {
       // For Renko / P&F, fallback to Line chart for now
-      seriesRef.current = chart.addLineSeries({
+      seriesRef.current = chart.addSeries(LineSeries, {
         color: '#2962ff',
         lineWidth: 2,
       });
@@ -289,7 +296,7 @@ const AdvancedChartEngine = ({ token }) => {
     };
 
     poll();
-    const id = setInterval(poll, 5000); // 5s cadence; data is delayed anyway
+    const id = setInterval(poll, 30000); // 30s cadence; data is delayed anyway
     return () => { cancelled = true; clearInterval(id); };
   }, [live, token, symbol, wsLive, activeChartType]);
 

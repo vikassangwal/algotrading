@@ -51,8 +51,14 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const ExecutionReplay = ({ token }) => {
+const ExecutionReplay = ({ token, globalSymbol }) => {
   const [symbol, setSymbol] = useState('NIFTY');
+
+  useEffect(() => {
+    if (globalSymbol) {
+      setSymbol(globalSymbol);
+    }
+  }, [globalSymbol]);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);

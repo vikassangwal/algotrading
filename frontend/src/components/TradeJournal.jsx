@@ -46,7 +46,7 @@ const TradeJournal = ({ token }) => {
     };
     
     fetchJournal();
-    const interval = setInterval(fetchJournal, 10000);
+    const interval = setInterval(fetchJournal, 60000);
     return () => clearInterval(interval);
   }, [token]);
 

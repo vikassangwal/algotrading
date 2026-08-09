@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, AlertTriangle, Crosshair, Filter, ChevronDown, ChevronRight, Activity, Zap, Target, BarChart2 } from 'lucide-react';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export default function UniversalScreener({ token }) {
+export default function UniversalScreener({ token, globalSymbol }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastScan, setLastScan] = useState(null);

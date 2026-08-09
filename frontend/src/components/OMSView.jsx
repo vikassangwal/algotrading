@@ -9,7 +9,7 @@ const OMSView = () => {
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
   }, []);
 

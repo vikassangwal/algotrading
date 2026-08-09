@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LineChart,
   Line,
@@ -160,8 +160,14 @@ const styles = {
   }
 };
 
-const StrategyLab = ({ token }) => {
-  const [symbol, setSymbol] = useState('RELIANCE.NS');
+const StrategyLab = ({ token, globalSymbol }) => {
+  const [symbol, setSymbol] = useState(globalSymbol || 'RELIANCE.NS');
+
+  useEffect(() => {
+    if (globalSymbol && globalSymbol !== symbol) {
+      setSymbol(globalSymbol);
+    }
+  }, [globalSymbol]);
   const [years, setYears] = useState(5);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [results, setResults] = useState(null);
@@ -176,10 +182,22 @@ const StrategyLab = ({ token }) => {
       });
       const data = await res.json();
       
-      if (data.status === 'success') {
-        setResults(data);
+      if (data.summary) {
+        const mappedMetrics = {
+            total_return: data.summary.net_profit_pct || data.summary.total_return || 0,
+            annualized_cagr: data.summary.annualized_cagr || ((data.summary.net_profit_pct || 0) / years).toFixed(2),
+            max_drawdown: data.summary.max_drawdown || 0,
+            sharpe_ratio: data.summary.sharpe_ratio || 0,
+            win_rate: data.summary.win_rate || 0,
+            total_trades: data.summary.total_trades || 0,
+            final_capital: data.summary.final_capital || 0
+        };
+        setResults({
+          ...data,
+          metrics: mappedMetrics
+        });
       } else {
-        setError(data.message || 'Backtest failed');
+        setError(data.error || data.message || 'Backtest failed');
       }
     } catch (err) {
       console.error(err);

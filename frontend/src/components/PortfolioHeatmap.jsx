@@ -3,7 +3,7 @@ import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const PortfolioHeatmap = ({ token }) => {
+const PortfolioHeatmap = ({ token, globalSymbol }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +30,7 @@ const PortfolioHeatmap = ({ token }) => {
 
   // Custom coloring function based on % change
   const getColor = (change) => {
-    if (change === undefined) return '#1f2937';
+    if (change == null) return '#1f2937';
     if (change >= 3) return '#059669'; // Deep green
     if (change > 1) return '#10b981'; // Green
     if (change > 0) return '#34d399'; // Light green
@@ -44,6 +44,10 @@ const PortfolioHeatmap = ({ token }) => {
     const { root, depth, x, y, width, height, index, payload, name, value } = props;
     
     // Depth 1 = Sectors, Depth 2 = Stocks
+    if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+      return <g></g>;
+    }
+    
     if (depth === 1) {
       // Draw sector borders
       return (
@@ -60,7 +64,7 @@ const PortfolioHeatmap = ({ token }) => {
         </g>
       );
     }
-    if (depth === 2) {
+    if (depth === 2 && payload) {
       const { change } = payload;
       const fill = getColor(change);
       
@@ -93,7 +97,7 @@ const PortfolioHeatmap = ({ token }) => {
         </g>
       );
     }
-    return null;
+    return <g></g>;
   };
 
   const CustomTooltip = ({ active, payload }) => {
@@ -148,7 +152,7 @@ const PortfolioHeatmap = ({ token }) => {
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
             Crunching portfolio data...
           </div>
-        ) : data.length > 0 && data[0].children ? (
+        ) : data.length > 0 && data[0].children && data[0].children.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <Treemap
               data={data[0].children} // recharts treemap works best by passing the children of the root directly

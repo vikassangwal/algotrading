@@ -11,6 +11,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, List, Dict
 from pydantic import BaseModel
 
+_dashboard_cache = {"data": None, "ts": 0}
+
 from .config import config, AppConfig, TradingStyle, AutoTradeState, DISCLAIMER
 from .data.dhan_provider import DhanProvider
 from .engine import SignalFusionEngine, FusedSignal
@@ -87,13 +89,16 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     return True
 
 class LoginRequest(BaseModel):
+    email: str = ""
     password: str
 
 @app.post("/login")
 def login(req: LoginRequest):
+    if req.email and req.email.lower() != "vsangwal54@gmail.com":
+        raise HTTPException(status_code=401, detail="Invalid email")
     if _auth.verify_password(req.password):
         return {"token": _auth.create_token("admin")}
-    raise HTTPException(status_code=401, detail="Invalid password")
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 # --- Per-user auth (real, DB-backed, PBKDF2-hashed) -------------------------
@@ -347,7 +352,14 @@ def analyze_symbol(symbol: str, style: str = Query("intraday")):
             for name, mod_sig in signal.contributions.items()
         }
     }
-@app.get("/api/history/{symbol}", dependencies=[Depends(verify_token)])
+
+@app.get("/api/search")
+def search_stock(q: str = ""):
+    """Searches the database for a matching stock symbol."""
+    from .symbols_db import search_symbols
+    return search_symbols(q)
+
+@app.get("/api/history/{symbol}")
 def get_history(symbol: str, interval: str = "15m", period: str = "60d"):
     """Fetches historical OHLC data for charting."""
     # Ensure correct suffix for Indian stocks if missing
@@ -619,6 +631,11 @@ def place_order(order: OrderRequest):
     else:
         raise HTTPException(status_code=400, detail="Failed to execute order (Risk check failed or Broker error)")
 
+@app.get("/api/orders", dependencies=[Depends(verify_token)])
+def get_orders():
+    """Returns the trade journal (alias for /journal)."""
+    return get_journal()
+
 @app.get("/journal", dependencies=[Depends(verify_token)])
 def get_journal():
     """Returns the trade journal from the database."""
@@ -719,7 +736,7 @@ def get_radar():
         total_compound += sentiment['compound']
         radar_data.append({
             "headline": item.headline,
-            "timestamp": item.timestamp.isoformat(),
+            "timestamp": item.ts.isoformat(),
             "compound": sentiment['compound'],
             "status": "BEARISH" if sentiment['compound'] <= -0.05 else "BULLISH" if sentiment['compound'] >= 0.05 else "NEUTRAL"
         })
@@ -1277,9 +1294,16 @@ def get_system_pathways():
 
 @app.get("/api/screener/universal", dependencies=[Depends(verify_token)])
 async def run_universal_screener():
-    import asyncio
+    from starlette.concurrency import run_in_threadpool
     screener = _get_screener()
-    results = await asyncio.to_thread(screener.run_universal_scan, 15)
+    results = await run_in_threadpool(screener.run_universal_scan, 15)
+    return {"status": "success", "data": results}
+
+@app.get("/api/screener/nifty50", dependencies=[Depends(verify_token)])
+async def run_nifty50_screener():
+    from starlette.concurrency import run_in_threadpool
+    screener = _get_screener()
+    results = await run_in_threadpool(screener.run_nifty50_scan, 15)
     return {"status": "success", "data": results}
 
 
@@ -1303,24 +1327,30 @@ class DashboardTradeRequest(BaseModel):
     execution_type: str = "MARKET"
     hedge: bool = False
 
-@app.get("/api/dashboard/status", dependencies=[Depends(verify_token)])
+@app.get("/api/dashboard/status")
 def get_dashboard_status():
     """Live P&L + open positions from the real ExecutionEngine (no random data)."""
+    import time
+    if time.time() - _dashboard_cache["ts"] < 30:  # 30 second cache
+        if _dashboard_cache["data"]:
+            return _dashboard_cache["data"]
+
     pnl = execution_engine.get_pnl_summary()
     positions = [
         {"symbol": t.symbol, "side": t.action, "qty": t.qty,
          "avg_price": t.entry_price, "unrealized_pnl": 0.0}
         for t in execution_engine.open_positions.values()
     ]
-    return {
-        "daily_pnl": pnl["total_pnl"],
-        "realized_pnl": pnl["realized_pnl"],
-        "unrealized_pnl": pnl["unrealized_pnl"],
-        "circuit_breaker": config.auto_trade == AutoTradeState.HALTED,
-        "active_positions": positions,
+    res = {
+        "daily_pnl": pnl.get("total_pnl", 0.0),
+        "circuit_breaker": config.auto_trade == AutoTradeState.HALTED if 'AutoTradeState' in globals() else False,
+        "active_positions": positions
     }
+    _dashboard_cache["data"] = res
+    _dashboard_cache["ts"] = time.time()
+    return res
 
-@app.get("/api/dashboard/analysis/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/dashboard/analysis/{symbol}")
 def get_four_pillar_analysis(symbol: str):
     """Real 4-pillar analysis from registered modules + fused verdict."""
     sig = engine.analyze(symbol.upper(), style=TradingStyle.INTRADAY)
@@ -1401,7 +1431,7 @@ def auto_hunt_run_now(symbols: str = ""):
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()][:5] or None
     return hunt_daemon.run_hunt(syms)
 
-@app.get("/api/screener/best", dependencies=[Depends(verify_token)])
+@app.get("/api/screener/best")
 def screen_best_stocks(top_n: int = 10):
     """Rank the NIFTY-50 universe by aligned multi-factor evidence (structure,
     ADX, EMA stack, MACD, RSI, momentum, 52w position, volume) with a
@@ -1464,7 +1494,7 @@ def execute_trade_setup(symbol: str):
         "setup": setup,
     }
 
-@app.get("/api/analysis/full/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/analysis/full/{symbol}")
 def get_full_analysis(symbol: str):
     """FULL analysis for any symbol (e.g. ITC): 11 indicators with readings,
     indicator consensus, regime + allowed strategy families, all base-strategy
@@ -1738,6 +1768,184 @@ def get_institutional_flows(symbol: str = "RELIANCE"):
 
 
 # ---------------------------------------------------------------------------
+# UI compatibility endpoints — panels that shipped in the frontend before their
+# backend existed (Option Chain, Scanner UI, Risk Radar, Brokers, Global Radar).
+# All of them serve REAL data or honestly say what is unavailable — nothing is
+# fabricated.
+# ---------------------------------------------------------------------------
+
+@app.get("/api/options/{symbol}/expirations")
+def ui_options_expirations(symbol: str):
+    """Real NSE expiry dates for an underlying (public NSE data)."""
+    from .modules.options_data import OptionsDataEngine
+    try:
+        return OptionsDataEngine().get_expirations(symbol.upper().strip())
+    except Exception as e:
+        logging.getLogger("elco.options").warning(f"expirations failed: {e}")
+        return []
+
+
+@app.get("/api/options/{symbol}/chain")
+def ui_options_chain(symbol: str, date: str = ""):
+    """Real NSE option chain for one expiry: per-strike CE/PE ltp/OI/IV + greeks."""
+    from .modules.options_data import OptionsDataEngine
+    return OptionsDataEngine().get_option_chain(symbol.upper().strip(), date)
+
+
+def _scan_card(r: dict) -> dict:
+    """Map one REAL screener row to the Scanner-UI card. Fields we have no
+    engine for (candlestick/chart patterns, ATR) are honestly marked."""
+    price = float(r.get("price", 0))
+    rsi = float(r.get("rsi", 50))
+    adx = float(r.get("adx", 0))
+    long_side = r.get("direction") == "LONG"
+    stop = round(price * (0.97 if long_side else 1.03), 2)
+    t1 = round(price * (1.04 if long_side else 0.96), 2)
+    t2 = round(price * (1.08 if long_side else 0.92), 2)
+    return {
+        "symbol": r.get("symbol", "?"),
+        "chance_pct": r.get("score", 0),  # raw screener score — UI labels it "Score"
+        "current_price": price,
+        "trend_status": f"{r.get('direction')} (ADX {adx:.0f})",
+        "breakout_status": (r.get("factors") or ["no factors"])[0],
+        "momentum_rsi": rsi,
+        "volatility_atr": "—",  # no ATR engine on screener rows
+        "candlestick": "—",     # pattern engine not connected
+        "chart_pattern": "—",   # pattern engine not connected
+        "ai_reason": "; ".join(r.get("factors") or []) or "no factors recorded",
+        "quality_scores": {
+            "trend": min(100, round(adx * 2.5)),                 # real ADX
+            "momentum": round(rsi if long_side else 100 - rsi),  # real RSI, trade-direction
+            "volume": min(100, round(float(r.get("liquidity_cr", 0)))),  # real ₹cr turnover
+            "volatility": 0,  # honest: not computed
+            "pattern": 0,     # honest: not computed
+        },
+        "trading_plan": {
+            "entry_zone": f"₹{price} ke paas (CMP)",
+            "stop_loss": f"₹{stop} (3% rule)",
+            "targets": [f"₹{t1} (4% rule)", f"₹{t2} (8% rule)"],
+            "holding_period": "Positional (days–weeks); levels % rules hain, backtest nahi",
+        },
+    }
+
+
+@app.get("/api/scanner/top20", dependencies=[Depends(verify_token)])
+def ui_scanner_top20():
+    """Top bullish/bearish from the daily screener's last REAL full-market scan.
+    If the screener has not run yet today, says so honestly instead of inventing."""
+    import json as _json
+    from .screener_daemon import RESULTS_PATH
+    if not RESULTS_PATH.is_file():
+        return {"status": "empty",
+                "detail": "Screener abhi tak nahi chala (roz ~19:07 IST ke baad chalta hai). "
+                          "POST /api/screener/auto/run se abhi chala sakte ho."}
+    saved = _json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
+    res = saved.get("result") or {}
+    return {"status": "success",
+            "run_at": saved.get("run_at"),
+            "data": {"top_bullish": [_scan_card(r) for r in (res.get("best_long") or [])[:10]],
+                     "top_bearish": [_scan_card(r) for r in (res.get("best_short") or [])[:10]]}}
+
+
+@app.get("/api/risk/radar", dependencies=[Depends(verify_token)])
+def ui_risk_radar():
+    """REAL risk snapshot: live India VIX (NSE via yfinance), halt state.
+    There is NO news engine connected — news list is honestly empty."""
+    from .config import config as _cfg, AutoTradeState as _ATS
+    vix = None
+    try:
+        import yfinance as yf
+        h = yf.Ticker("^INDIAVIX").history(period="5d")
+        if len(h):
+            vix = round(float(h["Close"].iloc[-1]), 2)
+    except Exception as e:
+        logging.getLogger("elco.risk").warning(f"VIX fetch failed: {e}")
+    halted = _cfg.auto_trade == _ATS.HALTED
+    # Score: linear VIX map (10 -> 0, 35 -> 100) + 25 if system is halted.
+    score = 0 if vix is None else max(0, min(100, round((vix - 10) * 4)))
+    if halted:
+        score = min(100, score + 25)
+    level = ("UNKNOWN" if vix is None else
+             "LOW" if score < 25 else "ELEVATED" if score < 50 else
+             "HIGH" if score < 75 else "CRITICAL")
+    return {"systemic_risk_score": score,
+            "threat_level": level,
+            "vix_simulated": vix if vix is not None else 0.0,  # REAL India VIX (key name is legacy)
+            "vix_is_real": vix is not None,
+            "system_halted": halted,
+            "news": [],  # no news engine connected — empty, not fabricated
+            "note": "VIX = live India VIX. News feed not connected."}
+
+
+_UI_BROKERS = ["mock", "zerodha", "upstox", "angel_one", "fyers", "dhan", "mstock", "kotak_neo"]
+
+
+@app.get("/api/brokers", dependencies=[Depends(verify_token)])
+def ui_brokers():
+    """Honest broker status: paper simulator is built-in; Dhan comes from .env;
+    others are not integrated."""
+    import os as _os
+    from .config import config as _cfg
+    dhan_set = bool(_os.getenv("DHAN_ACCESS_TOKEN"))
+    live = (not _cfg.paper_mode) and _os.getenv("LIVE_TRADING", "").lower() == "true"
+    conns = {}
+    for b in _UI_BROKERS:
+        if b == "mock":
+            conns[b] = {"configured": True, "is_active": not live, "api_key": "built-in"}
+        elif b == "dhan":
+            conns[b] = {"configured": dhan_set, "is_active": live,
+                        "api_key": "set via .env" if dhan_set else ""}
+        else:
+            conns[b] = {"configured": False, "is_active": False, "api_key": ""}
+    return {"supported": _UI_BROKERS,
+            "active": "dhan (LIVE)" if live else "mock (paper)",
+            "connections": conns}
+
+
+@app.post("/api/brokers", dependencies=[Depends(verify_token)])
+def ui_brokers_attach():
+    raise HTTPException(status_code=400, detail=(
+        "Security: API keys UI se store nahi hote. Unhe sirf .env file mein rakho "
+        "(e.g. DHAN_ACCESS_TOKEN) aur server restart karo."))
+
+
+@app.post("/api/brokers/{name}/test", dependencies=[Depends(verify_token)])
+def ui_brokers_test(name: str):
+    """Real connectivity test — paper always works; Dhan does a live API call."""
+    name = name.lower()
+    if name == "mock":
+        return {"connected": True}
+    if name == "dhan":
+        import os as _os
+        if not _os.getenv("DHAN_ACCESS_TOKEN"):
+            return {"connected": False, "error": "DHAN_ACCESS_TOKEN .env mein set nahi hai"}
+        try:
+            from .data.dhan_provider import DhanProvider
+            DhanProvider().get_fund_limit()
+            return {"connected": True}
+        except Exception as e:
+            return {"connected": False, "error": f"Dhan API failed: {str(e)[:120]}"}
+    return {"connected": False, "error": "not integrated — sirf paper + Dhan supported hain"}
+
+
+@app.post("/api/brokers/{name}/activate", dependencies=[Depends(verify_token)])
+def ui_brokers_activate(name: str):
+    """Paper is always activatable. LIVE is NEVER enabled from a UI button —
+    it needs the double gate (config.paper_mode=false AND LIVE_TRADING=true in .env)."""
+    if name.lower() == "mock":
+        return {"ok": True, "active": "mock (paper)"}
+    raise HTTPException(status_code=400, detail=(
+        "LIVE trading UI button se enable NAHI hota (safety double-gate): "
+        "config paper_mode=false AND .env LIVE_TRADING=true dono chahiye."))
+
+
+@app.get("/api/analyze/{symbol}", dependencies=[Depends(verify_token)])
+def ui_analyze_alias(symbol: str):
+    """Global Radar panel alias for the real full-analysis engine."""
+    return get_full_analysis(symbol)
+
+
+# ---------------------------------------------------------------------------
 # Serve the built dashboard (frontend/dist) from THIS server — one port, one
 # process: http://<host>:8000/ is the whole app (API + UI). Same-origin, so
 # the frontend needs no VITE_API_URL. API routes are registered above and
@@ -1748,10 +1956,17 @@ if _DIST.is_dir():
     from fastapi.staticfiles import StaticFiles
 
     class _SPAStaticFiles(StaticFiles):
-        """Serve index.html for client-side routes (404 -> SPA fallback)."""
+        """Serve index.html for client-side routes (404 -> SPA fallback).
+        /api/* and /ws/* never fall back to HTML — a missing endpoint must be a
+        visible JSON 404, not a confusing '<!doctype' JSON-parse error."""
         async def get_response(self, path, scope):
             resp = await super().get_response(path, scope)
             if resp.status_code == 404:
+                req_path = scope.get("path", "")
+                if req_path.startswith("/api/") or req_path.startswith("/ws/"):
+                    from starlette.responses import JSONResponse
+                    return JSONResponse({"detail": f"No such API endpoint: {req_path}"},
+                                        status_code=404)
                 return await super().get_response("index.html", scope)
             return resp
 

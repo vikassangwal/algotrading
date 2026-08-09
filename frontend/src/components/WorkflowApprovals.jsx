@@ -22,7 +22,7 @@ const WorkflowApprovals = ({ token }) => {
 
   useEffect(() => {
     fetchWorkflows();
-    const interval = setInterval(fetchWorkflows, 10000);
+    const interval = setInterval(fetchWorkflows, 60000);
     return () => clearInterval(interval);
   }, [token]);
 

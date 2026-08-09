@@ -35,13 +35,11 @@ const AuthViews = ({ setToken }) => {
       try {
         const endpoint = isLogin ? '/login' : '/api/auth/register';
         const payload = isLogin 
-          ? { password: password } 
+          ? { email: email, password: password } 
           : { email, password, role: "user" }; // Dummy role
         
         // Use standard JSON for login since main.py expects JSON LoginRequest
-        const body = isLogin 
-          ? JSON.stringify(payload)
-          : JSON.stringify(payload);
+        const body = JSON.stringify(payload);
           
         const headers = { 'Content-Type': 'application/json' };
 

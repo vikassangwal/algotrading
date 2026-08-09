@@ -65,7 +65,7 @@ const BrokerPanel = () => {
 
   const card = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: 16 };
   const connByBroker = {};
-  (state?.connections || []).forEach((c) => { connByBroker[c.broker] = c; });
+  Object.values(state?.connections || {}).forEach((c) => { connByBroker[c.broker] = c; });
 
   return (
     <div style={{ color: '#e2e8f0' }}>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const AIAssistant = () => {
+const AIAssistant = ({ globalSymbol }) => {
   const [inputMessage, setInputMessage] = useState('');
   
   const handleSendMessage = (e) => {
