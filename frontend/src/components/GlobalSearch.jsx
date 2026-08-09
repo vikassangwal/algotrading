@@ -11,7 +11,6 @@ const GlobalSearch = ({ token, onSelect }) => {
   const wrapperRef = useRef(null);
 
   useEffect(() => {
-    // Close dropdown if clicked outside
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -24,7 +23,7 @@ const GlobalSearch = ({ token, onSelect }) => {
   const fetchResults = async (q) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q)}`);
+      const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q || '')}`);
       if (response.ok) {
         const data = await response.json();
         setResults(data || []);
@@ -40,7 +39,7 @@ const GlobalSearch = ({ token, onSelect }) => {
   useEffect(() => {
     const debounce = setTimeout(() => {
       fetchResults(query);
-    }, 200);
+    }, 150);
 
     return () => clearTimeout(debounce);
   }, [query]);
@@ -54,21 +53,24 @@ const GlobalSearch = ({ token, onSelect }) => {
   };
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '450px' }}>
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '450px', zIndex: 99999 }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        background: 'rgba(255, 255, 255, 0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '4px',
-        padding: '0.3rem 0.6rem'
+        background: 'rgba(255, 255, 255, 0.12)',
+        border: '1px solid rgba(255,255,255,0.3)',
+        borderRadius: '6px',
+        padding: '0.4rem 0.8rem'
       }}>
-        <Search size={16} style={{ color: 'rgba(255,255,255,0.5)', marginRight: '8px' }} />
+        <Search size={16} style={{ color: '#94a3b8', marginRight: '8px' }} />
         <input
           type="text"
           placeholder="Search NSE/BSE stocks (e.g. RELIANCE, TATA)..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && query.trim() !== '') {
               let finalSymbol = query.trim().toUpperCase();
@@ -86,46 +88,50 @@ const GlobalSearch = ({ token, onSelect }) => {
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'white',
+            color: '#ffffff',
             outline: 'none',
             width: '100%',
-            fontSize: '14px'
+            fontSize: '14px',
+            fontWeight: 500
           }}
         />
-        {loading && <Loader size={14} className="spin" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+        {loading && <Loader size={14} className="spin" style={{ color: '#3b82f6' }} />}
       </div>
       
       {isOpen && results.length > 0 && (
         <div style={{
           position: 'absolute',
-          top: '100%',
+          top: '105%',
           left: 0,
           right: 0,
-          background: '#1a1a2e',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '4px',
-          marginTop: '4px',
-          zIndex: 1000,
-          maxHeight: '300px',
+          background: '#0f172a',
+          border: '1px solid #3b82f6',
+          borderRadius: '8px',
+          zIndex: 999999,
+          maxHeight: '320px',
           overflowY: 'auto',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.8)'
         }}>
           {results.map((stock) => (
             <div 
               key={stock.symbol}
               onClick={() => handleSelect(stock)}
               style={{
-                padding: '10px',
+                padding: '10px 14px',
                 cursor: 'pointer',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
                 display: 'flex',
-                flexDirection: 'column'
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
-              <span style={{ fontWeight: 'bold', color: '#4ade80' }}>{stock.symbol}</span>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>{stock.name}</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 'bold', color: '#60a5fa', fontSize: '14px' }}>{stock.symbol}</span>
+                <span style={{ fontSize: '12px', color: '#94a3b8' }}>{stock.name}</span>
+              </div>
+              <span style={{ fontSize: '11px', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', color: '#cbd5e1' }}>{stock.exchange || 'NSE'}</span>
             </div>
           ))}
         </div>
