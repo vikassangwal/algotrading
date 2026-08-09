@@ -182,7 +182,7 @@ app.include_router(brokers_api.router, dependencies=[Depends(verify_token)])
 
 # AI technical scanner (/api/scanner/top20), consolidated from the retired api stack.
 from .api.scanner import router as scanner_router
-app.include_router(scanner_router, dependencies=[Depends(verify_token)])
+app.include_router(scanner_router)
 
 # Initialize Data Provider and Engine
 provider = DhanProvider()
