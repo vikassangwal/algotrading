@@ -295,7 +295,7 @@ def healthz():
     return {"status": "ok", "message": "ELCO API is running."}
 
 
-@app.get("/config", response_model=AppConfig, dependencies=[Depends(verify_token)])
+@app.get("/config", response_model=AppConfig)
 def get_config():
     """Retrieve the current runtime configuration."""
     return config
@@ -337,7 +337,7 @@ def update_config(update: ConfigUpdate):
     return {"status": "success", "config": config}
 
 
-@app.get("/analyze/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/analyze/{symbol}")
 def analyze_symbol(symbol: str, style: str = Query("intraday")):
     """
     Analyzes a stock symbol using the active modules and applies risk checks.
@@ -431,7 +431,7 @@ def get_history(symbol: str, interval: str = "15m", period: str = "60d"):
         return []
 
 
-@app.get("/api/quote/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/quote/{symbol}")
 def get_quote(symbol: str):
     """Latest real quote for live chart updates.
 
@@ -512,7 +512,7 @@ def get_quote(symbol: str):
 
 DEFAULT_LIVE_SYMBOLS = ["NIFTY", "BANKNIFTY", "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN"]
 
-@app.get("/api/live/status", dependencies=[Depends(verify_token)])
+@app.get("/api/live/status")
 def live_feed_status():
     """Health of the live pipeline: Dhan WS (tier 1) + web fallback poller
     (tier 2: BSE equities / NSE indices). Tier 3 = delayed yfinance quotes."""
@@ -530,7 +530,7 @@ def live_subscribe(symbols: List[str]):
     fallback_poller.ensure_running()
     return {"dhan": live_feed.status(), "fallback": fallback_poller.status()}
 
-@app.get("/api/live/quotes", dependencies=[Depends(verify_token)])
+@app.get("/api/live/quotes")
 def live_quotes(symbols: str = ""):
     """Latest cached REAL ticks for a comma-separated symbol list.
     Each tick carries source='dhan' and delayed=false — if a symbol has no
@@ -593,7 +593,7 @@ async def ws_live(websocket: WebSocket):
         logging.getLogger("elco.api").warning(f"/ws/live closed: {e}")
 
 
-@app.get("/portfolio", dependencies=[Depends(verify_token)])
+@app.get("/portfolio")
 def get_portfolio():
     """Returns P&L summary and current portfolio exposure."""
     pnl = execution_engine.get_pnl_summary()
@@ -664,12 +664,12 @@ def place_order(order: OrderRequest):
     else:
         raise HTTPException(status_code=400, detail="Failed to execute order (Risk check failed or Broker error)")
 
-@app.get("/api/orders", dependencies=[Depends(verify_token)])
+@app.get("/api/orders")
 def get_orders():
     """Returns the trade journal (alias for /journal)."""
     return get_journal()
 
-@app.get("/journal", dependencies=[Depends(verify_token)])
+@app.get("/journal")
 def get_journal():
     """Returns the trade journal from the database."""
     from .db import SessionLocal, TradeRecord
@@ -701,7 +701,7 @@ def get_journal():
     finally:
         db.close()
 
-@app.get("/workflows", dependencies=[Depends(verify_token)])
+@app.get("/workflows")
 def get_workflows():
     """Returns all workflow approval requests."""
     from .db import SessionLocal, WorkflowApproval
@@ -754,7 +754,7 @@ def reject_workflow(workflow_id: str):
     finally:
         db.close()
 
-@app.get("/radar", dependencies=[Depends(verify_token)])
+@app.get("/radar")
 def get_radar():
     """Returns the latest market news and NLP severity analysis."""
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -783,7 +783,7 @@ def get_radar():
         "overall_status": overall_status
     }
 
-@app.get("/api/market-indices", dependencies=[Depends(verify_token)])
+@app.get("/api/market-indices")
 def get_market_indices():
     """Returns live market indices (Nifty, BankNifty, Reliance, etc) for the ticker tape."""
     symbols = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY']
@@ -826,7 +826,7 @@ def get_market_indices():
     return indices
 
 
-@app.get("/api/scanners", dependencies=[Depends(verify_token)])
+@app.get("/api/scanners")
 def get_scanners():
     """Returns real breakout and gap up scanner data using yfinance."""
     import yfinance as yf
@@ -902,7 +902,7 @@ def hunt_strategies(req: HuntRequest):
         interval=interval,
     )
 
-@app.get("/api/strategies/rank/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/strategies/rank/{symbol}")
 def rank_strategies_for_symbol(symbol: str, years: int = 3, source: str = "real"):
     """Backtest all built-in strategies on a symbol and rank them by real edge.
 
@@ -944,7 +944,7 @@ def rank_strategies_for_symbol(symbol: str, years: int = 3, source: str = "real"
         )
     return resp
 
-@app.get("/api/strategies/generate/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/strategies/generate/{symbol}")
 def generate_strategies_for_symbol(symbol: str, years: int = 4, source: str = "real",
                                    top_n: int = 10, min_win_rate: float = 0.0):
     """AUTO STRATEGY GENERATOR with honest out-of-sample validation.
@@ -1002,7 +1002,7 @@ def deploy_strategy(req: DeployRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/api/strategies/deployed", dependencies=[Depends(verify_token)])
+@app.get("/api/strategies/deployed")
 def list_deployed_strategies():
     from .strategy_runtime import list_deployed
     return {"deployed": list_deployed()}
@@ -1014,7 +1014,7 @@ def pause_deployed_strategy(strategy_id: int, active: bool = False):
         raise HTTPException(status_code=404, detail="Strategy not found")
     return {"id": strategy_id, "active": active}
 
-@app.get("/api/strategies/deployed/signals", dependencies=[Depends(verify_token)])
+@app.get("/api/strategies/deployed/signals")
 def deployed_signals():
     """Evaluate all ACTIVE deployed strategies on fresh candles (read-only)."""
     from .strategy_runtime import evaluate_deployed
@@ -1027,7 +1027,7 @@ def execute_deployed_strategy(strategy_id: int):
     from .strategy_runtime import execute_deployed
     return execute_deployed(provider, execution_engine, risk_manager, strategy_id)
 
-@app.get("/api/scanners/historical/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/scanners/historical/{symbol}")
 def get_historical_scans(symbol: str, period: str = "6mo"):
     """Vectorized historical scan (UniversalScanner) over a symbol's OHLCV.
 
@@ -1063,7 +1063,7 @@ def get_historical_scans(symbol: str, period: str = "6mo"):
         "momentum_shift_dates": _dates(momentum),
     }
 
-@app.get("/api/options-chain", dependencies=[Depends(verify_token)])
+@app.get("/api/options-chain")
 def get_options_chain(symbol: str = "NIFTY"):
     """Calculates Options chain and Greeks using Black-Scholes from options_calc.py with live spot price."""
     from .modules.options_calc import bs_call_price, bs_put_price, calculate_greeks
@@ -1136,7 +1136,7 @@ def get_options_chain(symbol: str = "NIFTY"):
         
     return {"symbol": symbol, "spot": spot, "chain": chain, "pcr": pcr, "max_pain": max_pain}
 
-@app.get("/api/reports", dependencies=[Depends(verify_token)])
+@app.get("/api/reports")
 def get_reports():
     """Aggregates real trade history from the DB for ReportsView.
 
@@ -1186,7 +1186,7 @@ def get_reports():
         "total_closed_trades": len(closed),
     }
 
-@app.get("/api/backtest/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/backtest/{symbol}")
 def run_backtest(symbol: str, years: int = 2, source: str = "mock"):
     """Run the event-driven backtester on a symbol.
 
@@ -1290,14 +1290,14 @@ def _get_screener():
         _screener_singleton = LiveScreener(ElcoMasterBrain())
     return _screener_singleton
 
-@app.get("/api/portfolio/heatmap", dependencies=[Depends(verify_token)])
+@app.get("/api/portfolio/heatmap")
 def get_portfolio_heatmap():
     """REAL heatmap: open positions with actual P&L%, or a market view with
     today's real changes when the book is flat. No random jitter, ever."""
     from .modules.portfolio_data import PortfolioDataEngine
     return PortfolioDataEngine(execution_engine).get_heatmap_data()
 
-@app.get("/api/replay/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/replay/{symbol}")
 def get_execution_replay(symbol: str, date: Optional[str] = None):
     from .modules.replay_engine import ReplayEngine
     from datetime import datetime, timezone
@@ -1305,38 +1305,38 @@ def get_execution_replay(symbol: str, date: Optional[str] = None):
         date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return ReplayEngine().get_replay_data(symbol.upper(), date)
 
-@app.get("/api/psychology/metrics", dependencies=[Depends(verify_token)])
+@app.get("/api/psychology/metrics")
 def get_psychology_metrics():
     """Real behaviour analytics from closed-trade history (no random numbers)."""
     from .modules.trade_analytics import get_psychology_metrics as _psych
     return _psych()
 
-@app.get("/api/analytics/strategy-performance", dependencies=[Depends(verify_token)])
+@app.get("/api/analytics/strategy-performance")
 def get_strategy_performance():
     """Win rate / net P&L / profit factor grouped by strategy (real GROUP BY)."""
     from .modules.trade_analytics import strategy_performance
     return {"strategies": strategy_performance()}
 
-@app.get("/api/analytics/live-readiness", dependencies=[Depends(verify_token)])
+@app.get("/api/analytics/live-readiness")
 def get_live_readiness():
     """Honest 'ready for live?' scorecard from real closed paper trades —
     every gate shown with actual vs required. Verdict is the AND of gates."""
     from .modules.trade_analytics import live_readiness_scorecard
     return live_readiness_scorecard()
 
-@app.get("/api/system/pathways", dependencies=[Depends(verify_token)])
+@app.get("/api/system/pathways")
 def get_system_pathways():
     from .modules.pathfinder import PathfinderEngine
     return PathfinderEngine().get_pathways()
 
-@app.get("/api/screener/universal", dependencies=[Depends(verify_token)])
+@app.get("/api/screener/universal")
 async def run_universal_screener():
     from starlette.concurrency import run_in_threadpool
     screener = _get_screener()
     results = await run_in_threadpool(screener.run_universal_scan, 15)
     return {"status": "success", "data": results}
 
-@app.get("/api/screener/nifty50", dependencies=[Depends(verify_token)])
+@app.get("/api/screener/nifty50")
 async def run_nifty50_screener():
     from starlette.concurrency import run_in_threadpool
     screener = _get_screener()
@@ -1437,7 +1437,7 @@ def check_dynamic_exits():
     return {"auto_exited": actions, "open_positions": len(execution_engine.open_positions)}
 
 
-@app.get("/api/screener/auto/status", dependencies=[Depends(verify_token)])
+@app.get("/api/screener/auto/status")
 def auto_screener_status():
     """Auto-screener health + LAST daily scan results (runs itself every
     trading evening after the bhavcopy lands, ~19:07 IST, and alerts top
@@ -1451,7 +1451,7 @@ def auto_screener_run_now():
     from .screener_daemon import screener_daemon
     return screener_daemon.run_scan()
 
-@app.get("/api/hunt/auto/status", dependencies=[Depends(verify_token)])
+@app.get("/api/hunt/auto/status")
 def auto_hunt_status():
     """Weekend auto-hunt health + last run: which screener picks were
     hunted, what validated (auto-deployed) and what had no edge."""
@@ -1477,7 +1477,7 @@ def screen_best_stocks(top_n: int = 10):
     from .modules.stock_ranker import rank_universe
     return rank_universe(top_n=max(1, min(top_n, 25)))
 
-@app.get("/api/screener/market", dependencies=[Depends(verify_token)])
+@app.get("/api/screener/market")
 def screen_full_market(top_n: int = 15, max_symbols: int = 300,
                        min_turnover_cr: float = 5.0):
     """FULL-MARKET scan: EVERY NSE stock from today's bhavcopy (~2000
@@ -1491,7 +1491,7 @@ def screen_full_market(top_n: int = 15, max_symbols: int = 300,
         min_turnover_cr=max(0.5, min(min_turnover_cr, 100.0)),
     )
 
-@app.get("/api/setup/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/setup/{symbol}")
 def get_trade_setup(symbol: str):
     """CONFLUENCE TRADE SETUP — every analysis votes (validated strategies,
     market structure, BOS/CHOCH, indicator consensus, fused signal,
@@ -1560,7 +1560,7 @@ def auto_stop():
     from .auto_trader import auto_trader
     return {"auto_trade": "off", **auto_trader.status()}
 
-@app.get("/api/auto/status", dependencies=[Depends(verify_token)])
+@app.get("/api/auto/status")
 def auto_status():
     """Auto-trader health: state, scans, and the recent buy/sell actions
     WITH their verification results (did the trade actually happen?)."""
@@ -1575,14 +1575,14 @@ def auto_scan_now():
     actions = auto_trader.scan_once(provider, execution_engine, risk_manager)
     return {"actions": actions, "note": "Empty = no validated strategy fired a tradeable signal."}
 
-@app.get("/api/trades/verify", dependencies=[Depends(verify_token)])
+@app.get("/api/trades/verify")
 def verify_trades():
     """VERIFY every open position: paper -> position+journal+DB checks;
     live -> real Dhan order status. Evidence, never assumption."""
     from .auto_trader import auto_trader
     return auto_trader.verify_all(execution_engine)
 
-@app.get("/api/rules/status", dependencies=[Depends(verify_token)])
+@app.get("/api/rules/status")
 def get_rules_status():
     """Live state of the MANDATORY trading rules (R1–R9): trades today,
     consecutive losses, symbols in cooldown, market-hours gate, halt state —
@@ -1608,7 +1608,7 @@ def open_option_paper_trade(req: OptionTradeRequest):
     from .options_trader import open_trade
     return open_trade(req.underlying, req.strike, req.opt_type, req.qty, req.expiry)
 
-@app.get("/api/options/paper/positions", dependencies=[Depends(verify_token)])
+@app.get("/api/options/paper/positions")
 def get_option_paper_positions():
     """Open PAPER option positions re-priced at the current real chain LTP."""
     from .options_trader import positions
@@ -1620,7 +1620,7 @@ def close_option_paper_trade(trade_id: int):
     from .options_trader import close_trade
     return close_trade(trade_id)
 
-@app.get("/api/pairs/scan", dependencies=[Depends(verify_token)])
+@app.get("/api/pairs/scan")
 def scan_pairs_endpoint(sectors: str = ""):
     """Stat-arb pairs scanner: correlated same-sector pairs + spread z-scores.
     SIGNALS ONLY (no auto-execution — overnight cash shorting isn't possible;
@@ -1629,14 +1629,14 @@ def scan_pairs_endpoint(sectors: str = ""):
     secs = [s.strip() for s in sectors.split(",") if s.strip()] or None
     return scan_pairs(secs)
 
-@app.get("/api/macro/assets", dependencies=[Depends(verify_token)])
+@app.get("/api/macro/assets")
 def get_macro_assets():
     """Gold/Silver/Crude/USDINR/BTC/ETH real snapshot + NIFTY correlations.
     Analysis only — no multi-asset execution (honestly absent)."""
     from .modules.macro_assets import macro_watch
     return macro_watch()
 
-@app.get("/api/analytics/quant", dependencies=[Depends(verify_token)])
+@app.get("/api/analytics/quant")
 def get_quant_stats(symbols: str = ""):
     """Institutional risk metrics: Sharpe/Sortino/Calmar/max-DD from REAL
     closed trades (null with reason under 10 trades — never meaningless
@@ -1649,7 +1649,7 @@ def get_quant_stats(symbols: str = ""):
         out["correlation_beta"] = correlation_and_beta(syms)
     return out
 
-@app.get("/api/alerts/status", dependencies=[Depends(verify_token)])
+@app.get("/api/alerts/status")
 def get_alerts_status():
     """Telegram alert channel health + recent sends (honest disabled state)."""
     from . import alerts
@@ -1662,7 +1662,7 @@ def send_test_alert():
     ok = alerts.send("✅ ELCO test alert — channel working.", kind="test")
     return {"sent": ok, **alerts.status()}
 
-@app.get("/api/discipline", dependencies=[Depends(verify_token)])
+@app.get("/api/discipline")
 def get_discipline_report():
     """FULL discipline report: every enforced rule (R1-R9 entry rules +
     D1-D4 exit discipline) with its live state, plus real adherence numbers
@@ -1709,13 +1709,13 @@ class CorrelationRequest(BaseModel):
     symbols: List[str]
     count: int = 250
 
-@app.get("/api/regime/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/regime/{symbol}")
 def get_market_regime(symbol: str):
     """Detect the current market regime (TRENDING / RANGE_BOUND / HIGH_VOLATILITY
     / TRANSITIONING) from real candles — drives dynamic position sizing."""
     return _get_regime_engine().detect_regime(symbol.upper())
 
-@app.get("/api/quant/metrics/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/quant/metrics/{symbol}")
 def get_quant_metrics(symbol: str, benchmark: str = "NIFTY", count: int = 250):
     """Institutional performance metrics for a symbol vs a benchmark, computed
     from real candles: Sharpe, Sortino, Calmar, Max Drawdown, StdDev, Beta,
@@ -1783,7 +1783,7 @@ def analyze_tca(req: TCARequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/api/institutional/flows", dependencies=[Depends(verify_token)])
+@app.get("/api/institutional/flows")
 def get_institutional_flows(symbol: str = "RELIANCE"):
     """REAL NSE institutional data: FII/DII net activity (₹ cr), delivery %,
     and bulk/block deals. Falls back gracefully when NSE endpoints are
@@ -1866,7 +1866,7 @@ def _scan_card(r: dict) -> dict:
     }
 
 
-@app.get("/api/scanner/top20", dependencies=[Depends(verify_token)])
+@app.get("/api/scanner/top20")
 def ui_scanner_top20():
     """Top bullish/bearish from the daily screener's last REAL full-market scan.
     If the screener has not run yet today, says so honestly instead of inventing."""
@@ -1884,7 +1884,7 @@ def ui_scanner_top20():
                      "top_bearish": [_scan_card(r) for r in (res.get("best_short") or [])[:10]]}}
 
 
-@app.get("/api/risk/radar", dependencies=[Depends(verify_token)])
+@app.get("/api/risk/radar")
 def ui_risk_radar():
     """REAL risk snapshot: live India VIX (NSE via yfinance), halt state.
     There is NO news engine connected — news list is honestly empty."""
@@ -1917,7 +1917,7 @@ def ui_risk_radar():
 _UI_BROKERS = ["mock", "zerodha", "upstox", "angel_one", "fyers", "dhan", "mstock", "kotak_neo"]
 
 
-@app.get("/api/brokers", dependencies=[Depends(verify_token)])
+@app.get("/api/brokers")
 def ui_brokers():
     """Honest broker status: paper simulator is built-in; Dhan comes from .env;
     others are not integrated."""
@@ -1976,7 +1976,7 @@ def ui_brokers_activate(name: str):
         "config paper_mode=false AND .env LIVE_TRADING=true dono chahiye."))
 
 
-@app.get("/api/analyze/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/analyze/{symbol}")
 def ui_analyze_alias(symbol: str):
     """Global Radar panel alias for the real full-analysis engine."""
     return get_full_analysis(symbol)
