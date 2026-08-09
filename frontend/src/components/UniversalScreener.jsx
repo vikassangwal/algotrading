@@ -3,12 +3,18 @@ import { RefreshCw, TrendingUp, AlertTriangle, Crosshair, Filter, ChevronDown, C
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const DEFAULT_OPPORTUNITIES = [
-  { symbol: "RELIANCE", segment: "EQUITY", current_price: 2980.00, decision: "STRONG BUY", analytical_score: 0.88, catalysts: "EMA20 Stack Aligned, ADX 36.4, FII Accumulation", tp: 3150.00, sl: 2890.00 },
+  { symbol: "CDSL", segment: "EQUITY", current_price: 1540.20, decision: "STRONG BUY", analytical_score: 0.95, catalysts: "New Demat Account Spurt, Monopoly Exchange Infra", tp: 1680.00, sl: 1450.00 },
+  { symbol: "POLYCAB", segment: "EQUITY", current_price: 6850.00, decision: "STRONG BUY", analytical_score: 0.93, catalysts: "Capex Order Win, FII Institutional Buying", tp: 7400.00, sl: 6500.00 },
+  { symbol: "MCX", segment: "EQUITY", current_price: 5890.00, decision: "STRONG BUY", analytical_score: 0.91, catalysts: "Options Volume ATH, Tech Platform Stability", tp: 6400.00, sl: 5500.00 },
+  { symbol: "KALYANKJIL", segment: "EQUITY", current_price: 645.00, decision: "BUY", analytical_score: 0.89, catalysts: "Store Expansion, Festive Demand Spike", tp: 720.00, sl: 605.00 },
+  { symbol: "DIXON", segment: "EQUITY", current_price: 12450.00, decision: "BUY", analytical_score: 0.88, catalysts: "PLI Scheme Revenue, Mobile Export Growth", tp: 13500.00, sl: 11800.00 },
+  { symbol: "HAL", segment: "EQUITY", current_price: 4680.00, decision: "STRONG BUY", analytical_score: 0.87, catalysts: "Defence Export Order, 50-EMA Stack Aligned", tp: 5100.00, sl: 4400.00 },
+  { symbol: "RVNL", segment: "EQUITY", current_price: 580.00, decision: "BUY", analytical_score: 0.85, catalysts: "Rail Infra Orderbook, High Volume Breakout", tp: 650.00, sl: 535.00 },
+  { symbol: "IREDA", segment: "EQUITY", current_price: 235.40, decision: "BUY", analytical_score: 0.84, catalysts: "Green Financing Expansion, Low NPA Ratio", tp: 275.00, sl: 215.00 },
+  { symbol: "SUZLON", segment: "EQUITY", current_price: 68.40, decision: "BUY", analytical_score: 0.76, catalysts: "Clean Energy Momentum, Institutional Inflow", tp: 82.00, sl: 61.50 },
+  { symbol: "RELIANCE", segment: "EQUITY", current_price: 2980.00, decision: "BUY", analytical_score: 0.75, catalysts: "EMA20 Stack Aligned, Retail Expansion", tp: 3150.00, sl: 2890.00 },
   { symbol: "HDFCBANK", segment: "EQUITY", current_price: 1640.00, decision: "BUY", analytical_score: 0.72, catalysts: "RSI Bullish Divergence, Support Hold", tp: 1720.00, sl: 1595.00 },
   { symbol: "TCS", segment: "EQUITY", current_price: 4150.00, decision: "BUY", analytical_score: 0.68, catalysts: "Orderbook Expansion, Volume Surge", tp: 4350.00, sl: 4020.00 },
-  { symbol: "INFY", segment: "EQUITY", current_price: 1820.00, decision: "BUY", analytical_score: 0.64, catalysts: "Breakout Confirmation, 50-EMA Bounce", tp: 1940.00, sl: 1760.00 },
-  { symbol: "TATAMOTORS", segment: "EQUITY", current_price: 985.00, decision: "STRONG BUY", analytical_score: 0.82, catalysts: "EV Market Dominance, High Delivery %", tp: 1060.00, sl: 940.00 },
-  { symbol: "SUZLON", segment: "EQUITY", current_price: 68.40, decision: "BUY", analytical_score: 0.76, catalysts: "Clean Energy Momentum, Institutional Inflow", tp: 82.00, sl: 61.50 },
   { symbol: "GOLD (GC=F)", segment: "COMMODITY", current_price: 2420.50, decision: "STRONG BUY", analytical_score: 0.91, catalysts: "Central Bank Buying, Fed Rate Cut Expectation", tp: 2520.00, sl: 2360.00 },
   { symbol: "SILVER (SI=F)", segment: "COMMODITY", current_price: 28.40, decision: "BUY", analytical_score: 0.74, catalysts: "Industrial Demand Spike, Gold Ratio Compression", tp: 31.50, sl: 26.80 },
   { symbol: "CRUDE OIL (CL=F)", segment: "COMMODITY", current_price: 76.80, decision: "SELL", analytical_score: -0.65, catalysts: "OPEC Production Relief, Demand Slowdown", tp: 71.00, sl: 80.50 },
