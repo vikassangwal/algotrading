@@ -57,19 +57,11 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS: default to localhost dev origins; override via ELCO_CORS_ORIGINS
-# (comma-separated). Wildcard "*" with credentials is invalid per spec, so we
-# only allow credentials when explicit origins are configured.
-_cors_env = _os.getenv(
-    "ELCO_CORS_ORIGINS",
-    "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173",
-)
-_allowed_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
-
+# Allow all origins for seamless cross-origin fetch from Vercel and local clients
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r".*",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

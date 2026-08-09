@@ -75,11 +75,18 @@ const CommandCenter = ({ globalSymbol }) => {
   const load = async (sym) => {
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
-      if (!res.ok) throw new Error(`Server ${res.status}`);
-      setData(await res.json());
+      let res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
+      if (!res.ok) {
+        // Retry once after short delay in case server is waking up from sleep
+        await new Promise(r => setTimeout(r, 1500));
+        res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
+      }
+      if (!res.ok) throw new Error(`Server status ${res.status}`);
+      const json = await res.json();
+      setData(json);
     } catch (e) {
-      setError(e.message || 'Failed to load');
+      console.error("Command center load error:", e);
+      setError("Live market server is starting up. Please click Analyze / Refresh in a few seconds.");
     } finally {
       setLoading(false);
     }
