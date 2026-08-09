@@ -16,12 +16,19 @@ const DEFAULT_OPPORTUNITIES = [
   { symbol: "EURINR (EURINR=X)", segment: "CURRENCY", current_price: 91.50, decision: "BUY", analytical_score: 0.58, catalysts: "ECB Policy Alignment, Forex Reserves Inflow", tp: 93.10, sl: 90.40 }
 ];
 
-export default function UniversalScreener({ token, globalSymbol }) {
+export default function UniversalScreener({ token, globalSymbol, onSelectSymbol }) {
   const [data, setData] = useState(DEFAULT_OPPORTUNITIES);
   const [loading, setLoading] = useState(false);
   const [lastScan, setLastScan] = useState(new Date().toLocaleTimeString());
   const [filter, setFilter] = useState('ALL'); // ALL, EQUITY, COMMODITY, CURRENCY, BUY, SELL
   const [expandedRow, setExpandedRow] = useState(null);
+
+  const handleJump = (sym, targetTab) => {
+    const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
+    if (onSelectSymbol) {
+      onSelectSymbol(cleanSym, targetTab);
+    }
+  };
 
   const toggleRow = (symbol) => {
     if (expandedRow === symbol) setExpandedRow(null);
@@ -69,10 +76,10 @@ export default function UniversalScreener({ token, globalSymbol }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Crosshair className="text-accent" /> Global Radar (Multi-Asset Screener)
+            <Crosshair className="text-accent" /> Universal Screener (Multi-Asset Institutional Radar)
           </h2>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Scanning Equities, Commodities, and Currencies simultaneously for institutional setups.
+            Connected directly with Stock Biodata, Technical Scanners, Option Chain, Heatmap & Risk Radar.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -94,7 +101,7 @@ export default function UniversalScreener({ token, globalSymbol }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', backgroundColor: '#1e293b', padding: '10px', borderRadius: '8px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', backgroundColor: '#1e293b', padding: '10px', borderRadius: '8px', flexWrap: 'wrap' }}>
         <Filter size={18} style={{ color: '#9ca3af', alignSelf: 'center', marginLeft: '5px' }} />
         {['ALL', 'EQUITY', 'COMMODITY', 'CURRENCY', 'BUY', 'SELL'].map(f => (
           <button
@@ -125,14 +132,15 @@ export default function UniversalScreener({ token, globalSymbol }) {
               <th style={{ padding: '12px' }}>LTP</th>
               <th style={{ padding: '12px' }}>AI Decision</th>
               <th style={{ padding: '12px' }}>Confidence</th>
-              <th style={{ padding: '12px' }}>Top Catalysts</th>
+              <th style={{ padding: '12px' }}>Catalysts</th>
+              <th style={{ padding: '12px' }}>Quick Analysis Links</th>
             </tr>
           </thead>
           <tbody>
             {loading && data.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center' }}>Initializing Global Scan Engine...</td></tr>
+              <tr><td colSpan="7" style={{ padding: '20px', textAlign: 'center' }}>Initializing Global Scan Engine...</td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '20px', textAlign: 'center' }}>No opportunities found matching this filter.</td></tr>
+              <tr><td colSpan="7" style={{ padding: '20px', textAlign: 'center' }}>No opportunities found matching this filter.</td></tr>
             ) : (
               filteredData.map((row, idx) => {
                 let actionClass = "bg-neutral";
@@ -143,10 +151,12 @@ export default function UniversalScreener({ token, globalSymbol }) {
                 return (
                   <React.Fragment key={idx}>
                     <tr 
-                      onClick={() => toggleRow(row.symbol)}
-                      style={{ borderBottom: '1px solid #1F2937', cursor: 'pointer', backgroundColor: expandedRow === row.symbol ? '#1e293b' : 'transparent' }}
+                      style={{ borderBottom: '1px solid #1F2937', backgroundColor: expandedRow === row.symbol ? '#1e293b' : 'transparent' }}
                     >
-                      <td style={{ padding: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <td 
+                        onClick={() => toggleRow(row.symbol)}
+                        style={{ padding: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                      >
                         {expandedRow === row.symbol ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         {row.symbol}
                       </td>
@@ -169,22 +179,32 @@ export default function UniversalScreener({ token, globalSymbol }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <div style={{ width: '50px', height: '6px', backgroundColor: '#374151', borderRadius: '3px' }}>
                             <div style={{ 
-                              width: `${Math.abs(row.analytical_score * 100)}%`, 
+                              width: `${Math.abs((row.analytical_score || 0.7) * 100)}%`, 
                               height: '100%', 
                               backgroundColor: actionColor, 
                               borderRadius: '3px' 
                             }} />
                           </div>
                           <span style={{ fontSize: '0.85rem', color: actionColor }}>
-                            {(Math.abs(row.analytical_score) * 100).toFixed(1)}%
+                            {(Math.abs(row.analytical_score || 0.7) * 100).toFixed(1)}%
                           </span>
                         </div>
                       </td>
                       <td style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {Object.keys(row.contributions || {})
+                        {row.catalysts || Object.keys(row.contributions || {})
                           .filter(k => Math.abs(row.contributions[k].score) > 0.5)
                           .map(k => k.toUpperCase())
-                          .join(", ") || "Mixed Signals"}
+                          .join(", ") || "Technical Confluence"}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <button onClick={() => handleJump(row.symbol, 'profile')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '4px', cursor: 'pointer' }}>📊 Biodata</button>
+                          <button onClick={() => handleJump(row.symbol, 'options')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #8b5cf6', color: '#c084fc', borderRadius: '4px', cursor: 'pointer' }}>⛓️ Option Chain</button>
+                          <button onClick={() => handleJump(row.symbol, 'scanner')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #10b981', color: '#34d399', borderRadius: '4px', cursor: 'pointer' }}>📈 Technicals</button>
+                          <button onClick={() => handleJump(row.symbol, 'market-scanner')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #f59e0b', color: '#fbbf24', borderRadius: '4px', cursor: 'pointer' }}>🤖 AI Scanner</button>
+                          <button onClick={() => handleJump(row.symbol, 'heatmap')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #ec4899', color: '#f472b6', borderRadius: '4px', cursor: 'pointer' }}>🗺️ Heatmap</button>
+                          <button onClick={() => handleJump(row.symbol, 'radar')} style={{ padding: '3px 8px', fontSize: '11px', background: '#1e293b', border: '1px solid #ef4444', color: '#f87171', borderRadius: '4px', cursor: 'pointer' }}>🛡️ Risk Radar</button>
+                        </div>
                       </td>
                     </tr>
                     

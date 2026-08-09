@@ -361,7 +361,10 @@ export default function App() {
               <ScannerView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'universal' && (
-              <UniversalScreener token={token} globalSymbol={globalSymbol} />
+              <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym, targetTab) => {
+                setGlobalSymbol(sym);
+                if (targetTab) setActiveTab(targetTab);
+              }} />
             )}
             {activeTab === 'profile' && (
               <StockProfile token={token} globalSymbol={globalSymbol} />
