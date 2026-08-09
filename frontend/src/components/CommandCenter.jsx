@@ -59,7 +59,12 @@ const CommandCenter = ({ globalSymbol }) => {
   const [symbol, setSymbol] = useState('RELIANCE');
 
   useEffect(() => {
-    if (globalSymbol) setSymbol(globalSymbol);
+    if (globalSymbol) {
+      const clean = globalSymbol.replace('.NS', '').replace('.BO', '');
+      setSymbol(clean);
+      setInput(clean);
+      load(clean);
+    }
   }, [globalSymbol]);
   const [input, setInput] = useState('RELIANCE');
   const [data, setData] = useState(null);

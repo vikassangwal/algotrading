@@ -3,9 +3,38 @@ import { Search, Loader } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
+// Built-in offline fallback database of top Indian stocks for zero-latency search
+const TOP_STOCKS = [
+  { symbol: 'TATASTEEL.NS', name: 'Tata Steel Limited', exchange: 'NSE' },
+  { symbol: 'TATAPOWER.NS', name: 'Tata Power Company Limited', exchange: 'NSE' },
+  { symbol: 'TATAMOTORS.NS', name: 'Tata Motors Limited', exchange: 'NSE' },
+  { symbol: 'TCS.NS', name: 'Tata Consultancy Services Limited', exchange: 'NSE' },
+  { symbol: 'TATACHEM.NS', name: 'Tata Chemicals Limited', exchange: 'NSE' },
+  { symbol: 'TATACOMM.NS', name: 'Tata Communications Limited', exchange: 'NSE' },
+  { symbol: 'TATACONSUM.NS', name: 'Tata Consumer Products Limited', exchange: 'NSE' },
+  { symbol: 'TATAELXSI.NS', name: 'Tata Elxsi Limited', exchange: 'NSE' },
+  { symbol: 'TATATECH.NS', name: 'Tata Technologies Limited', exchange: 'NSE' },
+  { symbol: 'RELIANCE.NS', name: 'Reliance Industries Limited', exchange: 'NSE' },
+  { symbol: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE' },
+  { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Limited', exchange: 'NSE' },
+  { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Limited', exchange: 'NSE' },
+  { symbol: 'INFY.NS', name: 'Infosys Limited', exchange: 'NSE' },
+  { symbol: 'SUZLON.NS', name: 'Suzlon Energy Limited', exchange: 'NSE' },
+  { symbol: 'ZOMATO.NS', name: 'Zomato Limited', exchange: 'NSE' },
+  { symbol: 'IREDA.NS', name: 'Indian Renewable Energy Development Agency', exchange: 'NSE' },
+  { symbol: 'JIOFIN.NS', name: 'Jio Financial Services Limited', exchange: 'NSE' },
+  { symbol: 'ADANIENT.NS', name: 'Adani Enterprises Limited', exchange: 'NSE' },
+  { symbol: 'ADANIPORTS.NS', name: 'Adani Ports and Special Economic Zone', exchange: 'NSE' },
+  { symbol: 'ITC.NS', name: 'ITC Limited', exchange: 'NSE' },
+  { symbol: 'LT.NS', name: 'Larsen & Toubro Limited', exchange: 'NSE' },
+  { symbol: 'AXISBANK.NS', name: 'Axis Bank Limited', exchange: 'NSE' },
+  { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Limited', exchange: 'NSE' },
+  { symbol: 'BAJFINANCE.NS', name: 'Bajaj Finance Limited', exchange: 'NSE' }
+];
+
 const GlobalSearch = ({ token, onSelect }) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState(TOP_STOCKS.slice(0, 8));
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -20,17 +49,34 @@ const GlobalSearch = ({ token, onSelect }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const filterStocks = (q) => {
+    if (!q || q.trim() === '') return TOP_STOCKS.slice(0, 10);
+    const cleanQ = q.toLowerCase().trim();
+    return TOP_STOCKS.filter(s => 
+      s.symbol.toLowerCase().includes(cleanQ) || 
+      s.name.toLowerCase().includes(cleanQ)
+    );
+  };
+
   const fetchResults = async (q) => {
+    const localMatches = filterStocks(q);
+    if (localMatches.length > 0) {
+      setResults(localMatches);
+      setIsOpen(true);
+    }
+    
     setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q || '')}`);
       if (response.ok) {
         const data = await response.json();
-        setResults(data || []);
-        setIsOpen(true);
+        if (data && data.length > 0) {
+          setResults(data);
+          setIsOpen(true);
+        }
       }
     } catch (err) {
-      console.error('Search failed', err);
+      console.error('Search API fallback to local data', err);
     } finally {
       setLoading(false);
     }
@@ -39,16 +85,17 @@ const GlobalSearch = ({ token, onSelect }) => {
   useEffect(() => {
     const debounce = setTimeout(() => {
       fetchResults(query);
-    }, 150);
+    }, 100);
 
     return () => clearTimeout(debounce);
   }, [query]);
 
   const handleSelect = (stock) => {
-    setQuery(stock.symbol);
+    const cleanSym = stock.symbol.replace('.NS', '').replace('.BO', '');
+    setQuery(cleanSym);
     setIsOpen(false);
     if (onSelect) {
-      onSelect(stock.symbol);
+      onSelect(cleanSym);
     }
   };
 
@@ -74,9 +121,6 @@ const GlobalSearch = ({ token, onSelect }) => {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && query.trim() !== '') {
               let finalSymbol = query.trim().toUpperCase();
-              if (!finalSymbol.includes('.NS') && !finalSymbol.includes('.BO')) {
-                finalSymbol += '.NS';
-              }
               setIsOpen(false);
               if (onSelect) onSelect(finalSymbol);
             }
@@ -101,16 +145,16 @@ const GlobalSearch = ({ token, onSelect }) => {
       {isOpen && results.length > 0 && (
         <div style={{
           position: 'absolute',
-          top: '105%',
+          top: '108%',
           left: 0,
           right: 0,
           background: '#0f172a',
-          border: '1px solid #3b82f6',
+          border: '2px solid #3b82f6',
           borderRadius: '8px',
           zIndex: 999999,
           maxHeight: '320px',
           overflowY: 'auto',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.8)'
+          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.9)'
         }}>
           {results.map((stock) => (
             <div 
@@ -124,14 +168,14 @@ const GlobalSearch = ({ token, onSelect }) => {
                 justifyContent: 'space-between',
                 alignItems: 'center'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.25)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontWeight: 'bold', color: '#60a5fa', fontSize: '14px' }}>{stock.symbol}</span>
-                <span style={{ fontSize: '12px', color: '#94a3b8' }}>{stock.name}</span>
+                <span style={{ fontSize: '12px', color: '#cbd5e1' }}>{stock.name}</span>
               </div>
-              <span style={{ fontSize: '11px', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', color: '#cbd5e1' }}>{stock.exchange || 'NSE'}</span>
+              <span style={{ fontSize: '11px', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', color: '#94a3b8' }}>{stock.exchange || 'NSE'}</span>
             </div>
           ))}
         </div>
