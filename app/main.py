@@ -1,3 +1,4 @@
+# ELCO TRADER Backend API v2.5 - Fixed yf_cache & FastInfo
 import uvicorn
 import asyncio
 import logging
