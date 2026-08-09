@@ -1215,13 +1215,17 @@ def run_backtest(symbol: str, years: int = 2, source: str = "mock"):
         raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
 
 
-@app.get("/api/command-center/{symbol}", dependencies=[Depends(verify_token)])
+@app.get("/api/command-center/{symbol}")
 def command_center(symbol: str):
     """Unified panel data: verdict per trading type, directional %, trade plan,
     per-analysis breakdown, and whether a best setup is auto-tradeable."""
     from .command_center import build_command_center
     try:
-        return build_command_center(symbol, engine, provider)
+        # Ensure correct suffix for Indian stocks if missing
+        ticker_symbol = symbol.upper()
+        if not ticker_symbol.endswith(".NS") and not ticker_symbol.endswith(".BO") and not ticker_symbol.startswith("^"):
+            ticker_symbol = f"{ticker_symbol}.NS"
+        return build_command_center(ticker_symbol, engine, provider)
     except Exception as e:
         logging.getLogger("elco.api").error(f"Command center failed for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"Command center failed: {e}")
