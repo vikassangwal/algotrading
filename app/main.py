@@ -94,10 +94,8 @@ class LoginRequest(BaseModel):
 
 @app.post("/login")
 def login(req: LoginRequest):
-    if req.email and req.email.lower() != "vsangwal54@gmail.com":
-        raise HTTPException(status_code=401, detail="Invalid email")
     if _auth.verify_password(req.password):
-        return {"token": _auth.create_token("admin")}
+        return {"token": _auth.create_token(req.email or "admin")}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
