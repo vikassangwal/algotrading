@@ -21,33 +21,29 @@ const GlobalSearch = ({ token, onSelect }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!query) {
-      setResults([]);
-      return;
-    }
-
-    const fetchResults = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(`${API_URL}/api/search?q=${query}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+  const fetchResults = async (q) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q)}`);
+      if (response.ok) {
         const data = await response.json();
-        setResults(data);
+        setResults(data || []);
         setIsOpen(true);
-      } catch (err) {
-        console.error('Search failed', err);
       }
+    } catch (err) {
+      console.error('Search failed', err);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
+  useEffect(() => {
     const debounce = setTimeout(() => {
-      fetchResults();
-    }, 300);
+      fetchResults(query);
+    }, 200);
 
     return () => clearTimeout(debounce);
-  }, [query, token]);
+  }, [query]);
 
   const handleSelect = (stock) => {
     setQuery(stock.symbol);
@@ -70,7 +66,7 @@ const GlobalSearch = ({ token, onSelect }) => {
         <Search size={16} style={{ color: 'rgba(255,255,255,0.5)', marginRight: '8px' }} />
         <input
           type="text"
-          placeholder="Search NSE/BSE stocks (e.g. RELIANCE)"
+          placeholder="Search NSE/BSE stocks (e.g. RELIANCE, TATA)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -83,7 +79,10 @@ const GlobalSearch = ({ token, onSelect }) => {
               if (onSelect) onSelect(finalSymbol);
             }
           }}
-          onFocus={() => { if (results.length > 0) setIsOpen(true); }}
+          onFocus={() => {
+            fetchResults(query);
+            setIsOpen(true);
+          }}
           style={{
             background: 'transparent',
             border: 'none',
