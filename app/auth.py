@@ -25,7 +25,7 @@ TOKEN_TTL_SECONDS = 12 * 3600  # 12 hours
 
 # Dev fallbacks — a loud warning fires if these are used in a real deployment.
 _DEV_SECRET = "dev-insecure-secret-change-me"
-_DEV_PASSWORD = "admin123"
+_DEV_PASSWORD = "Vikas@0502"
 
 
 def _secret() -> str:

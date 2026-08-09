@@ -1,367 +1,179 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, UserPlus, Users, Key, CheckCircle, AlertCircle, RefreshCw, Lock } from 'lucide-react';
 
-// Icon components using inline SVGs for zero dependencies
-const IconUsers = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-    <circle cx="9" cy="7" r="4"></circle>
-    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-  </svg>
-);
-
-const IconDollar = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="1" x2="12" y2="23"></line>
-    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-  </svg>
-);
-
-const IconAlert = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-    <line x1="12" y1="9" x2="12" y2="13"></line>
-    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-  </svg>
-);
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const TenantDashboard = () => {
-  const [activeTab, setActiveTab] = useState('tenants');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('trader');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [creating, setCreating] = useState(false);
 
-  const mockTenants = [
-    { id: 1, name: "Acme Corp", plan: "Enterprise", status: "Active", nextBilling: "2026-08-01", usage: "85%", mrr: "$1,200" },
-    { id: 2, name: "Globex UI", plan: "Pro", status: "Past Due", nextBilling: "2026-07-10", usage: "45%", mrr: "$300" },
-    { id: 3, name: "Stark Industries", plan: "Enterprise", status: "Active", nextBilling: "2026-08-15", usage: "92%", mrr: "$2,500" },
-    { id: 4, name: "Initech", plan: "Basic", status: "Active", nextBilling: "2026-07-25", usage: "20%", mrr: "$99" },
-    { id: 5, name: "Umbrella Corp", plan: "Pro", status: "Cancelled", nextBilling: "-", usage: "0%", mrr: "$0" },
-  ];
-
-  const styles = {
-    container: {
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-      backgroundColor: "#f4f7fb",
-      color: "#333",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-    },
-    header: {
-      backgroundColor: "#ffffff",
-      padding: "20px 40px",
-      borderBottom: "1px solid #e2e8f0",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
-    },
-    title: {
-      margin: 0,
-      fontSize: "24px",
-      fontWeight: "700",
-      color: "#1e293b",
-    },
-    main: {
-      padding: "40px",
-      flex: 1,
-      maxWidth: "1200px",
-      margin: "0 auto",
-      width: "100%",
-      boxSizing: "border-box",
-    },
-    statsContainer: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-      gap: "24px",
-      marginBottom: "40px",
-    },
-    statCard: {
-      backgroundColor: "#ffffff",
-      borderRadius: "12px",
-      padding: "24px",
-      display: "flex",
-      alignItems: "center",
-      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
-    },
-    statIcon: {
-      padding: "16px",
-      borderRadius: "12px",
-      marginRight: "20px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    statInfo: {
-      display: "flex",
-      flexDirection: "column",
-    },
-    statValue: {
-      fontSize: "28px",
-      fontWeight: "700",
-      color: "#0f172a",
-      margin: 0,
-    },
-    statLabel: {
-      fontSize: "14px",
-      color: "#64748b",
-      margin: "4px 0 0 0",
-      fontWeight: "500",
-    },
-    tabs: {
-      display: "flex",
-      gap: "16px",
-      marginBottom: "24px",
-      borderBottom: "1px solid #e2e8f0",
-      paddingBottom: "16px",
-    },
-    tabButton: (isActive) => ({
-      padding: "10px 20px",
-      backgroundColor: isActive ? "#eff6ff" : "transparent",
-      color: isActive ? "#2563eb" : "#64748b",
-      border: "none",
-      borderRadius: "8px",
-      fontSize: "15px",
-      fontWeight: "600",
-      cursor: "pointer",
-      transition: "all 0.2s",
-    }),
-    card: {
-      backgroundColor: "#ffffff",
-      borderRadius: "12px",
-      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
-      overflow: "hidden",
-    },
-    table: {
-      width: "100%",
-      borderCollapse: "collapse",
-      textAlign: "left",
-    },
-    th: {
-      padding: "16px 24px",
-      backgroundColor: "#f8fafc",
-      color: "#475569",
-      fontWeight: "600",
-      fontSize: "13px",
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      borderBottom: "1px solid #e2e8f0",
-    },
-    td: {
-      padding: "16px 24px",
-      borderBottom: "1px solid #e2e8f0",
-      color: "#334155",
-      fontSize: "14px",
-    },
-    badge: (status) => {
-      let bg = "#e2e8f0";
-      let color = "#475569";
-      
-      if (status === "Active") {
-        bg = "#dcfce7";
-        color = "#166534";
-      } else if (status === "Past Due") {
-        bg = "#fee2e2";
-        color = "#991b1b";
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
       }
-      
-      return {
-        display: "inline-block",
-        padding: "4px 12px",
-        borderRadius: "9999px",
-        fontSize: "12px",
-        fontWeight: "600",
-        backgroundColor: bg,
-        color: color,
-      };
-    },
-    usageBar: {
-      height: "8px",
-      backgroundColor: "#e2e8f0",
-      borderRadius: "4px",
-      overflow: "hidden",
-      width: "100%",
-      marginTop: "8px",
-    },
-    usageFill: (percent) => {
-      let num = parseInt(percent);
-      let bg = "#3b82f6";
-      if (num > 80) bg = "#f59e0b";
-      if (num > 95) bg = "#ef4444";
-      
-      return {
-        height: "100%",
-        width: percent,
-        backgroundColor: bg,
-        borderRadius: "4px",
-      };
-    },
-    settingsPanel: {
-      padding: "32px",
-    },
-    settingGroup: {
-      marginBottom: "24px",
-    },
-    toggleSwitch: {
-      display: "flex",
-      alignItems: "center",
-      gap: "12px",
-      cursor: "pointer",
-    },
-    toggleTrack: (isOn) => ({
-      width: "44px",
-      height: "24px",
-      backgroundColor: isOn ? "#2563eb" : "#cbd5e1",
-      borderRadius: "12px",
-      position: "relative",
-      transition: "background-color 0.2s",
-    }),
-    toggleThumb: (isOn) => ({
-      width: "20px",
-      height: "20px",
-      backgroundColor: "white",
-      borderRadius: "50%",
-      position: "absolute",
-      top: "2px",
-      left: isOn ? "22px" : "2px",
-      transition: "left 0.2s",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-    })
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const Toggle = ({ label, defaultOn = false }) => {
-    const [isOn, setIsOn] = useState(defaultOn);
-    return (
-      <div style={styles.settingGroup}>
-        <div style={styles.toggleSwitch} onClick={() => setIsOn(!isOn)}>
-          <div style={styles.toggleTrack(isOn)}>
-            <div style={styles.toggleThumb(isOn)} />
-          </div>
-          <span style={{ color: "#475569", fontSize: "15px" }}>{label}</span>
-        </div>
-      </div>
-    );
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setMsg('');
+    setErr('');
+    if (!newEmail || !newPassword) {
+      setErr('Please enter both Email and Password');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setErr('Password must be at least 6 characters');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const res = await fetch(`${API_URL}/api/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, password: newPassword, role: newRole })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg(`✅ Account created for ${newEmail}`);
+        setNewEmail('');
+        setNewPassword('');
+        fetchUsers();
+      } else {
+        setErr(data.detail || 'Failed to create user account');
+      }
+    } catch (e) {
+      setErr('Connection error. Could not create account.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>SaaS Admin Dashboard</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button style={{ 
-            padding: '8px 16px', 
-            backgroundColor: '#2563eb', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px',
-            fontWeight: '600',
-            cursor: 'pointer'
-          }}>Generate Report</button>
-        </div>
-      </header>
-
-      <main style={styles.main}>
-        <div style={styles.statsContainer}>
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statIcon, backgroundColor: '#dbeafe', color: '#2563eb' }}>
-              <IconUsers />
-            </div>
-            <div style={styles.statInfo}>
-              <h3 style={styles.statValue}>1,248</h3>
-              <p style={styles.statLabel}>Total Tenants</p>
-            </div>
-          </div>
-          
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statIcon, backgroundColor: '#dcfce7', color: '#166534' }}>
-              <IconDollar />
-            </div>
-            <div style={styles.statInfo}>
-              <h3 style={styles.statValue}>$42,500</h3>
-              <p style={styles.statLabel}>Monthly Recurring Revenue</p>
-            </div>
-          </div>
-
-          <div style={styles.statCard}>
-            <div style={{ ...styles.statIcon, backgroundColor: '#fee2e2', color: '#991b1b' }}>
-              <IconAlert />
-            </div>
-            <div style={styles.statInfo}>
-              <h3 style={styles.statValue}>12</h3>
-              <p style={styles.statLabel}>Failed Payments (Action Req.)</p>
-            </div>
-          </div>
+    <div style={{ backgroundColor: '#020617', minHeight: '100vh', color: '#f8fafc', padding: '24px', fontFamily: 'system-ui, sans-serif' }}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: '20px 28px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #1e293b' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 'bold', background: 'linear-gradient(90deg, #3b82f6, #10b981)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ShieldCheck size={28} color="#10b981" /> Admin Control & User Account Manager
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>
+            Master Admin: <strong style={{ color: '#38bdf8' }}>vsangwal54@gmail.com</strong> | Password: <strong style={{ color: '#10b981' }}>Vikas@0502</strong>
+          </p>
         </div>
 
-        <div style={styles.tabs}>
-          <button style={styles.tabButton(activeTab === 'tenants')} onClick={() => setActiveTab('tenants')}>
-            Tenant Directory
-          </button>
-          <button style={styles.tabButton(activeTab === 'automation')} onClick={() => setActiveTab('automation')}>
-            Billing Automation
-          </button>
+        <button onClick={fetchUsers} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+          <RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh Accounts
+        </button>
+      </div>
+
+      {/* Main Grid: Create Account + Accounts List */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+        
+        {/* Card 1: Create New User Account */}
+        <div style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+          <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <UserPlus size={20} /> Create New Account (नया अकाउंट बनाएं)
+          </h2>
+
+          {msg && <div style={{ backgroundColor: '#064e3b', color: '#34d399', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>{msg}</div>}
+          {err && <div style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>{err}</div>}
+
+          <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px', fontWeight: '600' }}>User Email Address (यूज़र ईमेल ID)</label>
+              <input 
+                type="email" 
+                value={newEmail} 
+                onChange={e => setNewEmail(e.target.value)} 
+                placeholder="e.g. user@example.com"
+                required
+                style={{ width: '100%', padding: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px', fontWeight: '600' }}>Password (पासवर्ड)</label>
+              <input 
+                type="text" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)} 
+                placeholder="Set user password"
+                required
+                style={{ width: '100%', padding: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px', boxSizing: 'border-box' }} 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px', fontWeight: '600' }}>Role (रोल / पद)</label>
+              <select 
+                value={newRole} 
+                onChange={e => setNewRole(e.target.value)}
+                style={{ width: '100%', padding: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 'bold' }}
+              >
+                <option value="trader">📈 Trader (Trading & Analysis Access)</option>
+                <option value="analyst">📊 Analyst (Research Access)</option>
+                <option value="admin">⚡ Administrator (Full Admin Access)</option>
+              </select>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={creating}
+              style={{ marginTop: '8px', padding: '12px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer', opacity: creating ? 0.7 : 1 }}
+            >
+              {creating ? 'Creating Account...' : '➕ Create Account Now'}
+            </button>
+          </form>
         </div>
 
-        {activeTab === 'tenants' && (
-          <div style={styles.card}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Tenant Name</th>
-                  <th style={styles.th}>Plan & MRR</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Next Billing</th>
-                  <th style={styles.th}>Resource Usage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockTenants.map((tenant) => (
-                  <tr key={tenant.id}>
-                    <td style={{ ...styles.td, fontWeight: '600' }}>{tenant.name}</td>
-                    <td style={styles.td}>
-                      <div>{tenant.plan}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{tenant.mrr} / mo</div>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={styles.badge(tenant.status)}>{tenant.status}</span>
-                    </td>
-                    <td style={styles.td}>{tenant.nextBilling}</td>
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#475569' }}>
-                        <span>Capacity</span>
-                        <span>{tenant.usage}</span>
-                      </div>
-                      <div style={styles.usageBar}>
-                        <div style={styles.usageFill(tenant.usage)}></div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Card 2: Active Accounts List */}
+        <div style={{ backgroundColor: '#0f172a', padding: '24px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+          <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={20} /> Active Registered Accounts ({users.length})
+          </h2>
 
-        {activeTab === 'automation' && (
-          <div style={styles.card}>
-            <div style={styles.settingsPanel}>
-              <h2 style={{ margin: '0 0 24px 0', color: '#0f172a' }}>Automated Workflows</h2>
-              
-              <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '24px', marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#334155' }}>Dunning & Recovery</h3>
-                <Toggle label="Automatically retry failed payments every 3 days" defaultOn={true} />
-                <Toggle label="Send upcoming invoice reminder 7 days before" defaultOn={true} />
-                <Toggle label="Suspend accounts after 14 days of non-payment" defaultOn={false} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
+            {users.map((u) => (
+              <div key={u.email} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '14px 16px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#f8fafc', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {u.email} {u.email === 'vsangwal54@gmail.com' && <span style={{ fontSize: '11px', backgroundColor: '#3b82f6', color: '#fff', padding: '2px 8px', borderRadius: '10px' }}>MASTER ADMIN</span>}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Role: {u.role.toUpperCase()}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '12px', color: '#10b981', backgroundColor: '#064e3b', padding: '4px 10px', borderRadius: '6px', fontWeight: 'bold' }}>
+                    Active
+                  </span>
+                </div>
               </div>
-
-              <div>
-                <h3 style={{ fontSize: '16px', margin: '0 0 16px 0', color: '#334155' }}>Usage & Provisioning</h3>
-                <Toggle label="Auto-scale resources when usage exceeds 90%" defaultOn={true} />
-                <Toggle label="Email tenant when approaching usage limits" defaultOn={true} />
-                <Toggle label="Automatically apply pro-rated charges on plan upgrades" defaultOn={true} />
-              </div>
-            </div>
+            ))}
           </div>
-        )}
-      </main>
+        </div>
+
+      </div>
+
     </div>
   );
 };
