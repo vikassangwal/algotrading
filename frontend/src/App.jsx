@@ -221,11 +221,11 @@ export default function App() {
               <span>Analysis & Scanners</span>
               {expandedCategories.analysis ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </div>
-            {expandedCategories.analysis && (
+            {(expandedCategories.analysis ?? true) && (
               <div className="category-items">
-                <div className={`nav-item ${activeTab === 'universal' ? 'active' : ''}`} onClick={() => setActiveTab('universal')}><Crosshair size={20} /> Global Radar</div>
-                <div className={`nav-item ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}><ListFilter size={20} /> Scanners</div>
-                <div className={`nav-item ${activeTab === 'market-scanner' ? 'active' : ''}`} onClick={() => setActiveTab('market-scanner')}><ListFilter size={20} /> Pattern Scanner</div>
+                <div className={`nav-item ${activeTab === 'universal' ? 'active' : ''}`} onClick={() => setActiveTab('universal')}><Crosshair size={20} /> Universal Screener (4800+ Stocks)</div>
+                <div className={`nav-item ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}><ListFilter size={20} /> Technical Scanners</div>
+                <div className={`nav-item ${activeTab === 'market-scanner' ? 'active' : ''}`} onClick={() => setActiveTab('market-scanner')}><ListFilter size={20} /> AI Technical Scanners</div>
                 <div className={`nav-item ${activeTab === 'options' ? 'active' : ''}`} onClick={() => setActiveTab('options')}><Layers size={20} /> Option Chain</div>
                 <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}><BookOpen size={20} /> Stock Biodata</div>
                 <div className={`nav-item ${activeTab === 'heatmap' ? 'active' : ''}`} onClick={() => setActiveTab('heatmap')}><Grid size={20} /> Portfolio Heatmap</div>

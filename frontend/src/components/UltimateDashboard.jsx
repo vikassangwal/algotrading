@@ -420,16 +420,16 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
           {(() => {
             const data = scannerData || {
               best_long: [
-                { symbol: "TATASTEEL", score: 92, price: 178.50, rsi: 64.2, adx: 38.5 },
-                { symbol: "TATAPOWER", score: 89, price: 435.20, rsi: 62.1, adx: 35.1 },
-                { symbol: "RELIANCE", score: 87, price: 2980.00, rsi: 59.8, adx: 32.4 },
-                { symbol: "SBIN", score: 85, price: 845.60, rsi: 58.4, adx: 31.0 },
-                { symbol: "SUZLON", score: 84, price: 68.40, rsi: 66.5, adx: 41.2 },
-                { symbol: "ZOMATO", score: 83, price: 232.10, rsi: 61.0, adx: 34.0 },
-                { symbol: "HDFCBANK", score: 81, price: 1640.00, rsi: 56.2, adx: 28.5 },
-                { symbol: "INFY", score: 80, price: 1820.00, rsi: 55.4, adx: 27.8 },
-                { symbol: "ICICIBANK", score: 79, price: 1210.00, rsi: 54.8, adx: 26.9 },
-                { symbol: "TCS", score: 78, price: 4150.00, rsi: 53.9, adx: 25.4 }
+                { symbol: "CDSL", score: 95, price: 1540.20, rsi: 68.4, adx: 42.1 },
+                { symbol: "POLYCAB", score: 93, price: 6850.00, rsi: 66.8, adx: 39.4 },
+                { symbol: "MCX", score: 91, price: 5890.00, rsi: 65.2, adx: 38.1 },
+                { symbol: "KALYANKJIL", score: 89, price: 645.00, rsi: 64.0, adx: 36.5 },
+                { symbol: "DIXON", score: 88, price: 12450.00, rsi: 63.1, adx: 35.8 },
+                { symbol: "TATASTEEL", score: 87, price: 178.50, rsi: 62.2, adx: 34.5 },
+                { symbol: "TATAPOWER", score: 86, price: 435.20, rsi: 61.1, adx: 33.1 },
+                { symbol: "RELIANCE", score: 85, price: 2980.00, rsi: 59.8, adx: 32.4 },
+                { symbol: "SBIN", score: 84, price: 845.60, rsi: 58.4, adx: 31.0 },
+                { symbol: "SUZLON", score: 83, price: 68.40, rsi: 60.5, adx: 30.2 }
               ],
               best_short: [
                 { symbol: "BANDHANBNK", score: -82, price: 195.40, rsi: 32.1, adx: 36.5 },
