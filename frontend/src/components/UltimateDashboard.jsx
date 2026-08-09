@@ -515,8 +515,3 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
 };
 
 export default UltimateDashboard;
-    </div>
-  );
-};
-
-export default UltimateDashboard;
