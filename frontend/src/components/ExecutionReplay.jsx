@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ComposedChart, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { Play, Pause, Square, FastForward, Activity } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const CustomScatterShape = (props) => {
   const { cx, cy, payload } = props;

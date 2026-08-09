@@ -177,7 +177,7 @@ const StrategyLab = ({ token, globalSymbol }) => {
     setIsOptimizing(true);
     setError(null);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/backtest/${symbol}?years=${years}`, {
+      const res = await fetch(`${(import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '')}/api/backtest/${symbol}?years=${years}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       const data = await res.json();

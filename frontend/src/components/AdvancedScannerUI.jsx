@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Target, Activity, Zap, BarChart2, ChevronDown, ChevronUp, BrainCircuit, ExternalLink } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const RadarScore = ({ scores, color }) => {
   const data = [

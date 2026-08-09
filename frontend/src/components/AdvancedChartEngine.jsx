@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [activeChartType, setActiveChartType] = useState('candlestick');

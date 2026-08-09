@@ -16,7 +16,7 @@ const ReportsView = ({ token }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/reports`, {
+        const res = await fetch(`${(import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '')}/api/reports`, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         });
         const json = await res.json();

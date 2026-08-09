@@ -8,7 +8,7 @@ const ScannerView = ({ token, globalSymbol }) => {
   const runScan = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/screener/nifty50`, {
+      const res = await fetch(`${(import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '')}/api/screener/nifty50`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       const json = await res.json();

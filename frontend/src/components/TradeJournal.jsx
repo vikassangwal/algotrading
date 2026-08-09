@@ -4,7 +4,7 @@ import {
   TrendingUp, TrendingDown, Tag, ChevronDown, Check, X 
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const TradeJournal = ({ token }) => {
   const [entries, setEntries] = useState([]);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, AlertTriangle, Crosshair, Filter, ChevronDown, ChevronRight, Activity, Zap, Target, BarChart2 } from 'lucide-react';
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 export default function UniversalScreener({ token, globalSymbol }) {
   const [data, setData] = useState([]);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, TrendingUp, TrendingDown, Crosshair, AlertTriangle, ShieldCheck, BarChart2, BookOpen, Layers, Target, Zap, Clock, Users, RefreshCw } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const StockProfile = ({ token, globalSymbol }) => {
   const [data, setData] = useState(null);

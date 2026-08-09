@@ -43,7 +43,7 @@ const AuthViews = ({ setToken }) => {
           
         const headers = { 'Content-Type': 'application/json' };
 
-        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}${endpoint}`, {
+        const res = await fetch(`${(import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '')}${endpoint}`, {
           method: 'POST',
           headers: headers,
           body: body

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { Route, BrainCircuit, Target, Briefcase, Zap, Activity, TrendingUp, Layers } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const TradingPathways = ({ token }) => {
   const [profiles, setProfiles] = useState(null);

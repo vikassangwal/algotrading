@@ -3,7 +3,7 @@ import {
   Play, Pause, TrendingUp, TrendingDown, Minus, Zap, RefreshCw, Activity,
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const TYPE_LABELS = {
   scalping: 'Scalping', intraday: 'Intraday', swing: 'Swing', positional: 'Positional',
