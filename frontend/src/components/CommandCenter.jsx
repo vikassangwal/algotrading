@@ -68,7 +68,9 @@ const CommandCenter = ({ globalSymbol }) => {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState('');
   const token = localStorage.getItem('elco_token');
-  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const headers = (token && token.length > 20 && !token.includes('demo') && !token.includes('guest'))
+    ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
 
   const load = async (sym) => {
     setLoading(true); setError(null);

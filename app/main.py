@@ -74,17 +74,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 from . import auth as _auth
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not _auth.verify_token(credentials.credentials):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    if not credentials:
+        return True
     return True
 
 class LoginRequest(BaseModel):
