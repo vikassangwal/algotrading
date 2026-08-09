@@ -382,36 +382,36 @@ def search_stock(q: str = ""):
     return search_symbols(q)
 
 @app.get("/api/history/{symbol}")
-def get_history(symbol: str, interval: str = "15m", period: str = "60d"):
+def get_history(symbol: str, interval: str = "15m", period: str = "1mo"):
     """Fetches historical OHLC data for charting."""
-    # Ensure correct suffix for Indian stocks if missing
     ticker_symbol = symbol if ".NS" in symbol or ".BO" in symbol else f"{symbol}.NS"
     try:
         import yfinance as yf
-        data = yf.download(ticker_symbol, period=period, interval=interval, progress=False)
+        t = yf.Ticker(ticker_symbol)
+        # 15m / 5m intraday data has a 30d (1mo) limit in Yahoo Finance
+        fetch_period = "1mo" if interval in ["1m", "5m", "15m", "30m"] and period in ["60d", "1y", "max"] else period
+        data = t.history(period=fetch_period, interval=interval)
+        if data.empty:
+            data = t.history(period="1mo", interval="1d")
         if data.empty:
             return []
         
-        # Format for lightweight-charts
         formatted_data = []
         for index, row in data.iterrows():
-            # YFinance multi-index columns handling
             open_val = row['Open'].iloc[0] if isinstance(row['Open'], pd.Series) else row['Open']
             high_val = row['High'].iloc[0] if isinstance(row['High'], pd.Series) else row['High']
             low_val = row['Low'].iloc[0] if isinstance(row['Low'], pd.Series) else row['Low']
             close_val = row['Close'].iloc[0] if isinstance(row['Close'], pd.Series) else row['Close']
             volume_val = row['Volume'].iloc[0] if isinstance(row['Volume'], pd.Series) else row['Volume']
             
-            # Convert timestamp to unix timestamp (in seconds)
             timestamp = int(index.timestamp())
-            
             formatted_data.append({
                 "time": timestamp,
                 "open": float(open_val),
                 "high": float(high_val),
                 "low": float(low_val),
                 "close": float(close_val),
-                "value": float(volume_val) # Volume for histogram
+                "value": float(volume_val)
             })
             
         return formatted_data
