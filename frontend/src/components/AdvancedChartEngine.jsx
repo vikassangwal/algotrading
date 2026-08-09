@@ -35,10 +35,10 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   ];
 
   const fetchHistory = async () => {
-    if (!token || !symbol) return;
+    if (!symbol) return;
     setLoading(true);
     try {
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const headers = token && token.length > 20 ? { 'Authorization': `Bearer ${token}` } : {};
       const res = await fetch(`${API_URL}/api/history/${symbol.toUpperCase()}`, { headers });
       if (res.ok) {
         const historyData = await res.json();
@@ -65,7 +65,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   useEffect(() => {
     fetchHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [symbol]);
 
   // Transform to Heikin Ashi
   const getHeikinAshiData = (sourceData) => {
@@ -278,12 +278,12 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   // the chart when the real-time WS is NOT delivering, and is always labeled
   // delayed. Never fabricates movement.
   useEffect(() => {
-    if (!live || !token || !symbol || wsLive) return;
+    if (!live || !symbol || wsLive) return;
     let cancelled = false;
 
     const poll = async () => {
       try {
-        const headers = { 'Authorization': `Bearer ${token}` };
+        const headers = token && token.length > 20 ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`${API_URL}/api/quote/${symbol.toUpperCase()}`, { headers });
         if (!res.ok || cancelled) return;
         const q = await res.json();

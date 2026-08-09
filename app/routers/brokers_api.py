@@ -13,6 +13,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from ..config import config, BrokerName
@@ -94,7 +95,7 @@ def list_brokers():
     }
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(_get_verify_token())])
 def save_broker(req: BrokerCredsRequest):
     """Attach / update a broker's credentials."""
     broker = req.broker.lower().strip()
@@ -114,7 +115,7 @@ def save_broker(req: BrokerCredsRequest):
     return {"saved": broker}
 
 
-@router.post("/{broker}/test")
+@router.post("/{broker}/test", dependencies=[Depends(_get_verify_token())])
 def test_broker(broker: str):
     """Try to connect with the saved credentials via BrokerFactory."""
     broker = broker.lower().strip()
@@ -139,7 +140,7 @@ def test_broker(broker: str):
         return {"broker": broker, "connected": False, "error": str(e)}
 
 
-@router.post("/{broker}/activate")
+@router.post("/{broker}/activate", dependencies=[Depends(_get_verify_token())])
 def activate_broker(broker: str):
     """Mark a broker active (the one order routing will use)."""
     broker = broker.lower().strip()

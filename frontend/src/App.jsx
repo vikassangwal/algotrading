@@ -97,7 +97,6 @@ export default function App() {
   }, [token]);
 
   const fetchTickers = async () => {
-    if (!token) return;
     try {
       const res = await fetch(`${API_URL}/api/market-indices`, { headers });
       if (res.ok) {
@@ -110,10 +109,9 @@ export default function App() {
   };
 
   const fetchConfig = async () => {
-    if (!token) return;
     try {
       const res = await fetch(`${API_URL}/config`, { headers });
-      if (res.status === 401) return handleLogout();
+      if (!res.ok) return;
       const data = await res.json();
       setConfig(data);
     } catch (err) {
