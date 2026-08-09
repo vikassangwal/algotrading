@@ -79,22 +79,28 @@ const CommandCenter = ({ globalSymbol }) => {
 
   const load = async (sym) => {
     setLoading(true); setError(null);
-    try {
-      let res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
-      if (!res.ok) {
-        // Retry once after short delay in case server is waking up from sleep
-        await new Promise(r => setTimeout(r, 1500));
-        res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
+    let attempts = 0;
+    const maxAttempts = 4;
+    while (attempts < maxAttempts) {
+      try {
+        const res = await fetch(`${API_URL}/api/command-center/${sym}`, { headers });
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn(`Command center fetch attempt ${attempts + 1} failed, retrying...`, e);
       }
-      if (!res.ok) throw new Error(`Server status ${res.status}`);
-      const json = await res.json();
-      setData(json);
-    } catch (e) {
-      console.error("Command center load error:", e);
-      setError("Live market server is starting up. Please click Analyze / Refresh in a few seconds.");
-    } finally {
-      setLoading(false);
+      attempts++;
+      if (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
+    setError("Live market server is starting up. Please click Analyze / Refresh in a few seconds.");
+    setLoading(false);
   };
 
   const loadPnl = async () => {
