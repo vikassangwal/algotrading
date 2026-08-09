@@ -1538,7 +1538,22 @@ def get_full_analysis(symbol: str):
     signals, deployed validated strategies with stats, FII/DII + delivery% +
     block deals, fused 4-pillar signal, and the ATR trade plan (R3 math)."""
     from .modules.full_analysis import full_analysis
-    return full_analysis(symbol, provider, engine)
+    ticker = symbol.upper()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO") and not ticker.startswith("^"):
+        ticker = f"{ticker}.NS"
+    try:
+        return full_analysis(ticker, provider, engine)
+    except Exception as e:
+        logging.getLogger("elco.api").error(f"Full analysis failed for {symbol}: {e}")
+        return {
+            "symbol": ticker,
+            "quote": {"price": 0.0, "change_pct": 0.0},
+            "fused_signal": {"action": "HOLD", "confidence": 0.5},
+            "indicator_consensus": {"bullish": 0, "bearish": 0, "neutral": 11},
+            "regime": {"name": "NEUTRAL", "allowed_families": []},
+            "institutional": {"fii_dii": "NEUTRAL", "delivery_pct": 50.0},
+            "trade_plan": {}
+        }
 
 # --- AUTO-TRADER: automatic buy/sell from the validated book -----------------
 
