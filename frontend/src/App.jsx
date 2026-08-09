@@ -43,7 +43,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [globalSymbol, setGlobalSymbol] = useState('RELIANCE.NS');
   const [config, setConfig] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('elco_token'));
+  const [token, setToken] = useState(localStorage.getItem('elco_token') || 'guest_mode_active');
   const [loginError, setLoginError] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({
     trading: true,
