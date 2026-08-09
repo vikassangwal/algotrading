@@ -67,11 +67,16 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol 
     return () => clearInterval(interval);
   }, [token]);
 
+  const NIFTY50_SYMBOLS = ["RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS", "BHARTIARTL", "ITC", "SBIN", "LT", "KOTAKBANK", "AXISBANK", "HINDUNILVR", "BAJFINANCE", "ASIANPAINT", "MARUTI", "M&M", "HCLTECH", "SUNPHARMA", "TITAN", "ULTRACEMCO", "NTPC", "POWERGRID", "TATASTEEL", "NESTLEIND", "WIPRO", "JSWSTEEL", "ADANIENT", "ADANIPORTS", "TECHM", "ONGC", "COALINDIA", "BAJAJFINSV", "HINDALCO", "GRASIM", "DRREDDY", "CIPLA", "EICHERMOT", "BRITANNIA", "DIVISLAB", "HEROMOTOCO", "APOLLOHOSP", "BAJAJ-AUTO", "TATACONSUM", "INDUSINDBK", "SBILIFE", "HDFCLIFE", "SHRIRAMFIN", "BPCL"];
+  const SENSEX30_SYMBOLS = ["RELIANCE", "HDFCBANK", "ICICIBANK", "INFY", "TCS", "BHARTIARTL", "ITC", "SBIN", "LT", "KOTAKBANK", "AXISBANK", "HINDUNILVR", "BAJFINANCE", "ASIANPAINT", "MARUTI", "M&M", "HCLTECH", "SUNPHARMA", "TITAN", "ULTRACEMCO", "NTPC", "POWERGRID", "TATASTEEL", "NESTLEIND", "WIPRO", "JSWSTEEL", "TECHM", "BAJAJFINSV", "INDUSINDBK"];
+
   const filteredData = data.filter(d => {
     if (filter === 'ALL') return true;
-    if (filter === 'EQUITY' || filter === 'COMMODITY' || filter === 'CURRENCY') {
-      return d.segment === filter;
-    }
+    if (filter === 'NIFTY 50') return NIFTY50_SYMBOLS.includes(d.symbol.replace('.NS', '').replace('.BO', ''));
+    if (filter === 'SENSEX 30') return SENSEX30_SYMBOLS.includes(d.symbol.replace('.NS', '').replace('.BO', ''));
+    if (filter === 'MIDCAP & SMALLCAP') return d.segment === 'EQUITY' && !NIFTY50_SYMBOLS.includes(d.symbol.replace('.NS', '').replace('.BO', ''));
+    if (filter === 'COMMODITIES (MCX)') return d.segment === 'COMMODITY' || d.symbol.includes('=F') || d.symbol.includes('GOLD') || d.symbol.includes('SILVER') || d.symbol.includes('CRUDE');
+    if (filter === 'FOREX (USDINR)') return d.segment === 'CURRENCY' || d.symbol.includes('=X') || d.symbol.includes('INR');
     if (filter === 'BUY') return d.decision === 'BUY' || d.decision === 'STRONG BUY';
     if (filter === 'SELL') return d.decision === 'SELL' || d.decision === 'STRONG SELL';
     return true;
@@ -85,7 +90,7 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol 
             <Crosshair className="text-accent" /> Universal Screener (Multi-Asset Institutional Radar)
           </h2>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Connected directly with Stock Biodata, Technical Scanners, Option Chain, Heatmap & Risk Radar.
+            Scanning Nifty 50, Sensex 30, Nifty 500 Midcaps, MCX Commodities & Forex.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -109,19 +114,20 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol 
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', backgroundColor: '#1e293b', padding: '10px', borderRadius: '8px', flexWrap: 'wrap' }}>
         <Filter size={18} style={{ color: '#9ca3af', alignSelf: 'center', marginLeft: '5px' }} />
-        {['ALL', 'EQUITY', 'COMMODITY', 'CURRENCY', 'BUY', 'SELL'].map(f => (
+        {['ALL', 'NIFTY 50', 'SENSEX 30', 'MIDCAP & SMALLCAP', 'COMMODITIES (MCX)', 'FOREX (USDINR)', 'BUY', 'SELL'].map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
             style={{
-              padding: '6px 12px',
+              padding: '6px 14px',
               backgroundColor: filter === f ? '#8b5cf6' : 'transparent',
               color: filter === f ? 'white' : '#cbd5e1',
               border: '1px solid',
               borderColor: filter === f ? '#8b5cf6' : '#334155',
               borderRadius: '20px',
               cursor: 'pointer',
-              fontSize: '0.85rem'
+              fontSize: '0.85rem',
+              fontWeight: filter === f ? 'bold' : 'normal'
             }}
           >
             {f}

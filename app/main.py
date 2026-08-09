@@ -787,7 +787,13 @@ def get_market_indices():
     from .yf_cache import get_safe_ltp
     import yfinance as yf
     
-    items = [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANKNIFTY"), ("RELIANCE.NS", "RELIANCE"), ("TCS.NS", "TCS")]
+    items = [
+        ("^NSEI", "NIFTY 50"), ("^BSESN", "SENSEX 30"), ("^NSEBANK", "BANKNIFTY"),
+        ("^CNXIT", "NIFTY IT"), ("^CNXAUTO", "NIFTY AUTO"), ("^CNXPHARMA", "NIFTY PHARMA"),
+        ("^CNXREALTY", "NIFTY REALTY"), ("GC=F", "GOLD"), ("SI=F", "SILVER"),
+        ("CL=F", "CRUDE OIL"), ("INR=X", "USDINR"), ("RELIANCE.NS", "RELIANCE"),
+        ("TCS.NS", "TCS"), ("SUZLON.NS", "SUZLON")
+    ]
     indices = []
     
     for tkr, name in items:
