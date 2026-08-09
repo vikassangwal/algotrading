@@ -224,20 +224,18 @@ class DhanProvider(DataProvider):
         # Use yfinance for Quotes to avoid complex NSE symbol -> ID mapping for now.
         # This provides REAL market data to the UI without the mapping overhead.
         try:
-            if yf:
-                ticker = yf.Ticker(_yf_symbol(symbol))
-                info = ticker.fast_info
-                ltp = info.get("lastPrice", 0)
-                if ltp:
-                    return Quote(
-                        symbol=symbol.upper(),
-                        ltp=float(ltp),
-                        change_pct=0.0, 
-                        volume=0,
-                        ts=datetime.now(timezone.utc)
-                    )
+            from ..yf_cache import get_safe_ltp
+            ltp = get_safe_ltp(symbol)
+            if ltp > 0:
+                return Quote(
+                    symbol=symbol.upper(),
+                    ltp=float(ltp),
+                    change_pct=0.0, 
+                    volume=0,
+                    ts=datetime.now(timezone.utc)
+                )
         except Exception as e:
-            logger.error(f"Error fetching LTP for {symbol} from yfinance: {e}")
+            logger.error(f"Error fetching LTP for {symbol}: {e}")
             
         return self.fallback.get_quote(symbol)
 

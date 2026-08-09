@@ -463,10 +463,15 @@ def get_quote(symbol: str):
     from .data.dhan_provider import _yf_symbol
     ticker_symbol = _yf_symbol(symbol)
     try:
+        from .yf_cache import get_safe_ltp
         t = yf.Ticker(ticker_symbol)
-        fi = t.fast_info
-        last = fi.get("last_price") if hasattr(fi, "get") else getattr(fi, "last_price", None)
-        prev = fi.get("previous_close") if hasattr(fi, "get") else getattr(fi, "previous_close", None)
+        last = get_safe_ltp(ticker_symbol)
+        prev = None
+        try:
+            fi = t.fast_info
+            prev = getattr(fi, "previous_close", None) if hasattr(fi, "previous_close") else (fi.get("previous_close") if hasattr(fi, "get") else None)
+        except Exception:
+            pass
         if last is None:
             # Fall back to the most recent 1m bar close. For prev close, use
             # 2 daily bars — today's first 1m OPEN is NOT the previous close
@@ -775,43 +780,31 @@ def get_radar():
 @app.get("/api/market-indices")
 def get_market_indices():
     """Returns live market indices (Nifty, BankNifty, Reliance, etc) for the ticker tape."""
-    symbols = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY']
-    indices = []
-    
+    from .yf_cache import get_safe_ltp
     import yfinance as yf
     
-    # Manually append indices
-    try:
-        nifty_tk = yf.Ticker("^NSEI")
-        nifty_info = nifty_tk.fast_info
-        last_price = nifty_info.last_price
-        prev_close = nifty_info.previous_close
-        change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
-        indices.append({"symbol": "NIFTY 50", "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
-    except:
-        indices.append({"symbol": "NIFTY 50", "val": "---", "change": "0.0%", "up": True})
-        
-    try:
-        bank_tk = yf.Ticker("^NSEBANK")
-        bank_info = bank_tk.fast_info
-        last_price = bank_info.last_price
-        prev_close = bank_info.previous_close
-        change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
-        indices.append({"symbol": "BANKNIFTY", "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
-    except:
-        pass
-        
-    for sym in symbols:
+    items = [("^NSEI", "NIFTY 50"), ("^NSEBANK", "BANKNIFTY"), ("RELIANCE.NS", "RELIANCE"), ("TCS.NS", "TCS")]
+    indices = []
+    
+    for tkr, name in items:
         try:
-            tk = yf.Ticker(f"{sym}.NS")
-            info = tk.fast_info
-            last_price = info.last_price
-            prev_close = info.previous_close
-            change = ((last_price - prev_close) / prev_close) * 100 if prev_close else 0
-            indices.append({"symbol": sym, "val": f"{last_price:,.2f}", "change": f"{change:+.2f}%", "up": change >= 0})
-        except:
-            pass
-
+            last_price = get_safe_ltp(tkr)
+            prev_close = None
+            try:
+                fi = yf.Ticker(tkr).fast_info
+                prev_close = getattr(fi, "previous_close", None) if hasattr(fi, "previous_close") else (fi.get("previous_close") if hasattr(fi, "get") else None)
+            except Exception:
+                pass
+                
+            if not prev_close and last_price > 0:
+                prev_close = last_price
+                
+            change = ((last_price - prev_close) / prev_close) * 100 if (prev_close and last_price > 0) else 0.0
+            val_str = f"{last_price:,.2f}" if last_price > 0 else "---"
+            indices.append({"symbol": name, "val": val_str, "change": f"{change:+.2f}%", "up": change >= 0})
+        except Exception:
+            indices.append({"symbol": name, "val": "---", "change": "0.0%", "up": True})
+            
     return indices
 
 
@@ -1059,13 +1052,13 @@ def get_options_chain(symbol: str = "NIFTY"):
     import yfinance as yf
     
     # Fetch real spot price
+    from .yf_cache import get_safe_ltp
     spot = 24500
     try:
-        tk = yf.Ticker("^NSEI" if symbol.upper() == "NIFTY" else f"{symbol}.NS")
-        info = tk.fast_info
-        if info.last_price:
-            spot = info.last_price
-    except:
+        raw_spot = get_safe_ltp("^NSEI" if symbol.upper() == "NIFTY" else f"{symbol}.NS")
+        if raw_spot > 0:
+            spot = raw_spot
+    except Exception:
         pass
         
     # Round spot to nearest 100

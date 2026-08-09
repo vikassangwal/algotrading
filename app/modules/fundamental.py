@@ -19,10 +19,10 @@ class FundamentalModule(AnalysisModule):
             raw_data = self.provider.get_fundamentals(symbol) if hasattr(self.provider, 'get_fundamentals') else {}
             current_price = self.provider.get_quote(symbol).ltp
             
-            # Fetch real fundamental data using yfinance
+            # Fetch real fundamental data using yfinance (cached 15m)
             try:
-                yf_ticker = yf.Ticker(symbol)
-                yf_info = yf_ticker.info
+                from ..yf_cache import get_cached_yf_info
+                yf_info = get_cached_yf_info(symbol)
                 
                 if yf_info:
                     raw_data["returnOnEquity"] = yf_info.get("returnOnEquity")

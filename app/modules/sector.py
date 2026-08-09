@@ -18,11 +18,11 @@ class SectorModule(AnalysisModule):
         
         try:
             # We assume sector_name logic is handled upstream or passed through.
-            # Fetch real sector data using yfinance
+            # Fetch real sector data using yfinance (cached 15m)
             raw_data = {}
             try:
-                yf_ticker = yf.Ticker(symbol)
-                yf_info = yf_ticker.info
+                from ..yf_cache import get_cached_yf_info
+                yf_info = get_cached_yf_info(symbol)
                 if yf_info:
                     raw_data["sector"] = yf_info.get("sector")
                     raw_data["industry"] = yf_info.get("industry")
