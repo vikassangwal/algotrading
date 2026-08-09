@@ -2,10 +2,16 @@ import React, { useState } from 'react';
 
 const AuthViews = ({ setToken }) => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('vsangwal54@gmail.com');
+  const [password, setPassword] = useState('admin123');
   const [name, setName] = useState('');
   const [errors, setErrors] = useState({});
+
+  const handleDirectAccess = () => {
+    const dummyToken = 'demo_token_' + Date.now();
+    localStorage.setItem('elco_token', dummyToken);
+    if (setToken) setToken(dummyToken);
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -214,10 +220,20 @@ const AuthViews = ({ setToken }) => {
               {errors.password && <span className="error-text">{errors.password}</span>}
             </div>
 
-            <button type="submit" className="submit-btn">
-              {isLogin ? 'Sign In' : 'Sign Up'}
+            <button type="submit" className="submit-btn" disabled={loading}>
+              {loading ? 'Connecting...' : (isLogin ? 'Sign In' : 'Sign Up')}
             </button>
           </form>
+
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #1e293b', textAlign: 'center' }}>
+            <button 
+              type="button" 
+              onClick={handleDirectAccess} 
+              style={{ width: '100%', padding: '12px', background: 'linear-gradient(90deg, #10b981, #059669)', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}
+            >
+              ⚡ 1-Click Direct Access to Dashboard (Paper Mode)
+            </button>
+          </div>
 
           <p className="switch-text">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
