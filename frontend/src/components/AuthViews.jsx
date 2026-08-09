@@ -29,9 +29,13 @@ const AuthViews = ({ setToken }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const [loading, setLoading] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (validate()) {
+      setLoading(true);
+      setErrors({});
       try {
         const endpoint = isLogin ? '/login' : '/api/auth/register';
         const payload = isLogin 
@@ -60,7 +64,9 @@ const AuthViews = ({ setToken }) => {
           setErrors({ form: data.detail || 'Authentication failed' });
         }
       } catch (err) {
-        setErrors({ form: 'Server error. Is the backend running?' });
+        setErrors({ form: 'Server is starting up (Render free tier takes 20-30s on first request). Please wait 10 seconds and click Sign In again!' });
+      } finally {
+        setLoading(false);
       }
     }
   };
