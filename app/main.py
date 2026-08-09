@@ -213,6 +213,9 @@ def _start_position_monitor():
     # auto-deploy of whatever passes the 60%+ gate.
     from .hunt_daemon import hunt_daemon
     hunt_daemon.start()
+    # Keep-alive self-ping daemon: keeps free Render server 24/7 awake without cold sleep.
+    from .keep_alive import keep_alive_daemon
+    keep_alive_daemon.start()
     # Live-price fallback poller: pre-subscribe the deployed book + indices
     # so Monday's quotes are warm without waiting for a chart to open.
     try:
