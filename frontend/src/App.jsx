@@ -40,10 +40,25 @@ const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.
 const DEMO_TABS = [];
 
 export default function App() {
+  const getSafeToken = () => {
+    try {
+      return localStorage.getItem('elco_token') || 'guest_mode_active';
+    } catch (e) {
+      return 'guest_mode_active';
+    }
+  };
+
+  const setSafeToken = (t) => {
+    try {
+      if (t) localStorage.setItem('elco_token', t);
+      else localStorage.removeItem('elco_token');
+    } catch (e) {}
+  };
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [globalSymbol, setGlobalSymbol] = useState('RELIANCE.NS');
   const [config, setConfig] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('elco_token') || 'guest_mode_active');
+  const [token, setToken] = useState(getSafeToken);
   const [loginError, setLoginError] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({
     trading: true,
@@ -66,18 +81,18 @@ export default function App() {
 
   useEffect(() => {
     const ensureToken = async () => {
-      const savedToken = localStorage.getItem('elco_token');
+      const savedToken = getSafeToken();
       if (!savedToken || savedToken === 'guest_mode_active' || savedToken.length < 20) {
         try {
-          const res = await fetch(`${API_URL}/api/auth/login`, {
+          const res = await fetch(`${API_URL}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: 'vsangwal54@gmail.com', password: 'Vikas@0502' })
+            body: JSON.stringify({ password: 'admin' })
           });
           if (res.ok) {
             const data = await res.json();
             if (data.token) {
-              localStorage.setItem('elco_token', data.token);
+              setSafeToken(data.token);
               setToken(data.token);
             }
           }
