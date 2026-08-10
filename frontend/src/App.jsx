@@ -1050,7 +1050,7 @@ function DashboardView({ config, token }) {
             </tr>
           </thead>
           <tbody>
-            {portfolio?.open_positions && portfolio.open_positions.length > 0 ? (
+            {Array.isArray(portfolio?.open_positions) && portfolio.open_positions.length > 0 ? (
               portfolio.open_positions.map((pos, idx) => (
                 <tr key={idx} style={{borderTop: '1px solid var(--border-color)'}}>
                   <td style={{padding: '1rem 0.5rem', fontWeight: 600}}>{pos.symbol}</td>
@@ -1058,8 +1058,8 @@ function DashboardView({ config, token }) {
                   <td style={{padding: '1rem 0.5rem'}}>{pos.qty}</td>
                   <td style={{padding: '1rem 0.5rem'}}>{(pos.entry_price ?? 0).toFixed(2)}</td>
                   <td style={{padding: '1rem 0.5rem'}}>{(pos.ltp ?? 0).toFixed(2)}</td>
-                  <td style={{padding: '1rem 0.5rem', color: pos.unrealized_pnl >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)', fontWeight: 'bold'}}>
-                    {pos.unrealized_pnl >= 0 ? '+' : ''}{(pos.unrealized_pnl ?? 0).toFixed(2)}
+                  <td style={{padding: '1rem 0.5rem', color: (pos.unrealized_pnl ?? 0) >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)', fontWeight: 'bold'}}>
+                    {(pos.unrealized_pnl ?? 0) >= 0 ? '+' : ''}{(pos.unrealized_pnl ?? 0).toFixed(2)}
                   </td>
                 </tr>
               ))
@@ -1095,10 +1095,10 @@ function DashboardView({ config, token }) {
 
               return (
                 <tr key={sym} style={{borderTop: '1px solid var(--border-color)'}}>
-                  <td style={{padding: '1rem 0.5rem', fontWeight: 600}}>{data.symbol}</td>
+                  <td style={{padding: '1rem 0.5rem', fontWeight: 600}}>{data.symbol || sym}</td>
                   <td style={{padding: '1rem 0.5rem'}}>
                     <span className={actionClass} style={{padding: '4px 8px', borderRadius: '4px', color: actionColor, fontSize: '0.8rem', fontWeight: 600}}>
-                      {data.action}
+                      {data.action || 'NEUTRAL'}
                     </span>
                   </td>
                   <td style={{padding: '1rem 0.5rem'}}>{((data.overall_confidence ?? 0) * 100).toFixed(1)}%</td>
@@ -1113,7 +1113,7 @@ function DashboardView({ config, token }) {
                   </td>
                   <td style={{padding: '1rem 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
                     <ul style={{paddingLeft: '1rem', margin: 0}}>
-                      {data.reasons && data.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                      {Array.isArray(data.reasons) && data.reasons.map((r, i) => <li key={i}>{r}</li>)}
                     </ul>
                   </td>
                 </tr>
@@ -1125,8 +1125,8 @@ function DashboardView({ config, token }) {
       
       <div className="panel">
         <div className="panel-header">Unrealized P&L</div>
-        <div className="value" style={{fontSize: '2rem', fontWeight: 600, color: (portfolio?.pnl?.total_pnl || 0) >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)'}}>
-          {(portfolio?.pnl?.total_pnl || 0) >= 0 ? '+' : ''} ₹ {(portfolio?.pnl?.total_pnl || 0).toLocaleString()}
+        <div className="value" style={{fontSize: '2rem', fontWeight: 600, color: (Number(portfolio?.pnl?.total_pnl) || 0) >= 0 ? 'var(--signal-buy)' : 'var(--signal-sell)'}}>
+          {(Number(portfolio?.pnl?.total_pnl) || 0) >= 0 ? '+' : ''} ₹ {(Number(portfolio?.pnl?.total_pnl) || 0).toLocaleString()}
         </div>
         <div style={{fontSize: '0.85rem', color: 'var(--text-secondary)'}}>
           {config?.paper_mode ? 'Paper Trading Mode Active' : 'Live Mode Active'}
