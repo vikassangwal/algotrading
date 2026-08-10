@@ -69,7 +69,13 @@ const AIAssistant = ({ token, globalSymbol }) => {
 
       // Default smart responses
       let reply = `🤖 **ELCO AI Verdict**: Based on current market liquidity, **${currentSym}** is showing strong momentum alignment. Maintain strict stop losses and target high R:R setups!`;
-      if (userQuery.includes('Intraday')) {
+      if (userQuery.includes('Scalp') || userQuery.includes('Scalping')) {
+        reply = `⚡ **INSTANT 1-MIN SCALPING CALLS TODAY**:\n` +
+                `1. **IREDA** ➔ Entry ₹235.40 | Tight SL ₹233.00 (-1.0%) | Scalp Target ₹239.50 (+1.7%)\n` +
+                `2. **SUZLON** ➔ Entry ₹68.40 | Tight SL ₹67.70 (-1.0%) | Scalp Target ₹69.80 (+2.0%)\n` +
+                `3. **CDSL** ➔ Entry ₹1,540.20 | Tight SL ₹1,525.00 (-1.0%) | Scalp Target ₹1,570.00 (+1.9%)\n` +
+                `⏱️ *Timeframe*: 1m/3m SuperTrend. Avg Holding Time: 2 to 8 mins.`;
+      } else if (userQuery.includes('Intraday')) {
         reply = `⚡ **TOP INTRADAY STOCKS TODAY**: 1. **CDSL** (Target ₹1,680) 2. **SUZLON** (Target ₹82) 3. **MCX** (Target ₹6,400). High volume surge confirmed!`;
       } else if (userQuery.includes('Swing')) {
         reply = `🌊 **BEST SWING TRADING SETUPS**: 1. **POLYCAB** (Target ₹7,400) 2. **HAL** (Target ₹5,100) 3. **DIXON** (Target ₹13,500). 20-EMA pullback active!`;
@@ -96,6 +102,7 @@ const AIAssistant = ({ token, globalSymbol }) => {
 
       <div style={{ display: 'flex', gap: '8px', padding: '10px 16px', background: '#0f172a', flexWrap: 'wrap', borderBottom: '1px solid #1e293b' }}>
         <button onClick={() => askAI(`Analyze ${currentSym} Full Trade Setup`)} style={styles.chip}>🎯 Full Setup for {currentSym}</button>
+        <button onClick={() => askAI("Show Quick 1-Min Scalping Calls")} style={{ ...styles.chip, border: '1px solid #ef4444', color: '#f87171' }}>⚡ Quick 1-Min Scalping</button>
         <button onClick={() => askAI("Show Top Intraday Stocks Right Now")} style={styles.chip}>⚡ Top Intraday Stocks</button>
         <button onClick={() => askAI("Show Best Swing Trading Setups")} style={styles.chip}>🌊 Best Swing Setups</button>
       </div>
