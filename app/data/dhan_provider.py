@@ -221,21 +221,20 @@ class DhanProvider(DataProvider):
             self.rest_client = None
 
     def get_quote(self, symbol: str) -> Quote:
-        # Use yfinance for Quotes to avoid complex NSE symbol -> ID mapping for now.
-        # This provides REAL market data to the UI without the mapping overhead.
+        # Use yfinance for Quotes — provides REAL market data with actual change%.
         try:
-            from ..yf_cache import get_safe_ltp
-            ltp = get_safe_ltp(symbol)
-            if ltp > 0:
+            from ..yf_cache import get_safe_quote
+            q = get_safe_quote(symbol)
+            if q["ltp"] > 0:
                 return Quote(
                     symbol=symbol.upper(),
-                    ltp=float(ltp),
-                    change_pct=0.0, 
-                    volume=0,
+                    ltp=float(q["ltp"]),
+                    change_pct=float(q["change_pct"]),
+                    volume=int(q["volume"]),
                     ts=datetime.now(timezone.utc)
                 )
         except Exception as e:
-            logger.error(f"Error fetching LTP for {symbol}: {e}")
+            logger.error(f"Error fetching quote for {symbol}: {e}")
             
         return self.fallback.get_quote(symbol)
 

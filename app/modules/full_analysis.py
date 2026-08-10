@@ -298,36 +298,43 @@ def full_analysis(symbol: str, provider, engine) -> Dict[str, Any]:
         score = round(s.overall_score, 3)
         confidence = round(s.overall_confidence, 3)
 
-        # Ensure confidence and action are populated honestly from indicator consensus if engine returned 0
+        # Honest fused signal based on indicator consensus and engine output
         cons = result.get("indicator_consensus", {})
         b_cnt = cons.get("bullish", 0)
         be_cnt = cons.get("bearish", 0)
+        total_ind = b_cnt + be_cnt + cons.get("neutral", 0) or 11
 
-        if confidence <= 0.1 or action == "NEUTRAL":
-            if b_cnt >= be_cnt:
+        if action == "NEUTRAL":
+            if b_cnt >= be_cnt + 2:
                 action = "BUY"
-                score = round(0.62 + (b_cnt * 0.03), 2)
-                confidence = round(0.76 + (b_cnt * 0.02), 2)
-            else:
+                score = round((b_cnt - be_cnt) / total_ind, 2)
+                confidence = round(0.50 + (b_cnt / total_ind) * 0.40, 2)
+            elif be_cnt >= b_cnt + 2:
                 action = "SELL"
-                score = round(-0.62 - (be_cnt * 0.03), 2)
-                confidence = round(0.76 + (be_cnt * 0.02), 2)
+                score = round(-(be_cnt - b_cnt) / total_ind, 2)
+                confidence = round(0.50 + (be_cnt / total_ind) * 0.40, 2)
+            else:
+                action = "NEUTRAL"
+                score = 0.0
+                confidence = round(max(b_cnt, be_cnt) / total_ind, 2)
 
         result["fused_signal"] = {
             "action": action,
-            "score": min(score, 0.95),
-            "confidence": min(confidence, 0.98),
-            "reasons": list(getattr(s, 'reasons', []))[:6] or [f"Technical Consensus ({b_cnt} Bullish / {be_cnt} Bearish)", "SuperTrend (7,3) Alignment", "EMA Stack Confluence"],
+            "score": max(min(score, 0.95), -0.95),
+            "confidence": min(max(confidence, 0.30), 0.95),
+            "reasons": list(getattr(s, 'reasons', []))[:6] or [f"Technical Consensus ({b_cnt} Bullish / {be_cnt} Bearish)", "Indicator Confluence Analysis"],
         }
     except Exception as e:
         cons = result.get("indicator_consensus", {})
         b_cnt = cons.get("bullish", 0)
-        action = "BUY" if b_cnt >= 3 else "SELL"
+        be_cnt = cons.get("bearish", 0)
+        total_ind = b_cnt + be_cnt + cons.get("neutral", 0) or 11
+        action = "BUY" if b_cnt > be_cnt + 1 else "SELL" if be_cnt > b_cnt + 1 else "NEUTRAL"
         result["fused_signal"] = {
             "action": action,
-            "score": 0.72 if action == "BUY" else -0.72,
-            "confidence": 0.84,
-            "reasons": ["Technical Indicator Confluence", "SuperTrend Signal"]
+            "score": round((b_cnt - be_cnt) / total_ind, 2),
+            "confidence": round(max(b_cnt, be_cnt) / total_ind, 2),
+            "reasons": ["Technical Indicator Confluence"]
         }
 
     # 8. ATR trade plan — same R3 math execution enforces

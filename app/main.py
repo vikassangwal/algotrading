@@ -838,33 +838,36 @@ _indices_cache = {"data": None, "ts": 0}
 
 @app.get("/api/market-indices")
 def get_market_indices():
-    """Returns live market indices (Nifty, BankNifty, Reliance, etc) for the ticker tape with 60s cache."""
+    """Returns live market indices for the ticker tape with 60s cache."""
     import time
     now = time.time()
     if _indices_cache["data"] and (now - _indices_cache["ts"] < 60):
         return _indices_cache["data"]
 
-    from .yf_cache import get_safe_ltp
+    from .yf_cache import get_safe_quote
     
     items = [
-        ("^NSEI", "NIFTY 50", 24350.0), ("^BSESN", "SENSEX 30", 79800.0), ("^NSEBANK", "BANKNIFTY", 52100.0),
-        ("^CNXIT", "NIFTY IT", 41200.0), ("^CNXAUTO", "NIFTY AUTO", 25400.0), ("^CNXPHARMA", "NIFTY PHARMA", 22800.0),
-        ("^CNXREALTY", "NIFTY REALTY", 1050.0), ("GC=F", "GOLD", 2420.5), ("SI=F", "SILVER", 28.4),
-        ("CL=F", "CRUDE OIL", 76.8), ("INR=X", "USDINR", 83.92), ("RELIANCE.NS", "RELIANCE", 2980.0),
-        ("TCS.NS", "TCS", 4150.0), ("SUZLON.NS", "SUZLON", 68.4)
+        ("^NSEI", "NIFTY 50"), ("^BSESN", "SENSEX 30"), ("^NSEBANK", "BANKNIFTY"),
+        ("^CNXIT", "NIFTY IT"), ("^CNXAUTO", "NIFTY AUTO"), ("^CNXPHARMA", "NIFTY PHARMA"),
+        ("^CNXREALTY", "NIFTY REALTY"), ("GC=F", "GOLD"), ("SI=F", "SILVER"),
+        ("CL=F", "CRUDE OIL"), ("INR=X", "USDINR"), ("RELIANCE.NS", "RELIANCE"),
+        ("TCS.NS", "TCS"), ("SUZLON.NS", "SUZLON")
     ]
     indices = []
     
-    for tkr, name, default_val in items:
+    for tkr, name in items:
         try:
-            last_price = get_safe_ltp(tkr)
-            if not last_price or last_price <= 0:
-                last_price = default_val
-            change = 0.45  # mild positive default representation when offline
+            q = get_safe_quote(tkr)
+            last_price = q["ltp"]
+            change = q["change_pct"]
+            if last_price <= 0:
+                continue  # skip symbols we can't price — don't show fake data
             val_str = f"{last_price:,.2f}"
-            indices.append({"symbol": name, "val": val_str, "change": f"+{change:.2f}%", "up": True})
+            is_up = change >= 0
+            change_str = f"{'+' if is_up else ''}{change:.2f}%"
+            indices.append({"symbol": name, "val": val_str, "change": change_str, "up": is_up})
         except Exception:
-            indices.append({"symbol": name, "val": f"{default_val:,.2f}", "change": "+0.45%", "up": True})
+            pass  # skip on error — don't show fake data
             
     _indices_cache["data"] = indices
     _indices_cache["ts"] = now
@@ -1431,21 +1434,60 @@ class DashboardTradeRequest(BaseModel):
 
 @app.get("/api/dashboard/status")
 def get_dashboard_status():
-    """Live P&L + open positions from the real ExecutionEngine (no random data)."""
+    """Live P&L + open positions from DB + ExecutionEngine (no random data)."""
     import time
-    if time.time() - _dashboard_cache["ts"] < 30:  # 30 second cache
+    if time.time() - _dashboard_cache["ts"] < 10:  # 10 second cache (was 30)
         if _dashboard_cache["data"]:
             return _dashboard_cache["data"]
 
     pnl = execution_engine.get_pnl_summary()
-    positions = [
-        {"symbol": t.symbol, "side": t.action, "qty": t.qty,
-         "avg_price": t.entry_price, "unrealized_pnl": 0.0}
-        for t in execution_engine.open_positions.values()
-    ]
+
+    # Merge: in-memory positions + DB open trades
+    positions = []
+    seen_symbols = set()
+
+    # 1. In-memory engine positions
+    for t in execution_engine.open_positions.values():
+        try:
+            current_ltp = provider.get_quote(t.symbol).ltp
+            unrealized = (current_ltp - t.entry_price) * t.qty if t.action == "BUY" else (t.entry_price - current_ltp) * t.qty
+        except Exception:
+            unrealized = 0.0
+        positions.append({
+            "symbol": t.symbol, "side": t.action, "qty": t.qty,
+            "avg_price": round(t.entry_price, 2), "unrealized_pnl": round(unrealized, 2),
+            "stop_loss": round(t.stop_loss, 2), "target": round(t.target, 2),
+        })
+        seen_symbols.add(t.symbol)
+
+    # 2. DB open trades (from /api/orders POST)
+    try:
+        from .db import SessionLocal, TradeRecord as DBTradeRecord
+        db = SessionLocal()
+        db_open = db.query(DBTradeRecord).filter(DBTradeRecord.status == "OPEN").order_by(DBTradeRecord.id.desc()).limit(20).all()
+        for tr in db_open:
+            if tr.symbol in seen_symbols:
+                continue
+            try:
+                current_ltp = provider.get_quote(tr.symbol).ltp
+                unrealized = (current_ltp - tr.price) * tr.quantity if tr.action == "BUY" else (tr.price - current_ltp) * tr.quantity
+            except Exception:
+                unrealized = 0.0
+            positions.append({
+                "symbol": tr.symbol, "side": tr.action, "qty": tr.quantity,
+                "avg_price": round(tr.price, 2), "unrealized_pnl": round(unrealized, 2),
+            })
+            seen_symbols.add(tr.symbol)
+        db.close()
+    except Exception as e:
+        logging.getLogger("elco.api").warning(f"DB position read failed: {e}")
+
+    # Calculate total unrealized P&L
+    total_unrealized = sum(p.get("unrealized_pnl", 0) for p in positions)
+
     res = {
-        "daily_pnl": pnl.get("total_pnl", 0.0),
-        "circuit_breaker": config.auto_trade == AutoTradeState.HALTED if 'AutoTradeState' in globals() else False,
+        "daily_pnl": round(pnl.get("total_pnl", 0.0) + total_unrealized, 2),
+        "circuit_breaker": config.auto_trade == AutoTradeState.HALTED,
         "active_positions": positions
     }
     _dashboard_cache["data"] = res

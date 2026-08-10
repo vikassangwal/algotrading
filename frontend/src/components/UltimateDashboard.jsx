@@ -345,7 +345,7 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase' }}>Selected Stock</div>
               <span style={{ fontSize: '11px', padding: '3px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #10b981' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> LIVE (3s TICK)
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> REAL-TIME (3s REFRESH)
               </span>
             </div>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{activeSymbol}</h2>
@@ -486,6 +486,7 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
                     <th style={{ padding: '8px' }}>Side</th>
                     <th style={{ padding: '8px' }}>Qty</th>
                     <th style={{ padding: '8px' }}>Avg Price</th>
+                    <th style={{ padding: '8px', textAlign: 'right' }}>Unrealized P&L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -497,6 +498,9 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
                       <td style={{ padding: '12px 8px', color: pos.side === 'BUY' ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{pos.side}</td>
                       <td style={{ padding: '12px 8px', color: '#cbd5e1' }}>{pos.qty}</td>
                       <td style={{ padding: '12px 8px', color: '#cbd5e1' }}>₹{pos.avg_price}</td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 'bold', color: (pos.unrealized_pnl || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                        {(pos.unrealized_pnl || 0) >= 0 ? '+' : ''}₹{(pos.unrealized_pnl || 0).toFixed(2)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -539,7 +543,7 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
               <span style={{ color: '#94a3b8' }}>FII/DII Sentiment</span>
-              <span style={{ fontWeight: 'bold', color: '#10b981' }}>{inst.sentiment || 'BULLISH LEAN'}</span>
+              <span style={{ fontWeight: 'bold', color: '#10b981' }}>{inst.sentiment || inst.fii_dii?.sentiment || 'NEUTRAL'}</span>
             </div>
           </div>
 
