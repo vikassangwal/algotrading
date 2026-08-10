@@ -328,7 +328,11 @@ export default function App() {
               {activeTab === 'config' && 'System Configuration'}
             </div>
             <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-              <GlobalSearch token={token} onSelect={(sym) => setGlobalSymbol(sym)} />
+              <GlobalSearch token={token} onSelect={(sym) => {
+                const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
+                setGlobalSymbol(cleanSym);
+                setActiveTab('ultimate-dashboard');
+              }} />
             </div>
             <div style={{ whiteSpace: 'nowrap' }}>
               <span style={{marginRight: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Capital:</span>
@@ -364,15 +368,17 @@ export default function App() {
               <ScannerView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'scalping' && (
-              <UniversalScreener token={token} globalSymbol={globalSymbol} initialFilter="⚡ SCALPING (1-5 MIN)" onSelectSymbol={(sym, targetTab) => {
-                setGlobalSymbol(sym);
-                if (targetTab) setActiveTab(targetTab);
+              <UniversalScreener token={token} globalSymbol={globalSymbol} initialFilter="⚡ SCALPING (1-5 MIN)" onSelectSymbol={(sym) => {
+                const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
+                setGlobalSymbol(cleanSym);
+                setActiveTab('ultimate-dashboard');
               }} />
             )}
             {activeTab === 'universal' && (
-              <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym, targetTab) => {
-                setGlobalSymbol(sym);
-                if (targetTab) setActiveTab(targetTab);
+              <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym) => {
+                const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
+                setGlobalSymbol(cleanSym);
+                setActiveTab('ultimate-dashboard');
               }} />
             )}
             {activeTab === 'profile' && (
