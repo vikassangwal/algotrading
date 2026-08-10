@@ -60,9 +60,12 @@ class DhanRestClient:
         }
 
     def get_fund_limit(self):
-        resp = requests.get(f"{self.base_url}/fundlimit", headers=self.headers)
-        if resp.status_code == 200:
-            return resp.json()
+        try:
+            resp = requests.get(f"{self.base_url}/fundlimit", headers=self.headers, timeout=5)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as e:
+            logger.warning(f"Dhan fundlimit fetch failed: {e}")
         return None
 
     def get_ltp(self, exchange_segment, security_id):
