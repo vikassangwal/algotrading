@@ -226,6 +226,46 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
         </div>
       </div>
 
+      {/* Index & Benchmark Quick Selection Bar */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', backgroundColor: '#0f172a', padding: '12px 18px', borderRadius: '10px', border: '1px solid #1e293b', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#94a3b8', marginRight: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Crosshair size={16} color="#3b82f6" /> Quick Indices:
+        </span>
+        {[
+          { label: '🇮🇳 NIFTY 50', sym: '^NSEI' },
+          { label: '🏦 BANK NIFTY', sym: '^NSEBANK' },
+          { label: '🏛️ SENSEX 30', sym: '^BSESN' },
+          { label: '🚀 MIDCAP 100', sym: 'RVNL.NS' },
+          { label: '💎 SMALLCAP', sym: 'SUZLON.NS' },
+          { label: '⚡ FIN NIFTY', sym: 'NIFTY_FIN_SERVICE.NS' },
+          { label: '💻 NIFTY IT', sym: '^CNXIT' },
+          { label: '🚗 NIFTY AUTO', sym: '^CNXAUTO' },
+          { label: '🛡️ NIFTY PHARMA', sym: '^CNXPHARMA' },
+          { label: '🏢 NIFTY REALTY', sym: '^CNXREALTY' }
+        ].map(idx => (
+          <button
+            key={idx.label}
+            onClick={() => {
+              setSymbolInput(idx.sym);
+            }}
+            style={{
+              padding: '6px 14px',
+              backgroundColor: symbolInput === idx.sym ? '#3b82f6' : '#1e293b',
+              color: symbolInput === idx.sym ? '#ffffff' : '#cbd5e1',
+              border: `1px solid ${symbolInput === idx.sym ? '#60a5fa' : '#334155'}`,
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+              boxShadow: symbolInput === idx.sym ? '0 0 10px rgba(59, 130, 246, 0.4)' : 'none'
+            }}
+          >
+            {idx.label}
+          </button>
+        ))}
+      </div>
+
       {/* Main 3-Column Master Command Dashboard Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr 340px', gap: '20px', marginBottom: '20px' }}>
         
