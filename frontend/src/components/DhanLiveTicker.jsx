@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
@@ -7,18 +7,13 @@ const DhanLiveTicker = ({ symbol = 'RELIANCE.NS', initialPrice = 0, initialChang
   const [currentPrice, setCurrentPrice] = useState(initialPrice);
   const [changePct, setChangePct] = useState(initialChangePct);
   const [flash, setFlash] = useState(null); // 'up' | 'down' | null
-  const [isConnected, setIsConnected] = useState(false);
   const prevPriceRef = useRef(initialPrice);
 
-  // Sync when initial props update from parent API
+  // Sync whenever initial props change from parent API
   useEffect(() => {
     if (initialPrice > 0) {
       if (prevPriceRef.current > 0 && initialPrice !== prevPriceRef.current) {
-        if (initialPrice > prevPriceRef.current) {
-          setFlash('up');
-        } else if (initialPrice < prevPriceRef.current) {
-          setFlash('down');
-        }
+        setFlash(initialPrice > prevPriceRef.current ? 'up' : 'down');
         setTimeout(() => setFlash(null), 800);
       }
       prevPriceRef.current = initialPrice;
@@ -27,57 +22,75 @@ const DhanLiveTicker = ({ symbol = 'RELIANCE.NS', initialPrice = 0, initialChang
     }
   }, [initialPrice, initialChangePct]);
 
-  // Connect to WebSocket / Live Ticker Stream
+  // Fallback REST fetch if price is missing or 0
+  useEffect(() => {
+    const safeSym = encodeURIComponent(symbol).replace(/\^/g, '%5E');
+    
+    const fetchDirectQuote = async () => {
+      try {
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`${API_URL}/api/analysis/full/${safeSym}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const q = data.quote || {};
+          const p = q.price || q.ltp || 0;
+          const c = q.change_pct ?? 0;
+          if (p > 0) {
+            if (prevPriceRef.current > 0 && p !== prevPriceRef.current) {
+              setFlash(p > prevPriceRef.current ? 'up' : 'down');
+              setTimeout(() => setFlash(null), 800);
+            }
+            prevPriceRef.current = p;
+            setCurrentPrice(p);
+            setChangePct(c);
+          }
+        }
+      } catch (err) {}
+    };
+
+    fetchDirectQuote();
+    const interval = setInterval(fetchDirectQuote, 3000);
+    return () => clearInterval(interval);
+  }, [symbol, token]);
+
+  // WebSocket Live Feed & Smooth Micro-Tick Generator
   useEffect(() => {
     let ws = null;
-    let fallbackInterval = null;
     let microTickInterval = null;
 
-    const wsUrl = `${API_URL.replace(/^http/, 'ws')}/ws/live?token=${encodeURIComponent(token || 'demo')}&symbols=${encodeURIComponent(symbol)}`;
+    const safeSym = encodeURIComponent(symbol).replace(/\^/g, '%5E');
+    const wsUrl = `${API_URL.replace(/^http/, 'ws')}/ws/live?token=${encodeURIComponent(token || 'demo')}&symbols=${safeSym}`;
 
     try {
       ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        setIsConnected(true);
-      };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'ticks' && data.ticks && data.ticks[symbol]) {
-            const tick = data.ticks[symbol];
-            const newLtp = tick.ltp || tick.price;
-            if (newLtp) {
-              if (prevPriceRef.current > 0 && newLtp !== prevPriceRef.current) {
-                setFlash(newLtp > prevPriceRef.current ? 'up' : 'down');
-                setTimeout(() => setFlash(null), 800);
+          if (data.type === 'ticks' && data.ticks) {
+            const tick = data.ticks[symbol] || data.ticks[symbol.replace(/\^/g, '')] || Object.values(data.ticks)[0];
+            if (tick) {
+              const newLtp = tick.ltp || tick.price;
+              if (newLtp && newLtp > 0) {
+                if (prevPriceRef.current > 0 && newLtp !== prevPriceRef.current) {
+                  setFlash(newLtp > prevPriceRef.current ? 'up' : 'down');
+                  setTimeout(() => setFlash(null), 800);
+                }
+                prevPriceRef.current = newLtp;
+                setCurrentPrice(newLtp);
+                if (tick.change_pct !== undefined) setChangePct(tick.change_pct);
               }
-              prevPriceRef.current = newLtp;
-              setCurrentPrice(newLtp);
-              if (tick.change_pct !== undefined) setChangePct(tick.change_pct);
             }
           }
         } catch (e) {}
       };
+    } catch (e) {}
 
-      ws.onerror = () => {
-        setIsConnected(false);
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-      };
-    } catch (e) {
-      setIsConnected(false);
-    }
-
-    // Micro-tick simulation loop when offline / off-hours to provide smooth Dhan-like live ticker movement
+    // Micro-tick tick animation loop for Dhan-like smooth live market feeling
     microTickInterval = setInterval(() => {
       setCurrentPrice(prev => {
         if (!prev || prev <= 0) return prev;
-        // Random micro tick between -0.15 and +0.15
-        const delta = (Math.random() - 0.49) * 0.20;
+        const delta = (Math.random() - 0.49) * (prev > 10000 ? 1.5 : 0.20);
         const nextPrice = parseFloat((prev + delta).toFixed(2));
         if (nextPrice !== prev) {
           setFlash(nextPrice > prev ? 'up' : 'down');
@@ -86,18 +99,16 @@ const DhanLiveTicker = ({ symbol = 'RELIANCE.NS', initialPrice = 0, initialChang
         prevPriceRef.current = nextPrice;
         return nextPrice;
       });
-    }, 2500);
+    }, 2000);
 
     return () => {
       if (ws) ws.close();
-      if (fallbackInterval) clearInterval(fallbackInterval);
       if (microTickInterval) clearInterval(microTickInterval);
     };
   }, [symbol, token]);
 
   const isBullish = changePct >= 0;
 
-  // Flash style bindings
   const flashBg = flash === 'up'
     ? 'rgba(16, 185, 129, 0.25)'
     : flash === 'down'
