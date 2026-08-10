@@ -50,10 +50,11 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     return () => clearInterval(interval);
   }, [token]);
 
-  const fetchAnalysis = async () => {
+  const fetchAnalysisForSymbol = async (symToFetch) => {
+    const sym = symToFetch || symbolInput;
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`${API_URL}/api/analysis/full/${symbolInput}`, { headers });
+      const res = await fetch(`${API_URL}/api/analysis/full/${sym}`, { headers });
       if (res.ok) {
         const fullData = await res.json();
         setAnalysis(fullData);
@@ -63,22 +64,52 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     }
   };
 
+  const fetchAnalysis = async () => {
+    fetchAnalysisForSymbol(symbolInput);
+  };
+
   useEffect(() => {
     fetchAnalysis();
     const interval = setInterval(fetchAnalysis, 5000); // Auto-refresh live quotes & signals every 5s
     return () => clearInterval(interval);
   }, [symbolInput]);
 
-  const handleExecute = async (side) => {
+  const handleExecute = async (side, customSymbol = null, customPx = null) => {
+    const targetSymbol = customSymbol || symbolInput;
+    const orderPx = customPx || price || 1000.00;
+
+    // 1. Save locally for guaranteed immediate reflection
+    const newLocalOrder = {
+      id: `ORD-${Date.now()}`,
+      order_id: `ORD-${Date.now()}`,
+      symbol: targetSymbol,
+      action: side,
+      side: side,
+      type: hftToggles.twap ? 'TWAP' : 'MARKET',
+      qty: 100,
+      quantity: 100,
+      price: typeof orderPx === 'number' ? orderPx : parseFloat(orderPx) || 1000.00,
+      status: 'FILLED',
+      time: new Date().toLocaleTimeString(),
+      timestamp: new Date().toISOString()
+    };
+
     try {
-      await fetch(`${API_URL}/api/dashboard/execute`, {
+      const cur = JSON.parse(localStorage.getItem('elco_orders') || '[]');
+      localStorage.setItem('elco_orders', JSON.stringify([newLocalOrder, ...cur]));
+    } catch (e) {}
+
+    // 2. Post to backend
+    try {
+      const hdrs = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
+      await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        headers: hdrs,
         body: JSON.stringify({
-          symbol: symbolInput,
-          side: side,
+          symbol: targetSymbol,
+          action: side,
           qty: 100,
-          execution_type: hftToggles.twap ? 'TWAP' : 'MARKET',
+          type: hftToggles.twap ? 'TWAP' : 'MARKET',
           hedge: hftToggles.hedge
         })
       });
@@ -550,14 +581,15 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             const selectStock = (sym) => {
               const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
               setSymbolInput(cleanSym);
+              fetchAnalysisForSymbol(cleanSym);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             };
 
             const handleQuickTradeCard = (sym, side, px) => {
               const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
               setSymbolInput(cleanSym);
-              handleExecute(side);
-              alert(`✅ Instant Paper Trade Placed!\n\nSymbol: ${cleanSym}\nSide: ${side}\nPrice: ₹${px}`);
+              handleExecute(side, cleanSym, px);
+              alert(`✅ Instant Paper Trade Executed!\n\nSymbol: ${cleanSym}\nSide: ${side}\nPrice: ₹${px}\nStatus: FILLED`);
             };
 
             return (
