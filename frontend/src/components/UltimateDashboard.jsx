@@ -15,12 +15,17 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     circuitBreaker: true
   });
   const [symbolInput, setSymbolInput] = useState('RELIANCE.NS');
+  const [activeSymbol, setActiveSymbol] = useState('RELIANCE.NS');
+  const [isFetching, setIsFetching] = useState(false);
   const [mlInsights, setMlInsights] = useState(null);
   const [scannerData, setScannerData] = useState(null);
   const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
-    if (globalSymbol) setSymbolInput(globalSymbol);
+    if (globalSymbol) {
+      setSymbolInput(globalSymbol);
+      setActiveSymbol(globalSymbol);
+    }
   }, [globalSymbol]);
 
   useEffect(() => {
@@ -51,7 +56,8 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
   }, [token]);
 
   const fetchAnalysisForSymbol = async (symToFetch) => {
-    const sym = symToFetch || symbolInput;
+    const sym = symToFetch || activeSymbol;
+    setIsFetching(true);
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       const res = await fetch(`${API_URL}/api/analysis/full/${encodeURIComponent(sym)}`, { headers });
@@ -64,21 +70,23 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     } catch (err) {
       console.error("Full analysis fetch error", err);
       setAnalysis({ error: `Network error for ${sym}` });
+    } finally {
+      setIsFetching(false);
     }
   };
 
-  const fetchAnalysis = async () => {
-    fetchAnalysisForSymbol(symbolInput);
+  useEffect(() => {
+    fetchAnalysisForSymbol(activeSymbol);
+    const interval = setInterval(() => fetchAnalysisForSymbol(activeSymbol), 3000); // Auto-refresh live quotes & signals every 3s
+    return () => clearInterval(interval);
+  }, [activeSymbol]);
+
+  const handleAnalyzeClick = () => {
+    setActiveSymbol(symbolInput);
   };
 
-  useEffect(() => {
-    fetchAnalysis();
-    const interval = setInterval(fetchAnalysis, 5000); // Auto-refresh live quotes & signals every 5s
-    return () => clearInterval(interval);
-  }, [symbolInput]);
-
   const handleExecute = async (side, customSymbol = null, customPx = null) => {
-    const targetSymbol = customSymbol || symbolInput;
+    const targetSymbol = customSymbol || activeSymbol;
     const orderPx = customPx || price || 1000.00;
 
     // 1. Save locally for guaranteed immediate reflection
@@ -226,11 +234,12 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             type="text" 
             value={symbolInput} 
             onChange={e => setSymbolInput(e.target.value.toUpperCase())} 
+            onKeyDown={e => e.key === 'Enter' && handleAnalyzeClick()}
             placeholder="Symbol (e.g. RELIANCE.NS)"
             style={{ padding: '8px 14px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 'bold', width: '180px' }} 
           />
-          <button onClick={fetchAnalysis} style={{ padding: '8px 16px', backgroundColor: '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
-            Analyze
+          <button onClick={handleAnalyzeClick} disabled={isFetching} style={{ padding: '8px 16px', backgroundColor: isFetching ? '#64748b' : '#3b82f6', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: isFetching ? 'not-allowed' : 'pointer' }}>
+            {isFetching ? 'Analyzing...' : 'Analyze'}
           </button>
         </div>
 
@@ -298,18 +307,19 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             key={idx.label}
             onClick={() => {
               setSymbolInput(idx.sym);
+              setActiveSymbol(idx.sym);
             }}
             style={{
               padding: '6px 14px',
-              backgroundColor: symbolInput === idx.sym ? '#3b82f6' : '#1e293b',
-              color: symbolInput === idx.sym ? '#ffffff' : '#cbd5e1',
-              border: `1px solid ${symbolInput === idx.sym ? '#60a5fa' : '#334155'}`,
+              backgroundColor: activeSymbol === idx.sym ? '#3b82f6' : '#1e293b',
+              color: activeSymbol === idx.sym ? '#ffffff' : '#cbd5e1',
+              border: `1px solid ${activeSymbol === idx.sym ? '#60a5fa' : '#334155'}`,
               borderRadius: '20px',
               cursor: 'pointer',
               fontSize: '12px',
               fontWeight: 'bold',
               transition: 'all 0.2s',
-              boxShadow: symbolInput === idx.sym ? '0 0 10px rgba(59, 130, 246, 0.4)' : 'none'
+              boxShadow: activeSymbol === idx.sym ? '0 0 10px rgba(59, 130, 246, 0.4)' : 'none'
             }}
           >
             {idx.label}
@@ -335,10 +345,10 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase' }}>Selected Stock</div>
               <span style={{ fontSize: '11px', padding: '3px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #10b981' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> LIVE (5s TICK)
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> LIVE (3s TICK)
               </span>
             </div>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{symbolInput}</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{activeSymbol}</h2>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
               <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#fff' }}>₹{price.toFixed(2)}</span>
               <span style={{ color: isBullish ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
