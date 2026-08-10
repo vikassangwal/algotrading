@@ -22,11 +22,11 @@ const DEFAULT_OPPORTUNITIES = [
   { symbol: "EURINR (EURINR=X)", segment: "CURRENCY", current_price: 91.50, decision: "BUY", analytical_score: 0.58, catalysts: "ECB Policy Alignment, Forex Swing", tp: 93.10, sl: 90.40, strategy: ["SWING"] }
 ];
 
-export default function UniversalScreener({ token, globalSymbol, onSelectSymbol }) {
+export default function UniversalScreener({ token, globalSymbol, onSelectSymbol, initialFilter = 'ALL' }) {
   const [data, setData] = useState(DEFAULT_OPPORTUNITIES);
   const [loading, setLoading] = useState(false);
   const [lastScan, setLastScan] = useState(new Date().toLocaleTimeString());
-  const [filter, setFilter] = useState('ALL'); // ALL, SCALPING, INTRADAY, SWING, BREAKOUT, OPTIONS, TOP 10 HIGH PROFIT
+  const [filter, setFilter] = useState(initialFilter); // ALL, SCALPING, INTRADAY, SWING, BREAKOUT, OPTIONS, TOP 10 HIGH PROFIT
   const [expandedRow, setExpandedRow] = useState(null);
   const [orderStatus, setOrderStatus] = useState({}); // { symbol: 'placing' | 'success' | 'error' }
 

@@ -223,6 +223,7 @@ export default function App() {
             </div>
             {(expandedCategories.analysis ?? true) && (
               <div className="category-items">
+                <div className={`nav-item ${activeTab === 'scalping' ? 'active' : ''}`} onClick={() => setActiveTab('scalping')} style={{ color: '#ef4444', fontWeight: 'bold' }}><Zap size={20} /> ⚡ 1-Min Scalping Radar</div>
                 <div className={`nav-item ${activeTab === 'universal' ? 'active' : ''}`} onClick={() => setActiveTab('universal')}><Crosshair size={20} /> Universal Screener (4800+ Stocks)</div>
                 <div className={`nav-item ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => setActiveTab('scanner')}><ListFilter size={20} /> Technical Scanners</div>
                 <div className={`nav-item ${activeTab === 'market-scanner' ? 'active' : ''}`} onClick={() => setActiveTab('market-scanner')}><ListFilter size={20} /> AI Technical Scanners</div>
@@ -305,6 +306,7 @@ export default function App() {
               {activeTab === 'scanner' && 'Real-time Scanners'}
               {activeTab === 'options' && 'Advanced Option Chain'}
               {activeTab === 'reports' && 'End of Day Reports'}
+              {activeTab === 'scalping' && '⚡ 1-Min High-Momentum Scalping Radar'}
               {activeTab === 'universal' && 'Global Universal Market Radar'}
               {activeTab === 'heatmap' && 'Portfolio Intelligence'}
               {activeTab === 'alerts' && 'Smart Alerts Center'}
@@ -360,6 +362,12 @@ export default function App() {
             )}
             {activeTab === 'scanner' && (
               <ScannerView token={token} globalSymbol={globalSymbol} />
+            )}
+            {activeTab === 'scalping' && (
+              <UniversalScreener token={token} globalSymbol={globalSymbol} initialFilter="⚡ SCALPING (1-5 MIN)" onSelectSymbol={(sym, targetTab) => {
+                setGlobalSymbol(sym);
+                if (targetTab) setActiveTab(targetTab);
+              }} />
             )}
             {activeTab === 'universal' && (
               <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym, targetTab) => {
