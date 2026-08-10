@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Activity, Settings, TrendingUp, AlertTriangle, Play, Square, Pause, BookOpen, BarChart2, ListFilter, Layers, PieChart, ShoppingCart, Grid, BellRing, BrainCircuit, Bot, Video, ShieldAlert, Key, Users, CheckCircle, Route, Crosshair, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { LayoutDashboard, Activity, Settings, TrendingUp, AlertTriangle, Play, Square, Pause, BookOpen, BarChart2, ListFilter, Layers, PieChart, ShoppingCart, Grid, BellRing, BrainCircuit, Bot, Video, ShieldAlert, Key, Users, CheckCircle, Route, Crosshair, ChevronDown, ChevronRight, Zap, Plug } from 'lucide-react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import './index.css'; // Uses our custom Vanilla CSS theme
 
