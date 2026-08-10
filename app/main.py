@@ -169,10 +169,10 @@ def create_user_by_admin(req: RegisterRequest):
     finally:
         db.close()
 
-# Broker admin API (attach/list/test/activate brokers)
-# POST routes inside the router have their own auth guards
-from .routers import brokers_api
+# Broker & Config admin APIs (/api/brokers, /api/config)
+from .routers import brokers_api, config_api
 app.include_router(brokers_api.router)
+app.include_router(config_api.router)
 
 # AI technical scanner (/api/scanner/top20), consolidated from the retired api stack.
 from .api.scanner import router as scanner_router
