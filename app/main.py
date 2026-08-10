@@ -293,9 +293,13 @@ def healthz():
 
 
 @app.get("/config", response_model=AppConfig)
-@app.get("/api/config", response_model=AppConfig)
 def get_config():
     """Retrieve the current runtime configuration."""
+    return config
+
+@app.get("/api/config", response_model=AppConfig)
+def get_config_api():
+    """Retrieve the current runtime configuration (alias)."""
     return config
 
 
@@ -311,7 +315,6 @@ class ConfigUpdate(BaseModel):
     custom_strategies: Optional[List[Dict]] = None
 
 @app.patch("/config", dependencies=[Depends(verify_token)])
-@app.patch("/api/config", dependencies=[Depends(verify_token)])
 def update_config(update: ConfigUpdate):
     """Admin endpoint to update runtime configuration."""
     if update.capital is not None:
@@ -334,6 +337,11 @@ def update_config(update: ConfigUpdate):
         config.custom_strategies = update.custom_strategies
     
     return {"status": "success", "config": config}
+
+@app.patch("/api/config", dependencies=[Depends(verify_token)])
+def update_config_api(update: ConfigUpdate):
+    """Admin endpoint to update runtime configuration (alias)."""
+    return update_config(update)
 
 
 @app.get("/analyze/{symbol}")
