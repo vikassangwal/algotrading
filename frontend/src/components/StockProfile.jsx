@@ -18,7 +18,8 @@ const StockProfile = ({ token, globalSymbol }) => {
       setError(null);
       try {
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch(`${API_URL}/api/analysis/full/${globalSymbol}`, { headers });
+        const safeSym = encodeURIComponent(globalSymbol).replace(/\^/g, '%5E');
+        const res = await fetch(`${API_URL}/api/analysis/full/${safeSym}`, { headers });
         if (!res.ok) {
           throw new Error('Failed to fetch stock biodata');
         }

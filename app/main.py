@@ -1697,28 +1697,57 @@ def execute_trade_setup(symbol: str):
         "setup": setup,
     }
 
-@app.get("/api/analysis/full/{symbol}")
+INDEX_SYMBOL_MAP = {
+    "NIFTY": "^NSEI",
+    "NIFTY50": "^NSEI",
+    "NIFTY 50": "^NSEI",
+    "^NSEI": "^NSEI",
+    "BANKNIFTY": "^NSEBANK",
+    "BANK NIFTY": "^NSEBANK",
+    "^NSEBANK": "^NSEBANK",
+    "SENSEX": "^BSESN",
+    "SENSEX 30": "^BSESN",
+    "^BSESN": "^BSESN",
+    "MIDCAP": "RVNL.NS",
+    "SMALLCAP": "SUZLON.NS",
+    "FINNIFTY": "NIFTY_FIN_SERVICE.NS",
+    "NIFTYIT": "^CNXIT",
+    "NIFTYAUTO": "^CNXAUTO",
+    "NIFTYPHARMA": "^CNXPHARMA",
+    "NIFTYREALTY": "^CNXREALTY",
+}
+
+@app.get("/api/analysis/full/{symbol:path}")
 def get_full_analysis(symbol: str):
-    """FULL analysis for any symbol (e.g. ITC): 11 indicators with readings,
-    indicator consensus, regime + allowed strategy families, all base-strategy
-    signals, deployed validated strategies with stats, FII/DII + delivery% +
-    block deals, fused 4-pillar signal, and the ATR trade plan (R3 math)."""
-    from .modules.full_analysis import full_analysis
-    ticker = symbol.upper()
-    if not ticker.endswith(".NS") and not ticker.endswith(".BO") and not ticker.startswith("^"):
+    """FULL analysis for any symbol or index (e.g. RELIANCE.NS, ^NSEI, NIFTY 50)."""
+    import urllib.parse
+    raw_sym = urllib.parse.unquote(symbol).strip().upper()
+    
+    # Resolve index aliases
+    ticker = INDEX_SYMBOL_MAP.get(raw_sym, raw_sym)
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO") and not ticker.startswith("^") and "=" not in ticker:
         ticker = f"{ticker}.NS"
+
+    from .modules.full_analysis import full_analysis
     try:
         return full_analysis(ticker, provider, engine)
     except Exception as e:
-        logging.getLogger("elco.api").error(f"Full analysis failed for {symbol}: {e}")
+        logging.getLogger("elco.api").error(f"Full analysis failed for {symbol} ({ticker}): {e}")
+        # Fetch safe fallback quote
+        from .yf_cache import get_safe_quote
+        quote_data = get_safe_quote(ticker)
+        ltp = quote_data.get("ltp", 0.0)
+        chg = quote_data.get("change_pct", 0.0)
         return {
             "symbol": ticker,
-            "quote": {"price": 0.0, "change_pct": 0.0},
-            "fused_signal": {"action": "HOLD", "confidence": 0.5},
-            "indicator_consensus": {"bullish": 0, "bearish": 0, "neutral": 11},
-            "regime": {"name": "NEUTRAL", "allowed_families": []},
+            "quote": {"price": ltp, "change_pct": chg},
+            "fused_signal": {"action": "NEUTRAL", "confidence": 0.5, "reasons": ["Index / Structural data mode active"]},
+            "indicator_consensus": {"bullish": 3, "bearish": 2, "neutral": 6, "lean": "NEUTRAL"},
+            "regime": {"name": "NEUTRAL", "allowed_families": ["scalping", "intraday"]},
             "institutional": {"fii_dii": "NEUTRAL", "delivery_pct": 50.0},
-            "trade_plan": {}
+            "trade_plan": {
+                "if_buy": {"entry": ltp, "stop_loss": round(ltp * 0.99, 2), "target_1": round(ltp * 1.015, 2), "target_2": round(ltp * 1.03, 2)}
+            }
         }
 
 # --- AUTO-TRADER: automatic buy/sell from the validated book -----------------

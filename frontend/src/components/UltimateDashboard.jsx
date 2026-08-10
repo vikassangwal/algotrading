@@ -61,7 +61,8 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     setIsFetching(true);
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`${API_URL}/api/analysis/full/${encodeURIComponent(sym)}`, { headers });
+      const safeSym = encodeURIComponent(sym).replace(/\^/g, '%5E');
+      const res = await fetch(`${API_URL}/api/analysis/full/${safeSym}`, { headers });
       if (res.ok) {
         const fullData = await res.json();
         setAnalysis(fullData);
