@@ -38,7 +38,7 @@ _HEADERS = {
 class NSEProvider:
     """Thin, cached client over NSE India's public data endpoints."""
 
-    def __init__(self, timeout: int = 10):
+    def __init__(self, timeout: float = 2.0):
         self.timeout = timeout
         self._session: Optional[requests.Session] = None
         self._session_ts: float = 0.0
@@ -73,9 +73,9 @@ class NSEProvider:
         s = requests.Session()
         s.headers.update(_HEADERS)
         try:
-            # Prime cookies from the home page (and one data page NSE trusts).
-            s.get(_BASE, timeout=self.timeout)
-            s.get(f"{_BASE}/market-data/live-equity-market", timeout=self.timeout)
+            r = s.get(_BASE, timeout=self.timeout)
+            if r.status_code == 200:
+                s.get(f"{_BASE}/market-data/live-equity-market", timeout=self.timeout)
         except Exception as e:
             logger.warning(f"NSE session priming failed: {e}")
         self._session = s
