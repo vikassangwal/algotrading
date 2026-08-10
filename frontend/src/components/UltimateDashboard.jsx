@@ -110,13 +110,24 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
   const regime = analysis?.regime || {};
   const inst = analysis?.institutional || {};
   const trade_plan = analysis?.trade_plan || {};
+  const [scalpTf, setScalpTf] = useState('1m');
+
+  const scalpParams = {
+    '1m': { title: '⚡ 1-Min Ultra-Fast Scalp', slMult: 0.992, tp1Mult: 1.015, tp2Mult: 1.030, rr: '1 : 1.9 (Hold: 1-5 min)', slPct: '-0.8%' },
+    '3m': { title: '⚡ 3-Min Quick Momentum Scalp', slMult: 0.988, tp1Mult: 1.022, tp2Mult: 1.042, rr: '1 : 1.8 (Hold: 3-10 min)', slPct: '-1.2%' },
+    '5m': { title: '⚡ 5-Min SuperTrend Scalp', slMult: 0.985, tp1Mult: 1.030, tp2Mult: 1.055, rr: '1 : 2.0 (Hold: 5-20 min)', slPct: '-1.5%' },
+    '15m': { title: '⚡ 15-Min Structure Scalp', slMult: 0.980, tp1Mult: 1.045, tp2Mult: 1.080, rr: '1 : 2.25 (Hold: 15-45 min)', slPct: '-2.0%' }
+  };
+
+  const currentScalp = scalpParams[scalpTf] || scalpParams['1m'];
+
   const stylePlan = tradingMode === 'Scalping' ? {
-    title: '⚡ 1-Min Ultra-Fast Scalp (1m/3m SuperTrend)',
+    title: `${currentScalp.title} (${scalpTf} SuperTrend)`,
     entry_price: price > 0 ? price.toFixed(2) : '---',
-    stop_loss: price > 0 ? (price * 0.99).toFixed(2) : '---',
-    target_1: price > 0 ? (price * 1.018).toFixed(2) : '---',
-    target_2: price > 0 ? (price * 1.035).toFixed(2) : '---',
-    risk_reward: '1 : 1.8 (Tight Scalp Stop -1.0%)'
+    stop_loss: price > 0 ? (price * currentScalp.slMult).toFixed(2) : '---',
+    target_1: price > 0 ? (price * currentScalp.tp1Mult).toFixed(2) : '---',
+    target_2: price > 0 ? (price * currentScalp.tp2Mult).toFixed(2) : '---',
+    risk_reward: `${currentScalp.rr} [SL: ${currentScalp.slPct}]`
   } : (trade_plan.styles ? (trade_plan.styles[tradingMode.toLowerCase()] || trade_plan.styles.intraday) : null);
   const isBullish = change_pct >= 0;
 
@@ -131,12 +142,31 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
           </h1>
           
           <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #ef4444', outline: 'none', fontWeight: 'bold' }}>
-            <option value="Scalping" style={{ color: '#f87171', fontWeight: 'bold' }}>⚡ 1-Min Scalping Radar</option>
+            <option value="Scalping" style={{ color: '#f87171', fontWeight: 'bold' }}>⚡ Scalping Radar ({scalpTf.toUpperCase()})</option>
             <option value="Intraday">⚡ Intraday Trading</option>
             <option value="Swing">📊 Swing Trading</option>
             <option value="Positional">🎯 Positional Trading</option>
             <option value="Investment">💎 Long-Term Investment</option>
           </select>
+
+          {tradingMode === 'Scalping' && (
+            <div style={{ display: 'flex', gap: '4px', background: '#1e293b', padding: '4px', borderRadius: '8px', border: '1px solid #334155' }}>
+              {['1m', '3m', '5m', '15m'].map(tf => (
+                <button
+                  key={tf}
+                  onClick={() => setScalpTf(tf)}
+                  style={{
+                    padding: '4px 10px', borderRadius: '6px', border: 'none',
+                    backgroundColor: scalpTf === tf ? '#ef4444' : 'transparent',
+                    color: scalpTf === tf ? 'white' : '#94a3b8',
+                    fontWeight: 'bold', fontSize: '12px', cursor: 'pointer'
+                  }}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Global Symbol Quick Switch */}
