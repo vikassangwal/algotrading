@@ -35,11 +35,20 @@ def get_cached_yf_info(symbol: str) -> dict:
         
     return {}
 
+_LTP_CACHE = {}
+_LTP_CACHE_TTL = 3  # 3 seconds TTL for live price
+
 def get_safe_ltp(symbol: str) -> float:
     """Safely retrieve last traded price without crashing on FastInfo object structure."""
     clean_sym = symbol.upper().strip()
     if not clean_sym.endswith(".NS") and not clean_sym.endswith(".BO") and not clean_sym.startswith("^") and "=" not in clean_sym:
         clean_sym = f"{clean_sym}.NS"
+
+    now = time.time()
+    if clean_sym in _LTP_CACHE:
+        val, ts = _LTP_CACHE[clean_sym]
+        if now - ts < _LTP_CACHE_TTL:
+            return val
 
     try:
         tk = yf.Ticker(clean_sym)
@@ -47,22 +56,32 @@ def get_safe_ltp(symbol: str) -> float:
         
         # Try attribute access first (FastInfo object in yfinance 0.2+)
         if hasattr(fi, "last_price") and getattr(fi, "last_price", None) is not None:
-            return float(fi.last_price)
+            val = float(fi.last_price)
+            _LTP_CACHE[clean_sym] = (val, now)
+            return val
         if hasattr(fi, "lastPrice") and getattr(fi, "lastPrice", None) is not None:
-            return float(fi.lastPrice)
+            val = float(fi.lastPrice)
+            _LTP_CACHE[clean_sym] = (val, now)
+            return val
             
         # Try dict-like get
         if hasattr(fi, "get"):
             val = fi.get("last_price") or fi.get("lastPrice")
             if val is not None:
-                return float(val)
+                val = float(val)
+                _LTP_CACHE[clean_sym] = (val, now)
+                return val
                 
         # Try subscript access
         if hasattr(fi, "__getitem__"):
             try:
-                return float(fi["last_price"])
+                val = float(fi["last_price"])
+                _LTP_CACHE[clean_sym] = (val, now)
+                return val
             except Exception:
-                return float(fi["lastPrice"])
+                val = float(fi["lastPrice"])
+                _LTP_CACHE[clean_sym] = (val, now)
+                return val
     except Exception:
         pass
 
@@ -71,7 +90,9 @@ def get_safe_ltp(symbol: str) -> float:
         tk = yf.Ticker(clean_sym)
         hist = tk.history(period="1d", interval="1m")
         if hist is not None and not hist.empty:
-            return float(hist["Close"].iloc[-1])
+            val = float(hist["Close"].iloc[-1])
+            _LTP_CACHE[clean_sym] = (val, now)
+            return val
     except Exception:
         pass
 
