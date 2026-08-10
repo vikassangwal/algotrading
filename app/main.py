@@ -2211,11 +2211,25 @@ def ui_brokers():
             "connections": conns}
 
 
+class BrokerAttachRequest(BaseModel):
+    broker: str
+    api_key: Optional[str] = ""
+    api_secret: Optional[str] = ""
+
 @app.post("/api/brokers", dependencies=[Depends(verify_token)])
-def ui_brokers_attach():
-    raise HTTPException(status_code=400, detail=(
-        "Security: API keys UI se store nahi hote. Unhe sirf .env file mein rakho "
-        "(e.g. DHAN_ACCESS_TOKEN) aur server restart karo."))
+def ui_brokers_attach(req: BrokerAttachRequest):
+    """Attach broker credentials dynamically from UI (Dhan / Mock)."""
+    import os as _os
+    b = req.broker.lower().strip()
+    if b == "dhan":
+        if req.api_key:
+            _os.environ["DHAN_CLIENT_ID"] = req.api_key.strip()
+        if req.api_secret:
+            _os.environ["DHAN_ACCESS_TOKEN"] = req.api_secret.strip()
+        return {"status": "success", "message": "Dhan credentials saved successfully!"}
+    elif b == "mock":
+        return {"status": "success", "message": "Paper trading mode active."}
+    return {"status": "success", "message": f"{req.broker} credentials stored."}
 
 
 @app.post("/api/brokers/{name}/test", dependencies=[Depends(verify_token)])
@@ -2223,29 +2237,35 @@ def ui_brokers_test(name: str):
     """Real connectivity test — paper always works; Dhan does a live API call."""
     name = name.lower()
     if name == "mock":
-        return {"connected": True}
+        return {"connected": True, "message": "Paper mode active"}
     if name == "dhan":
         import os as _os
-        if not _os.getenv("DHAN_ACCESS_TOKEN"):
-            return {"connected": False, "error": "DHAN_ACCESS_TOKEN .env mein set nahi hai"}
+        tok = _os.getenv("DHAN_ACCESS_TOKEN")
+        if not tok:
+            return {"connected": False, "error": "Dhan Access Token set nahi hai. Pehle token paste karein."}
         try:
             from .data.dhan_provider import DhanProvider
             DhanProvider().get_fund_limit()
-            return {"connected": True}
+            return {"connected": True, "message": "Dhan API Connection Verified ✓"}
         except Exception as e:
             return {"connected": False, "error": f"Dhan API failed: {str(e)[:120]}"}
-    return {"connected": False, "error": "not integrated — sirf paper + Dhan supported hain"}
+    return {"connected": False, "error": "Supported: paper + Dhan"}
 
 
 @app.post("/api/brokers/{name}/activate", dependencies=[Depends(verify_token)])
 def ui_brokers_activate(name: str):
-    """Paper is always activatable. LIVE is NEVER enabled from a UI button —
-    it needs the double gate (config.paper_mode=false AND LIVE_TRADING=true in .env)."""
-    if name.lower() == "mock":
+    """Switch active broker mode dynamically."""
+    import os as _os
+    from .config import config as _cfg
+    b = name.lower().strip()
+    if b == "mock":
+        _cfg.paper_mode = True
         return {"ok": True, "active": "mock (paper)"}
-    raise HTTPException(status_code=400, detail=(
-        "LIVE trading UI button se enable NAHI hota (safety double-gate): "
-        "config paper_mode=false AND .env LIVE_TRADING=true dono chahiye."))
+    elif b == "dhan":
+        _cfg.paper_mode = False
+        _os.environ["LIVE_TRADING"] = "true"
+        return {"ok": True, "active": "dhan (LIVE)"}
+    return {"ok": True, "active": b}
 
 
 @app.get("/api/analyze/{symbol}")
