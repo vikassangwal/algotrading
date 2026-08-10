@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, TrendingUp, TrendingDown, Crosshair, AlertTriangle, ShieldCheck, BarChart2, BookOpen, Layers, Target, Zap, Clock, Users, RefreshCw } from 'lucide-react';
+import DhanLiveTicker from './DhanLiveTicker';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
@@ -82,13 +83,14 @@ const StockProfile = ({ token, globalSymbol }) => {
               Stock Profile
             </span>
           </h1>
-          <div style={{ display: 'flex', gap: '20px', fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-            <span style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-primary)' }}>₹{price.toFixed(2)}</span>
-            <span style={{ color: isBullish ? 'var(--signal-buy)' : 'var(--signal-sell)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              {isBullish ? <TrendingUp /> : <TrendingDown />} 
-              {isBullish ? '+' : ''}{change_pct.toFixed(2)}%
-            </span>
-          </div>
+          <DhanLiveTicker 
+            symbol={data.symbol} 
+            initialPrice={price} 
+            initialChangePct={change_pct} 
+            token={token} 
+            size="large" 
+            showBadge={true} 
+          />
         </div>
         
         <div style={{ textAlign: 'right' }}>

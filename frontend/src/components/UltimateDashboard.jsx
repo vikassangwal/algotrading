@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, ShieldAlert, Zap, TrendingUp, TrendingDown, Crosshair, Lock, PlayCircle, Eye, ShieldCheck, RefreshCw } from 'lucide-react';
+import DhanLiveTicker from './DhanLiveTicker';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
@@ -340,22 +341,17 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
         {/* Left Column: Live Stock Snapshot & AI 4-Pillar Verdict */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Live Price & Symbol Card */}
+          {/* Live Price & Symbol Card (Dhan-style tick streamer) */}
           <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase' }}>Selected Stock</div>
-              <span style={{ fontSize: '11px', padding: '3px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #10b981' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> REAL-TIME (3s REFRESH)
-              </span>
-            </div>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{activeSymbol}</h2>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-              <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#fff' }}>₹{price.toFixed(2)}</span>
-              <span style={{ color: isBullish ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                {isBullish ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                {isBullish ? '+' : ''}{change_pct.toFixed(2)}%
-              </span>
-            </div>
+            <DhanLiveTicker 
+              symbol={activeSymbol} 
+              initialPrice={price} 
+              initialChangePct={change_pct} 
+              token={token} 
+              size="large" 
+              showBadge={true} 
+            />
           </div>
 
           {/* AI Signal & 4-Pillar Verdict */}
