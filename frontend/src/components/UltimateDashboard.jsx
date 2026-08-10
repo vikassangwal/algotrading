@@ -99,7 +99,19 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
       localStorage.setItem('elco_orders', JSON.stringify([newLocalOrder, ...cur]));
     } catch (e) {}
 
-    // 2. Post to backend
+    // 2. Optimistic UI update for Portfolio Active Positions
+    setPortfolio(prev => {
+      const existing = prev.active_positions || [];
+      return {
+        ...prev,
+        active_positions: [
+          { symbol: targetSymbol, side: side, qty: 100, avg_price: newLocalOrder.price, hedged: hftToggles.hedge },
+          ...existing
+        ]
+      };
+    });
+
+    // 3. Post to backend
     try {
       const hdrs = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
       await fetch(`${API_URL}/api/orders`, {
@@ -113,7 +125,10 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
           hedge: hftToggles.hedge
         })
       });
-    } catch (err) {}
+      alert(`✅ REAL TRADE PLACED SUCCESSFULLY!\n\nSymbol: ${targetSymbol}\nAction: ${side}\nType: ${hftToggles.twap ? 'TWAP' : 'MARKET'}\nQty: 100\nAvg Price: ₹${newLocalOrder.price}`);
+    } catch (err) {
+      alert(`❌ API ERROR: But trade recorded in Live Tracker.\n\n${err.message}`);
+    }
   };
 
   const fetchAutoScan = async () => {

@@ -224,8 +224,11 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol,
                       style={{ borderBottom: '1px solid #1F2937', backgroundColor: expandedRow === row.symbol ? '#1e293b' : 'transparent' }}
                     >
                       <td 
-                        onClick={() => toggleRow(row.symbol)}
-                        style={{ padding: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                        onClick={() => {
+                          toggleRow(row.symbol);
+                          handleJump(row.symbol, 'ultimate-dashboard');
+                        }}
+                        style={{ padding: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#60a5fa' }}
                       >
                         {expandedRow === row.symbol ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         {row.symbol}

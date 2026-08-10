@@ -368,17 +368,17 @@ export default function App() {
               <ScannerView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'scalping' && (
-              <UniversalScreener token={token} globalSymbol={globalSymbol} initialFilter="⚡ SCALPING (1-5 MIN)" onSelectSymbol={(sym) => {
+              <UniversalScreener token={token} globalSymbol={globalSymbol} initialFilter="⚡ SCALPING (1-5 MIN)" onSelectSymbol={(sym, targetTab) => {
                 const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
                 setGlobalSymbol(cleanSym);
-                setActiveTab('ultimate-dashboard');
+                setActiveTab(targetTab || 'ultimate-dashboard');
               }} />
             )}
             {activeTab === 'universal' && (
-              <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym) => {
+              <UniversalScreener token={token} globalSymbol={globalSymbol} onSelectSymbol={(sym, targetTab) => {
                 const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
                 setGlobalSymbol(cleanSym);
-                setActiveTab('ultimate-dashboard');
+                setActiveTab(targetTab || 'ultimate-dashboard');
               }} />
             )}
             {activeTab === 'profile' && (
