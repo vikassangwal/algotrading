@@ -41,7 +41,8 @@ class MockProvider(DataProvider):
         self._seed = seed
 
     def _rng(self, *keys) -> random.Random:
-        return random.Random((self._seed, *keys))
+        seed_str = f"{self._seed}:" + ":".join(str(k) for k in keys)
+        return random.Random(seed_str)
 
     def _base(self, symbol: str) -> float:
         return _BASE_PRICES.get(symbol.upper(), 1000.0 + (hash(symbol.upper()) % 3000))
