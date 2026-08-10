@@ -28,6 +28,34 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol 
   const [lastScan, setLastScan] = useState(new Date().toLocaleTimeString());
   const [filter, setFilter] = useState('ALL'); // ALL, INTRADAY, SWING, BREAKOUT, OPTIONS, TOP 10 HIGH PROFIT
   const [expandedRow, setExpandedRow] = useState(null);
+  const [orderStatus, setOrderStatus] = useState({}); // { symbol: 'placing' | 'success' | 'error' }
+
+  const placeOrder = async (symbol, action = 'BUY', qty = 1) => {
+    const cleanSym = symbol.includes('.NS') || symbol.includes('.BO') ? symbol : `${symbol}.NS`;
+    setOrderStatus(prev => ({ ...prev, [symbol]: 'placing' }));
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token && token.length > 20) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_URL}/api/orders`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ symbol: cleanSym, action, qty, type: 'MARKET' })
+      });
+      if (res.ok) {
+        setOrderStatus(prev => ({ ...prev, [symbol]: 'success' }));
+        setTimeout(() => setOrderStatus(prev => ({ ...prev, [symbol]: null })), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setOrderStatus(prev => ({ ...prev, [symbol]: 'error' }));
+        console.error('Order failed:', err);
+        setTimeout(() => setOrderStatus(prev => ({ ...prev, [symbol]: null })), 4000);
+      }
+    } catch (e) {
+      console.error('Order error:', e);
+      setOrderStatus(prev => ({ ...prev, [symbol]: 'error' }));
+      setTimeout(() => setOrderStatus(prev => ({ ...prev, [symbol]: null })), 4000);
+    }
+  };
 
   const handleJump = (sym, targetTab) => {
     const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
@@ -284,10 +312,20 @@ export default function UniversalScreener({ token, globalSymbol, onSelectSymbol 
                                   <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>1 : 3.1</span>
                                 </div>
                                 <button 
-                                  onClick={() => alert(`✅ Stop-Loss Order Prepared for ${row.symbol}!\n\n• Entry: ₹${row.current_price?.toFixed(2)}\n• Stop Loss: ₹${row.sl ? row.sl.toFixed(2) : (row.current_price * 0.965).toFixed(2)}\n• Target 1: ₹${row.tp ? row.tp.toFixed(2) : (row.current_price * 1.055).toFixed(2)}\n\nOrder sent to Execution Engine!`)}
-                                  style={{ marginTop: '8px', padding: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                  onClick={() => placeOrder(row.symbol, 'BUY', 1)}
+                                  disabled={orderStatus[row.symbol] === 'placing'}
+                                  style={{ 
+                                    marginTop: '8px', padding: '10px', width: '100%',
+                                    background: orderStatus[row.symbol] === 'success' ? '#059669' : orderStatus[row.symbol] === 'error' ? '#dc2626' : orderStatus[row.symbol] === 'placing' ? '#6366f1' : '#10b981', 
+                                    color: 'white', border: 'none', borderRadius: '6px', cursor: orderStatus[row.symbol] === 'placing' ? 'wait' : 'pointer', 
+                                    fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    transition: 'all 0.3s'
+                                  }}
                                 >
-                                  🛒 Place SL-Limit Order for {row.symbol}
+                                  {orderStatus[row.symbol] === 'placing' && '⏳ Placing Order...'}
+                                  {orderStatus[row.symbol] === 'success' && '✅ Order Executed Successfully!'}
+                                  {orderStatus[row.symbol] === 'error' && '❌ Order Failed — Check Risk Rules'}
+                                  {!orderStatus[row.symbol] && `🛒 Place Paper Trade BUY for ${row.symbol}`}
                                 </button>
                               </div>
                             </div>

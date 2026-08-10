@@ -2,36 +2,39 @@ import React, { useState, useEffect } from 'react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
-const OMSView = () => {
+const OMSView = ({ globalSymbol }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const token = localStorage.getItem('elco_token');
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 30000);
+    const interval = setInterval(fetchOrders, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/orders`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const hdrs = {};
+      if (token && token.length > 20) hdrs['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_URL}/api/orders`, { headers: hdrs });
       if (res.ok) {
         const data = await res.json();
-        setOrders(data.reverse());
+        setOrders(Array.isArray(data) ? data : []);
         setLoading(false);
       }
     } catch (err) {
       console.error("Failed to fetch orders:", err);
+      setLoading(false);
     }
   };
 
+  const currentSym = (globalSymbol || '').replace('.NS', '').replace('.BO', '');
+
   const [formData, setFormData] = useState({
-    symbol: '',
+    symbol: currentSym || '',
     side: 'BUY',
-    qty: '',
+    qty: '1',
     type: 'MARKET',
     price: '',
     stopPrice: '',
@@ -40,6 +43,12 @@ const OMSView = () => {
     displayQty: ''
   });
 
+  useEffect(() => {
+    if (globalSymbol) {
+      setFormData(prev => ({ ...prev, symbol: globalSymbol.replace('.NS', '').replace('.BO', '') }));
+    }
+  }, [globalSymbol]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -47,30 +56,36 @@ const OMSView = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.symbol || !formData.qty) {
+      alert("Please enter a Symbol and Quantity.");
+      return;
+    }
     try {
+      const hdrs = { 'Content-Type': 'application/json' };
+      if (token && token.length > 20) hdrs['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_URL}/api/orders`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: hdrs,
         body: JSON.stringify({
-          symbol: formData.symbol.toUpperCase(),
+          symbol: formData.symbol.toUpperCase().includes('.NS') ? formData.symbol.toUpperCase() : `${formData.symbol.toUpperCase()}.NS`,
           action: formData.side,
-          qty: parseInt(formData.qty),
+          qty: parseInt(formData.qty) || 1,
           type: formData.type,
           price: formData.price ? parseFloat(formData.price) : null
         })
       });
       
       if (res.ok) {
+        alert(`✅ Paper Trade Executed: ${formData.side} ${formData.qty} x ${formData.symbol.toUpperCase()}`);
         fetchOrders(); // Refresh instantly
-        setFormData(prev => ({ ...prev, symbol: '', qty: '', price: '', stopPrice: '', duration: '', interval: '', displayQty: '' }));
+        setFormData(prev => ({ ...prev, qty: '1', price: '', stopPrice: '', duration: '', interval: '', displayQty: '' }));
       } else {
-        alert("Failed to execute order. Check console or risk rules.");
+        const err = await res.json().catch(() => ({}));
+        alert(`❌ Order Failed: ${err.detail || 'Risk check failed or server error'}`);
       }
     } catch (err) {
       console.error("Order submission failed:", err);
+      alert("❌ Network error — server may be starting up. Try again in 30 seconds.");
     }
   };
 
