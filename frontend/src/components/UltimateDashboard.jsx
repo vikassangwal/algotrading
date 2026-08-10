@@ -65,6 +65,8 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
 
   useEffect(() => {
     fetchAnalysis();
+    const interval = setInterval(fetchAnalysis, 5000); // Auto-refresh live quotes & signals every 5s
+    return () => clearInterval(interval);
   }, [symbolInput]);
 
   const handleExecute = async (side) => {
@@ -274,7 +276,12 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
           
           {/* Live Price & Symbol Card */}
           <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '20px', border: '1px solid #1e293b' }}>
-            <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '4px' }}>Selected Stock</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase' }}>Selected Stock</div>
+              <span style={{ fontSize: '11px', padding: '3px 8px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #10b981' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span> LIVE (5s TICK)
+              </span>
+            </div>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#fff' }}>{symbolInput}</h2>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
               <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#fff' }}>₹{price.toFixed(2)}</span>
