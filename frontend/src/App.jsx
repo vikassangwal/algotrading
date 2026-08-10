@@ -265,8 +265,9 @@ export default function App() {
               <span>System & Admin</span>
               {expandedCategories.admin ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </div>
-            {expandedCategories.admin && (
+            {(expandedCategories.admin ?? true) && (
               <div className="category-items">
+                <div className={`nav-item ${activeTab === 'broker' ? 'active' : ''}`} onClick={() => setActiveTab('broker')}><Plug size={20} /> Broker API Keys</div>
                 <div className={`nav-item ${activeTab === 'system-dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('system-dashboard')}><Activity size={20} /> System Dashboard</div>
                 <div className={`nav-item ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}><Settings size={20} /> App Config</div>
                 <div className={`nav-item ${activeTab === 'sso' ? 'active' : ''}`} onClick={() => setActiveTab('sso')}><Key size={20} /> Security (SSO/MFA)</div>
@@ -410,6 +411,9 @@ export default function App() {
             )}
             {activeTab === 'sso' && (
               <SSOSettings token={token} />
+            )}
+            {activeTab === 'broker' && (
+              <BrokerPanel />
             )}
             {activeTab === 'tenant' && (
               <TenantDashboard token={token} />
