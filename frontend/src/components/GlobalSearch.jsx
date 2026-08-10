@@ -59,6 +59,10 @@ const GlobalSearch = ({ token, onSelect }) => {
   };
 
   const fetchResults = async (q) => {
+    if (!q || q.trim() === '') {
+      setResults(TOP_STOCKS.slice(0, 8));
+      return;
+    }
     const localMatches = filterStocks(q);
     if (localMatches.length > 0) {
       setResults(localMatches);
@@ -83,11 +87,14 @@ const GlobalSearch = ({ token, onSelect }) => {
   };
 
   useEffect(() => {
-    const debounce = setTimeout(() => {
-      fetchResults(query);
-    }, 100);
-
-    return () => clearTimeout(debounce);
+    if (query.trim().length > 0) {
+      const debounce = setTimeout(() => {
+        fetchResults(query);
+      }, 100);
+      return () => clearTimeout(debounce);
+    } else {
+      setIsOpen(false);
+    }
   }, [query]);
 
   const handleSelect = (stock) => {
@@ -100,7 +107,7 @@ const GlobalSearch = ({ token, onSelect }) => {
   };
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '450px', zIndex: 99999 }}>
+    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '450px', zIndex: 1000 }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -116,7 +123,7 @@ const GlobalSearch = ({ token, onSelect }) => {
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            setIsOpen(true);
+            if (e.target.value.trim().length > 0) setIsOpen(true);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && query.trim() !== '') {
@@ -126,8 +133,10 @@ const GlobalSearch = ({ token, onSelect }) => {
             }
           }}
           onFocus={() => {
-            fetchResults(query);
-            setIsOpen(true);
+            if (query.trim().length > 0) {
+              fetchResults(query);
+              setIsOpen(true);
+            }
           }}
           style={{
             background: 'transparent',
