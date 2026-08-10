@@ -293,6 +293,7 @@ def healthz():
 
 
 @app.get("/config", response_model=AppConfig)
+@app.get("/api/config", response_model=AppConfig)
 def get_config():
     """Retrieve the current runtime configuration."""
     return config
@@ -310,6 +311,7 @@ class ConfigUpdate(BaseModel):
     custom_strategies: Optional[List[Dict]] = None
 
 @app.patch("/config", dependencies=[Depends(verify_token)])
+@app.patch("/api/config", dependencies=[Depends(verify_token)])
 def update_config(update: ConfigUpdate):
     """Admin endpoint to update runtime configuration."""
     if update.capital is not None:
