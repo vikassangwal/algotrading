@@ -838,8 +838,9 @@ _indices_cache = {"data": None, "ts": 0}
 
 @app.get("/api/market-indices")
 def get_market_indices():
-    """Returns live market indices for the ticker tape with 60s cache."""
+    """Returns live market indices for the ticker tape with 60s cache (fetched in parallel)."""
     import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     now = time.time()
     if _indices_cache["data"] and (now - _indices_cache["ts"] < 60):
         return _indices_cache["data"]
@@ -853,25 +854,39 @@ def get_market_indices():
         ("CL=F", "CRUDE OIL"), ("INR=X", "USDINR"), ("RELIANCE.NS", "RELIANCE"),
         ("TCS.NS", "TCS"), ("SUZLON.NS", "SUZLON")
     ]
-    indices = []
-    
-    for tkr, name in items:
+
+    def _fetch_one(item):
+        tkr, name = item
         try:
             q = get_safe_quote(tkr)
             last_price = q["ltp"]
             change = q["change_pct"]
             if last_price <= 0:
-                continue  # skip symbols we can't price — don't show fake data
+                return None
             val_str = f"{last_price:,.2f}"
             is_up = change >= 0
             change_str = f"{'+' if is_up else ''}{change:.2f}%"
-            indices.append({"symbol": name, "val": val_str, "change": change_str, "up": is_up})
+            return (name, {"symbol": name, "val": val_str, "change": change_str, "up": is_up})
         except Exception:
-            pass  # skip on error — don't show fake data
-            
-    _indices_cache["data"] = indices
-    _indices_cache["ts"] = now
-    return indices
+            return None
+
+    indices_map = {}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(_fetch_one, item) for item in items]
+        for f in as_completed(futures):
+            res = f.result()
+            if res:
+                name, data = res
+                indices_map[name] = data
+
+    # Preserve order of items
+    indices = [indices_map[name] for _, name in items if name in indices_map]
+
+    if indices:
+        _indices_cache["data"] = indices
+        _indices_cache["ts"] = now
+        return indices
+    return _indices_cache["data"] or []
 
 
 @app.get("/api/scanners")
