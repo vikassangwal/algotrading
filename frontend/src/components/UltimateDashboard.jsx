@@ -110,7 +110,14 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
   const regime = analysis?.regime || {};
   const inst = analysis?.institutional || {};
   const trade_plan = analysis?.trade_plan || {};
-  const stylePlan = trade_plan.styles ? (trade_plan.styles[tradingMode.toLowerCase()] || trade_plan.styles.intraday) : null;
+  const stylePlan = tradingMode === 'Scalping' ? {
+    title: '⚡ 1-Min Ultra-Fast Scalp (1m/3m SuperTrend)',
+    entry_price: price > 0 ? price.toFixed(2) : '---',
+    stop_loss: price > 0 ? (price * 0.99).toFixed(2) : '---',
+    target_1: price > 0 ? (price * 1.018).toFixed(2) : '---',
+    target_2: price > 0 ? (price * 1.035).toFixed(2) : '---',
+    risk_reward: '1 : 1.8 (Tight Scalp Stop -1.0%)'
+  } : (trade_plan.styles ? (trade_plan.styles[tradingMode.toLowerCase()] || trade_plan.styles.intraday) : null);
   const isBullish = change_pct >= 0;
 
   return (
@@ -123,7 +130,8 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             Ultimate Command Center
           </h1>
           
-          <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #334155', outline: 'none', fontWeight: 'bold' }}>
+          <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #ef4444', outline: 'none', fontWeight: 'bold' }}>
+            <option value="Scalping" style={{ color: '#f87171', fontWeight: 'bold' }}>⚡ 1-Min Scalping Radar</option>
             <option value="Intraday">⚡ Intraday Trading</option>
             <option value="Swing">📊 Swing Trading</option>
             <option value="Positional">🎯 Positional Trading</option>
