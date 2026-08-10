@@ -9,8 +9,8 @@ _CACHE_TTL = 900  # 15 minutes TTL
 
 def get_cached_yf_info(symbol: str) -> dict:
     """Safely fetch and cache yfinance ticker.info to prevent 429 Too Many Requests."""
-    clean_sym = symbol.upper()
-    if not clean_sym.endswith(".NS") and not clean_sym.endswith(".BO") and not clean_sym.startswith("^"):
+    clean_sym = symbol.upper().strip()
+    if not clean_sym.endswith(".NS") and not clean_sym.endswith(".BO") and not clean_sym.startswith("^") and "=" not in clean_sym:
         clean_sym = f"{clean_sym}.NS"
         
     now = time.time()
@@ -36,8 +36,8 @@ def get_cached_yf_info(symbol: str) -> dict:
 
 def get_safe_ltp(symbol: str) -> float:
     """Safely retrieve last traded price without crashing on FastInfo object structure."""
-    clean_sym = symbol.upper()
-    if not clean_sym.endswith(".NS") and not clean_sym.endswith(".BO") and not clean_sym.startswith("^"):
+    clean_sym = symbol.upper().strip()
+    if not clean_sym.endswith(".NS") and not clean_sym.endswith(".BO") and not clean_sym.startswith("^") and "=" not in clean_sym:
         clean_sym = f"{clean_sym}.NS"
 
     try:

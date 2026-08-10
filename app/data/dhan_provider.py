@@ -41,8 +41,8 @@ def _yf_symbol(symbol: str) -> str:
     s = symbol.upper().strip()
     if s in _YF_INDEX_MAP:
         return _YF_INDEX_MAP[s]
-    if s.startswith("^") or "." in s:
-        return s  # already a Yahoo ticker
+    if s.startswith("^") or "." in s or "=" in s:
+        return s  # already a Yahoo ticker (index, commodity, forex, or decorated)
     return f"{s}.NS"
 
 class DhanRestClient:
