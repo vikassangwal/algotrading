@@ -198,8 +198,30 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
 
           {/* Auto/Manual Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: '30px', padding: '4px' }}>
-            <button onClick={() => setIsAuto(false)} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', backgroundColor: !isAuto ? '#3b82f6' : 'transparent', color: !isAuto ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>Manual</button>
-            <button onClick={() => setIsAuto(true)} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', backgroundColor: isAuto ? '#10b981' : 'transparent', color: isAuto ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}><Zap size={14} /> Auto</button>
+            <button 
+              onClick={async () => {
+                setIsAuto(false);
+                try {
+                  const hdrs = token ? { 'Authorization': `Bearer ${token}` } : {};
+                  await fetch(`${API_URL}/api/auto/stop`, { method: 'POST', headers: hdrs });
+                } catch (e) {}
+              }} 
+              style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', backgroundColor: !isAuto ? '#3b82f6' : 'transparent', color: !isAuto ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+            >
+              Manual
+            </button>
+            <button 
+              onClick={async () => {
+                setIsAuto(true);
+                try {
+                  const hdrs = token ? { 'Authorization': `Bearer ${token}` } : {};
+                  await fetch(`${API_URL}/api/auto/start`, { method: 'POST', headers: hdrs });
+                } catch (e) {}
+              }} 
+              style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', backgroundColor: isAuto ? '#10b981' : 'transparent', color: isAuto ? '#fff' : '#94a3b8', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Zap size={14} /> Auto Trade
+            </button>
           </div>
         </div>
       </div>
