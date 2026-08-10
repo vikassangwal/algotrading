@@ -54,13 +54,16 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
     const sym = symToFetch || symbolInput;
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`${API_URL}/api/analysis/full/${sym}`, { headers });
+      const res = await fetch(`${API_URL}/api/analysis/full/${encodeURIComponent(sym)}`, { headers });
       if (res.ok) {
         const fullData = await res.json();
         setAnalysis(fullData);
+      } else {
+        setAnalysis({ error: `Backend API error (${res.status}) for ${sym}` });
       }
     } catch (err) {
       console.error("Full analysis fetch error", err);
+      setAnalysis({ error: `Network error for ${sym}` });
     }
   };
 
@@ -313,6 +316,13 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
           </button>
         ))}
       </div>
+
+      {analysis?.error && (
+        <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '8px', padding: '16px', marginBottom: '20px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <ShieldAlert size={20} color="#ef4444" />
+          <span><b>Live Data Unavailable:</b> {analysis.error}. Displaying fallback/historical data for structure.</span>
+        </div>
+      )}
 
       {/* Main 3-Column Master Command Dashboard Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr 340px', gap: '20px', marginBottom: '20px' }}>
