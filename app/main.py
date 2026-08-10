@@ -3,6 +3,10 @@ import uvicorn
 import asyncio
 import logging
 import time
+
+# Silence noisy yfinance / urllib3 rate limit logs in cloud environment
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 from pathlib import Path
 import pandas as pd
 from datetime import datetime, timezone

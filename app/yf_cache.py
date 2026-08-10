@@ -2,6 +2,7 @@ import time
 import logging
 import yfinance as yf
 
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 logger = logging.getLogger("elco.yf_cache")
 
 _INFO_CACHE = {}
