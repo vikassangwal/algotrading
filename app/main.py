@@ -287,19 +287,18 @@ def root():
         return FileResponse(str(dist_index))
     return {"status": "ok", "message": "ELCO API is running."}
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok", "message": "ELCO API is running."}
-
-
 @app.get("/config", response_model=AppConfig)
 def get_config():
     """Retrieve the current runtime configuration."""
     return config
 
-@app.get("/api/config", response_model=AppConfig)
+
+from fastapi import APIRouter
+config_api_router = APIRouter(prefix="/api")
+
+@config_api_router.get("/config", response_model=AppConfig)
 def get_config_api():
-    """Retrieve the current runtime configuration (alias)."""
+    """Retrieve the current runtime configuration (api alias)."""
     return config
 
 
@@ -338,10 +337,12 @@ def update_config(update: ConfigUpdate):
     
     return {"status": "success", "config": config}
 
-@app.patch("/api/config", dependencies=[Depends(verify_token)])
+@config_api_router.patch("/config", dependencies=[Depends(verify_token)])
 def update_config_api(update: ConfigUpdate):
-    """Admin endpoint to update runtime configuration (alias)."""
+    """Admin endpoint to update runtime configuration (api alias)."""
     return update_config(update)
+
+app.include_router(config_api_router)
 
 
 @app.get("/analyze/{symbol}")
