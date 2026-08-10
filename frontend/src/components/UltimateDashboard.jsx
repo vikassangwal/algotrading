@@ -548,9 +548,16 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             };
 
             const selectStock = (sym) => {
-              const cleanSym = sym.includes('.NS') || sym.includes('.BO') ? sym : `${sym}.NS`;
+              const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
               setSymbolInput(cleanSym);
               window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const handleQuickTradeCard = (sym, side, px) => {
+              const cleanSym = sym.includes('.NS') || sym.includes('.BO') || sym.includes('=') ? sym : `${sym}.NS`;
+              setSymbolInput(cleanSym);
+              handleExecute(side);
+              alert(`✅ Instant Paper Trade Placed!\n\nSymbol: ${cleanSym}\nSide: ${side}\nPrice: ₹${px}`);
             };
 
             return (
@@ -565,18 +572,18 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
                     {(data.best_long || []).slice(0, 10).map((st, idx) => (
                       <div 
                         key={st.symbol}
-                        onClick={() => selectStock(st.symbol)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = '#10b981'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1e293b', transition: 'all 0.2s' }}
                       >
                         <div>
                           <span style={{ fontWeight: 'bold', color: '#60a5fa', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
                           <div style={{ fontSize: '11px', color: '#94a3b8' }}>RSI: {st.rsi} | ADX: {st.adx}</div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '15px' }}>Score +{st.score}</span>
-                          <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>₹{st.price} (+{st.score})</span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => selectStock(st.symbol)} style={{ padding: '3px 8px', background: '#1e293b', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Analyze</button>
+                            <button onClick={() => handleQuickTradeCard(st.symbol, 'BUY', st.price)} style={{ padding: '3px 8px', background: '#10b981', border: 'none', color: '#fff', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ BUY</button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -592,18 +599,18 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
                     {(data.best_short || []).slice(0, 10).map((st, idx) => (
                       <div 
                         key={st.symbol}
-                        onClick={() => selectStock(st.symbol)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = '#ef4444'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1e293b', transition: 'all 0.2s' }}
                       >
                         <div>
                           <span style={{ fontWeight: 'bold', color: '#60a5fa', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
                           <div style={{ fontSize: '11px', color: '#94a3b8' }}>RSI: {st.rsi} | ADX: {st.adx}</div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '15px' }}>Score {st.score}</span>
-                          <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '14px' }}>₹{st.price} ({st.score})</span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => selectStock(st.symbol)} style={{ padding: '3px 8px', background: '#1e293b', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Analyze</button>
+                            <button onClick={() => handleQuickTradeCard(st.symbol, 'SELL', st.price)} style={{ padding: '3px 8px', background: '#ef4444', border: 'none', color: '#fff', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ SELL</button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -619,18 +626,18 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
                     {(data.best_long || []).slice(0, 10).map((st, idx) => (
                       <div 
                         key={st.symbol + '_profit'}
-                        onClick={() => selectStock(st.symbol)}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', cursor: 'pointer', border: '1px solid #1e293b', transition: 'all 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = '#8b5cf6'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = '#1e293b'}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1e293b', transition: 'all 0.2s' }}
                       >
                         <div>
                           <span style={{ fontWeight: 'bold', color: '#60a5fa', fontSize: '14px' }}>#{idx + 1} {st.symbol}</span>
-                          <div style={{ fontSize: '11px', color: '#8b5cf6' }}>High Confluence Setup</div>
+                          <div style={{ fontSize: '11px', color: '#8b5cf6' }}>Reward:Risk 1:3.2</div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '13px' }}>Reward : Risk 1:3.2</span>
-                          <div style={{ fontSize: '12px', color: '#cbd5e1' }}>₹{st.price}</div>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#10b981', fontSize: '14px' }}>₹{st.price}</span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => selectStock(st.symbol)} style={{ padding: '3px 8px', background: '#1e293b', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>🔍 Analyze</button>
+                            <button onClick={() => handleQuickTradeCard(st.symbol, 'BUY', st.price)} style={{ padding: '3px 8px', background: '#8b5cf6', border: 'none', color: '#fff', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>⚡ TRADE</button>
+                          </div>
                         </div>
                       </div>
                     ))}
