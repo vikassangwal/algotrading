@@ -566,21 +566,33 @@ function StrategyBuilder({ config, updateConfig }) {
 }
 
 function AdminPanel({ config, updateConfig }) {
+  const safeConfig = config || {};
+  const risk = safeConfig.risk || {
+    max_position_pct: 10,
+    max_portfolio_exposure_pct: 50,
+    daily_loss_limit_pct: 2.0,
+    crash_risk_halt_threshold: 75
+  };
+  const modulesEnabled = safeConfig.modules_enabled || {
+    technical: true, fundamental: true, promoter: true, ratio: true,
+    options_flow: true, quant: true, news_risk: true, sentiment: true
+  };
+
   return (
     <div className="dashboard-grid">
       <div className="panel">
         <div className="panel-header">Execution Settings</div>
         
         <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem'}}>
-          <button className="btn" style={{backgroundColor: config.auto_trade === 'active' ? 'var(--signal-buy)' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+          <button className="btn" style={{backgroundColor: safeConfig.auto_trade === 'active' ? 'var(--signal-buy)' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
                   onClick={() => updateConfig({auto_trade: 'active'})}>
             <Play size={16}/> Active
           </button>
-          <button className="btn" style={{backgroundColor: config.auto_trade === 'halted' ? 'var(--signal-sell)' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+          <button className="btn" style={{backgroundColor: safeConfig.auto_trade === 'halted' ? 'var(--signal-sell)' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
                   onClick={() => updateConfig({auto_trade: 'halted'})}>
             <Pause size={16}/> Halted
           </button>
-          <button className="btn" style={{backgroundColor: config.auto_trade === 'off' ? '#6b7280' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
+          <button className="btn" style={{backgroundColor: safeConfig.auto_trade === 'off' ? '#6b7280' : '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem'}}
                   onClick={() => updateConfig({auto_trade: 'off'})}>
             <Square size={16}/> Off
           </button>
@@ -592,14 +604,14 @@ function AdminPanel({ config, updateConfig }) {
             <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)'}}>Execute trades via mock broker</div>
           </div>
           <label className="toggle-switch">
-            <input type="checkbox" checked={config.paper_mode} onChange={(e) => updateConfig({paper_mode: e.target.checked})} />
+            <input type="checkbox" checked={!!safeConfig.paper_mode} onChange={(e) => updateConfig({paper_mode: e.target.checked})} />
             <span className="slider"></span>
           </label>
         </div>
 
         <div className="form-group">
           <label>Starting Capital (INR)</label>
-          <input type="number" className="form-control" value={config.capital} onChange={(e) => updateConfig({capital: parseFloat(e.target.value)})} />
+          <input type="number" className="form-control" value={safeConfig.capital ?? 1000000} onChange={(e) => updateConfig({capital: parseFloat(e.target.value)})} />
         </div>
       </div>
 
@@ -608,40 +620,40 @@ function AdminPanel({ config, updateConfig }) {
         <div className="form-group">
           <label>Max Position Size (% of Capital)</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="1" max="100" value={config.risk.max_position_pct} className="form-control" style={{flexGrow: 1}} readOnly/>
-            <span>{config.risk.max_position_pct}%</span>
+            <input type="range" min="1" max="100" value={risk.max_position_pct ?? 10} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <span>{risk.max_position_pct ?? 10}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Max Portfolio Exposure (%)</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="1" max="100" value={config.risk.max_portfolio_exposure_pct} className="form-control" style={{flexGrow: 1}} readOnly/>
-            <span>{config.risk.max_portfolio_exposure_pct}%</span>
+            <input type="range" min="1" max="100" value={risk.max_portfolio_exposure_pct ?? 50} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <span>{risk.max_portfolio_exposure_pct ?? 50}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Daily Loss Limit (%) - Auto Stop</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="0.1" max="10" step="0.1" value={config.risk.daily_loss_limit_pct} className="form-control" style={{flexGrow: 1}} readOnly/>
-            <span className="text-sell">{config.risk.daily_loss_limit_pct}%</span>
+            <input type="range" min="0.1" max="10" step="0.1" value={risk.daily_loss_limit_pct ?? 2.0} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <span className="text-sell">{risk.daily_loss_limit_pct ?? 2.0}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Crash Risk Halt Threshold</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="0" max="100" value={config.risk.crash_risk_halt_threshold} className="form-control" style={{flexGrow: 1}} readOnly/>
-            <span className="text-neutral">{config.risk.crash_risk_halt_threshold}</span>
+            <input type="range" min="0" max="100" value={risk.crash_risk_halt_threshold ?? 75} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <span className="text-neutral">{risk.crash_risk_halt_threshold ?? 75}</span>
           </div>
         </div>
       </div>
 
       <div className="panel">
         <div className="panel-header">Analysis Modules</div>
-        {Object.entries(config.modules_enabled).map(([modName, isEnabled]) => (
+        {Object.entries(modulesEnabled).map(([modName, isEnabled]) => (
           <div key={modName} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem'}}>
             <span style={{textTransform: 'capitalize', fontSize: '0.9rem'}}>{modName.replace('_', ' ')}</span>
             <label className="toggle-switch" style={{transform: 'scale(0.8)'}}>
-              <input type="checkbox" checked={isEnabled} readOnly />
+              <input type="checkbox" checked={!!isEnabled} readOnly />
               <span className="slider"></span>
             </label>
           </div>
@@ -654,7 +666,7 @@ function AdminPanel({ config, updateConfig }) {
           <div style={{flex: 1}}>
             <label style={{display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>Broker Setup</label>
             <select
-              value={config?.broker_name || 'mock'}
+              value={safeConfig?.broker_name || 'mock'}
               onChange={e => updateConfig({ broker_name: e.target.value })}
               style={{width: '100%', padding: '0.75rem', backgroundColor: '#1F2937', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', outline: 'none', marginBottom: '1rem'}}
             >
@@ -676,7 +688,7 @@ function AdminPanel({ config, updateConfig }) {
             <label style={{display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>API Key / Client ID</label>
             <input 
               type="text" 
-              value={config?.api_key || ''} 
+              value={safeConfig?.api_key || ''} 
               onChange={e => updateConfig({ api_key: e.target.value })}
               placeholder="e.g. ZERODHA_API_KEY"
               style={{width: '100%', padding: '0.75rem', backgroundColor: '#1F2937', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', outline: 'none', marginBottom: '1rem'}}
@@ -686,7 +698,7 @@ function AdminPanel({ config, updateConfig }) {
             <label style={{display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>API Secret</label>
             <input 
               type="password" 
-              value={config?.api_secret || ''} 
+              value={safeConfig?.api_secret || ''} 
               onChange={e => updateConfig({ api_secret: e.target.value })}
               placeholder="e.g. YOUR_SECRET_KEY"
               style={{width: '100%', padding: '0.75rem', backgroundColor: '#1F2937', color: 'white', border: '1px solid var(--border-color)', borderRadius: '4px', outline: 'none', marginBottom: '1rem'}}
@@ -705,8 +717,10 @@ function JournalView({ token }) {
     const fetchJournal = async () => {
       try {
         const res = await fetch(`${API_URL}/journal`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        setJournal(data);
+        if (res.ok) {
+          const data = await res.json();
+          setJournal(Array.isArray(data) ? data : []);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -716,6 +730,8 @@ function JournalView({ token }) {
     return () => clearInterval(interval);
   }, []);
 
+  const safeJournal = Array.isArray(journal) ? journal : [];
+
   return (
     <div className="panel" style={{gridColumn: '1 / -1'}}>
       <div className="panel-header">Trade Journal (Ledger)</div>
@@ -723,9 +739,9 @@ function JournalView({ token }) {
       {/* Equity Curve */}
       <div style={{width: '100%', height: '250px', marginBottom: '2rem'}}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={[...journal].reverse().map((t, i, arr) => ({
+          <LineChart data={[...safeJournal].reverse().map((t, i, arr) => ({
              trade_id: t.trade_id,
-             equity: arr.slice(0, i + 1).reduce((sum, item) => sum + item.pnl, 0)
+             equity: arr.slice(0, i + 1).reduce((sum, item) => sum + (item.pnl || 0), 0)
           }))}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="trade_id" stroke="#9ca3af" fontSize={10} />
@@ -750,18 +766,18 @@ function JournalView({ token }) {
           </tr>
         </thead>
         <tbody>
-          {journal.length === 0 ? (
+          {safeJournal.length === 0 ? (
             <tr><td colSpan="8" style={{padding: '1rem 0.5rem'}}>No trades executed yet.</td></tr>
           ) : (
-            journal.map(trade => {
+            safeJournal.map(trade => {
               let color = 'var(--signal-neutral)';
               if (trade.action === 'BUY') color = 'var(--signal-buy)';
               if (trade.action === 'SELL') color = 'var(--signal-sell)';
               
               return (
-                <tr key={trade.trade_id} style={{borderTop: '1px solid var(--border-color)', verticalAlign: 'top'}}>
+                <tr key={trade.trade_id || Math.random()} style={{borderTop: '1px solid var(--border-color)', verticalAlign: 'top'}}>
                   <td style={{padding: '1rem 0.5rem', fontFamily: 'monospace'}}>{trade.trade_id}</td>
-                  <td style={{padding: '1rem 0.5rem'}}>{new Date(trade.timestamp).toLocaleString()}</td>
+                  <td style={{padding: '1rem 0.5rem'}}>{trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'}</td>
                   <td style={{padding: '1rem 0.5rem', fontWeight: 600}}>{trade.symbol}</td>
                   <td style={{padding: '1rem 0.5rem', color: color, fontWeight: 600}}>{trade.action}</td>
                   <td style={{padding: '1rem 0.5rem'}}>{trade.qty}</td>
@@ -769,7 +785,7 @@ function JournalView({ token }) {
                   <td style={{padding: '1rem 0.5rem'}}>{trade.status}</td>
                   <td style={{padding: '1rem 0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
                     <ul style={{paddingLeft: '1rem', margin: 0}}>
-                      {trade.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                      {(trade.reasons || []).map((r, i) => <li key={i}>{r}</li>)}
                     </ul>
                   </td>
                 </tr>
@@ -789,8 +805,10 @@ function RadarView({ token }) {
     const fetchRadar = async () => {
       try {
         const res = await fetch(`${API_URL}/radar`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        setRadar(data);
+        if (res.ok) {
+          const data = await res.json();
+          setRadar(data);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -806,6 +824,8 @@ function RadarView({ token }) {
   if (radar.overall_status === 'BULLISH') statusColor = 'var(--signal-buy)';
   if (radar.overall_status === 'BEARISH') statusColor = 'var(--signal-sell)';
 
+  const newsItems = Array.isArray(radar?.news) ? radar.news : [];
+
   return (
     <div style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
       <div className="panel" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
@@ -817,7 +837,7 @@ function RadarView({ token }) {
         </div>
         <div style={{textAlign: 'right'}}>
           <div style={{fontSize: '2rem', fontWeight: 'bold', color: statusColor}}>
-            {radar.overall_status}
+            {radar.overall_status || 'NEUTRAL'}
           </div>
           <div style={{fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
             Avg Compound Score: {(radar.avg_compound ?? 0).toFixed(3)}
@@ -836,7 +856,7 @@ function RadarView({ token }) {
             </tr>
           </thead>
           <tbody>
-            {radar.news.map((item, idx) => {
+            {newsItems.map((item, idx) => {
               let color = 'var(--signal-neutral)';
               let bg = 'bg-neutral';
               if (item.status === 'BULLISH') { color = 'var(--signal-buy)'; bg = 'bg-buy'; }
@@ -845,10 +865,10 @@ function RadarView({ token }) {
               return (
                 <tr key={idx} style={{borderTop: '1px solid var(--border-color)'}}>
                   <td style={{padding: '1rem 0.5rem', fontWeight: 500}}>{item.headline}</td>
-                  <td style={{padding: '1rem 0.5rem'}}>{item.compound.toFixed(3)}</td>
+                  <td style={{padding: '1rem 0.5rem'}}>{(item.compound ?? 0).toFixed(3)}</td>
                   <td style={{padding: '1rem 0.5rem'}}>
                     <span className={bg} style={{padding: '4px 8px', borderRadius: '4px', color: color, fontSize: '0.8rem', fontWeight: 600}}>
-                      {item.status}
+                      {item.status || 'NEUTRAL'}
                     </span>
                   </td>
                 </tr>
