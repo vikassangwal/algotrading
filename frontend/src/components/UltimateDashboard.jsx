@@ -182,14 +182,59 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
 
   const currentScalp = scalpParams[scalpTf] || scalpParams['1m'];
 
-  const stylePlan = tradingMode === 'Scalping' ? {
-    title: `${currentScalp.title} (${scalpTf} SuperTrend)`,
-    entry_price: price > 0 ? price.toFixed(2) : '---',
-    stop_loss: price > 0 ? (price * currentScalp.slMult).toFixed(2) : '---',
-    target_1: price > 0 ? (price * currentScalp.tp1Mult).toFixed(2) : '---',
-    target_2: price > 0 ? (price * currentScalp.tp2Mult).toFixed(2) : '---',
-    risk_reward: `${currentScalp.rr} [SL: ${currentScalp.slPct}]`
-  } : (trade_plan.styles ? (trade_plan.styles[tradingMode.toLowerCase()] || trade_plan.styles.intraday) : null);
+  const getStylePlan = () => {
+    if (tradingMode === 'Scalping') {
+      return {
+        title: `${currentScalp.title} (${scalpTf} SuperTrend)`,
+        entry_price: price > 0 ? price.toFixed(2) : '---',
+        stop_loss: price > 0 ? (price * currentScalp.slMult).toFixed(2) : '---',
+        target_1: price > 0 ? (price * currentScalp.tp1Mult).toFixed(2) : '---',
+        target_2: price > 0 ? (price * currentScalp.tp2Mult).toFixed(2) : '---',
+        risk_reward: `${currentScalp.rr} [SL: ${currentScalp.slPct}]`
+      };
+    }
+
+    const tpStyles = trade_plan?.styles;
+    if (tpStyles && tpStyles[tradingMode.toLowerCase()]) {
+      return tpStyles[tradingMode.toLowerCase()];
+    }
+
+    const modeMultipliers = {
+      'Intraday': { title: '⚡ Intraday Momentum Plan', sl: 0.99, tp1: 1.015, tp2: 1.03, rr: '1 : 1.8' },
+      'Swing': { title: '📊 Swing Multi-Day Structural Plan', sl: 0.97, tp1: 1.045, tp2: 1.08, rr: '1 : 2.25' },
+      'Positional': { title: '🎯 Positional Trend Capture', sl: 0.95, tp1: 1.08, tp2: 1.15, rr: '1 : 2.5' },
+      'Investment': { title: '💎 Value Accumulation Plan', sl: 0.90, tp1: 1.15, tp2: 1.30, rr: '1 : 3.0' }
+    };
+    const mults = modeMultipliers[tradingMode] || modeMultipliers['Intraday'];
+
+    const ifBuy = trade_plan?.if_buy;
+    if (ifBuy && ifBuy.entry) {
+      const p = price > 0 ? price : (ifBuy.entry || 1000);
+      return {
+        title: mults.title,
+        entry_price: p.toFixed(2),
+        stop_loss: (ifBuy.stop_loss || p * mults.sl).toFixed(2),
+        target_1: (ifBuy.target_1 || p * mults.tp1).toFixed(2),
+        target_2: (ifBuy.target_2 || p * mults.tp2).toFixed(2),
+        risk_reward: mults.rr
+      };
+    }
+
+    if (price > 0) {
+      return {
+        title: mults.title,
+        entry_price: price.toFixed(2),
+        stop_loss: (price * mults.sl).toFixed(2),
+        target_1: (price * mults.tp1).toFixed(2),
+        target_2: (price * mults.tp2).toFixed(2),
+        risk_reward: mults.rr
+      };
+    }
+
+    return null;
+  };
+
+  const stylePlan = getStylePlan();
   const isBullish = change_pct >= 0;
 
   return (
