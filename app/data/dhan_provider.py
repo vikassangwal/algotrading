@@ -264,9 +264,16 @@ class DhanProvider(DataProvider):
         # 2. Always try yfinance as the primary fallback if Dhan fails or is uninitialized
         try:
             if yf:
+                import requests
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                })
                 # Map timeframe to yfinance format
                 interval = "1d" if timeframe == "1d" else "15m"
-                ticker = yf.Ticker(_yf_symbol(symbol))
+                ticker = yf.Ticker(_yf_symbol(symbol), session=session)
                 df = ticker.history(period="1y" if timeframe == "1d" else "5d", interval=interval)
                 if not df.empty:
                     df = df.tail(count)

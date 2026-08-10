@@ -21,7 +21,14 @@ def get_cached_yf_info(symbol: str) -> dict:
             return data
 
     try:
-        tk = yf.Ticker(clean_sym)
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+        tk = yf.Ticker(clean_sym, session=session)
         info = tk.info
         if isinstance(info, dict) and len(info) > 0:
             _INFO_CACHE[clean_sym] = (info, now)
@@ -42,7 +49,14 @@ def get_safe_ltp(symbol: str) -> float:
         clean_sym = f"{clean_sym}.NS"
 
     try:
-        tk = yf.Ticker(clean_sym)
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+        tk = yf.Ticker(clean_sym, session=session)
         fi = tk.fast_info
         
         # Try attribute access first (FastInfo object in yfinance 0.2+)
@@ -68,7 +82,14 @@ def get_safe_ltp(symbol: str) -> float:
 
     # Fallback to history 1d 1m bar
     try:
-        tk = yf.Ticker(clean_sym)
+        import requests
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+        })
+        tk = yf.Ticker(clean_sym, session=session)
         hist = tk.history(period="1d", interval="1m")
         if hist is not None and not hist.empty:
             return float(hist["Close"].iloc[-1])

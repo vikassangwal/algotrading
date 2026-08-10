@@ -45,6 +45,13 @@ class MockProvider(DataProvider):
         return random.Random(seed_str)
 
     def _base(self, symbol: str) -> float:
+        try:
+            from ..yf_cache import get_safe_ltp
+            ltp = get_safe_ltp(symbol)
+            if ltp > 0:
+                return float(ltp)
+        except Exception:
+            pass
         return _BASE_PRICES.get(symbol.upper(), 1000.0 + (hash(symbol.upper()) % 3000))
 
     def get_candles(self, symbol: str, timeframe: str, count: int) -> list[Candle]:
