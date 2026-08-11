@@ -1,30 +1,49 @@
 from typing import Any, Dict, List, Optional
 from app.brokers.base import BaseBroker
 import logging
+import requests
 
 logger = logging.getLogger("elco.broker.dhan")
 
 class DhanBroker(BaseBroker):
     """
-    DhanHQ Integration.
-    Requires `dhanhq` python package.
+    DhanHQ Integration supporting both REST API and dhanhq package.
     """
     def __init__(self, client_id: str, access_token: str):
-        self.client_id = client_id
-        self.access_token = access_token
+        self.client_id = client_id or ""
+        self.access_token = access_token or ""
         self.dhan = None
         self._connected = False
 
     def connect(self) -> bool:
+        if not self.client_id or not self.access_token:
+            logger.warning("Missing Dhan Client ID or Access Token")
+            return False
+
+        # Try direct REST API call to Dhan HQ
+        try:
+            headers = {
+                "access-token": self.access_token,
+                "client-id": self.client_id,
+                "Content-Type": "application/json"
+            }
+            res = requests.get("https://api.dhan.co/fundlimit", headers=headers, timeout=8)
+            if res.status_code == 200:
+                self._connected = True
+                logger.info("DhanHQ REST API connected successfully.")
+                return True
+            else:
+                logger.warning(f"Dhan REST API response {res.status_code}: {res.text}")
+        except Exception as e:
+            logger.error(f"Dhan REST API ping error: {e}")
+
+        # Fallback to dhanhq package
         try:
             from dhanhq import dhanhq
             self.dhan = dhanhq(self.client_id, self.access_token)
             self._connected = True
-            logger.info("DhanHQ connected successfully.")
+            logger.info("DhanHQ library connected successfully.")
             return True
-        except ImportError:
-            logger.error("dhanhq package not installed. Run: pip install dhanhq")
-            return False
         except Exception as e:
             logger.error(f"Failed to connect DhanHQ: {e}")
             return False
@@ -34,59 +53,64 @@ class DhanBroker(BaseBroker):
         return True
 
     def get_profile(self) -> Dict[str, Any]:
-        return {"broker": "Dhan"}
+        return {"broker": "Dhan", "client_id": self.client_id}
 
     def get_funds(self) -> Dict[str, Any]:
-        if not self.dhan: return {"net": 0, "available_cash": 0, "used_margin": 0}
-        try:
-            funds = self.dhan.get_fund_limits()
-            data = funds.get("data", {})
-            return {
-                "net": data.get("availabelBalance", 0),
-                "available_cash": data.get("availabelBalance", 0),
-                "used_margin": data.get("utilizedAmount", 0)
-            }
-        except Exception as e:
-            logger.error(f"Funds error: {e}")
+        if not self.client_id or not self.access_token:
             return {"net": 0, "available_cash": 0, "used_margin": 0}
 
-    def place_order(self, symbol: str, quantity: int, side: str, order_type: str, price: Optional[float] = None, trigger_price: Optional[float] = None, **kwargs) -> Dict[str, Any]:
-        if not self.dhan: return {"status": "rejected", "reason": "Not connected"}
         try:
-            order_id = self.dhan.place_order(
-                security_id=symbol, # Requires Dhan specific security ID lookup in real env
-                exchange_segment=self.dhan.NSE,
-                transaction_type=self.dhan.BUY if side.upper() == "BUY" else self.dhan.SELL,
-                quantity=quantity,
-                order_type=self.dhan.MARKET if order_type.upper() == "MARKET" else self.dhan.LIMIT,
-                product_type=self.dhan.INTRADAY,
-                price=price or 0
-            )
-            return {"status": "success", "order_id": order_id}
+            headers = {
+                "access-token": self.access_token,
+                "client-id": self.client_id,
+                "Content-Type": "application/json"
+            }
+            res = requests.get("https://api.dhan.co/fundlimit", headers=headers, timeout=8)
+            if res.status_code == 200:
+                data = res.json().get("data", {})
+                return {
+                    "net": data.get("availabelBalance", 0),
+                    "available_cash": data.get("availabelBalance", 0),
+                    "used_margin": data.get("utilizedAmount", 0)
+                }
         except Exception as e:
-            logger.error(f"Order placement failed: {e}")
-            return {"status": "rejected", "reason": str(e)}
+            logger.error(f"Funds error: {e}")
 
-    def modify_order(self, order_id: str, **kwargs) -> Dict[str, Any]:
-        pass
+        return {"net": 0, "available_cash": 0, "used_margin": 0}
 
-    def cancel_order(self, order_id: str, **kwargs) -> Dict[str, Any]:
-        pass
+    def place_order(self, symbol: str, action: str, qty: int, order_type: str = "MARKET", price: float = 0.0) -> Dict[str, Any]:
+        if not self.client_id or not self.access_token:
+            return {"status": "FAILED", "reason": "Missing Dhan credentials"}
 
-    def get_order_history(self, order_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        return []
-
-    def get_trades(self) -> List[Dict[str, Any]]:
-        return []
+        try:
+            headers = {
+                "access-token": self.access_token,
+                "client-id": self.client_id,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "dhanClientId": self.client_id,
+                "transactionType": action.upper(),
+                "exchangeSegment": "NSE_EQ",
+                "productType": "INTRADAY",
+                "orderType": order_type.upper(),
+                "validity": "DAY",
+                "tradingSymbol": symbol.replace(".NS", ""),
+                "quantity": qty,
+                "price": price if order_type.upper() == "LIMIT" else 0
+            }
+            res = requests.post("https://api.dhan.co/orders", headers=headers, json=payload, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                return {"status": "SUCCESS", "order_id": data.get("orderId"), "response": data}
+            else:
+                return {"status": "FAILED", "reason": res.text}
+        except Exception as e:
+            logger.error(f"Order placement error: {e}")
+            return {"status": "FAILED", "reason": str(e)}
 
     def get_positions(self) -> List[Dict[str, Any]]:
         return []
 
-    def get_holdings(self) -> List[Dict[str, Any]]:
+    def get_orders(self) -> List[Dict[str, Any]]:
         return []
-
-    def get_historical_data(self, symbol, interval, start_time, end_time, **kwargs) -> List:
-        return []
-
-    def get_live_quotes(self, symbols: List[str]) -> Dict[str, Any]:
-        return {}

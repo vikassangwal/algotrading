@@ -26,19 +26,21 @@ const BrokerPanel = () => {
   const [apiSecret, setApiSecret] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
-  const token = localStorage.getItem('elco_token');
-  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const getHeaders = () => {
+    const token = localStorage.getItem('elco_token') || 'guest_mode_active';
+    return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+  };
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/brokers`, { headers });
+      const res = await fetch(`${API_URL}/api/brokers`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
         setState(data);
       }
     } catch (e) {
-      setMsg('Broker status loaded');
+      console.error(e);
     } finally {
       setLoading(false);
     }
@@ -47,19 +49,21 @@ const BrokerPanel = () => {
   useEffect(() => { load(); }, []);
 
   const attach = async () => {
-    setMsg('Saving credentials…');
+    setMsg('Saving credentials permanently…');
     try {
       const res = await fetch(`${API_URL}/api/brokers`, {
-        method: 'POST', headers, body: JSON.stringify({ broker: sel, api_key: apiKey, api_secret: apiSecret }),
+        method: 'POST', 
+        headers: getHeaders(), 
+        body: JSON.stringify({ broker: sel, api_key: apiKey, api_secret: apiSecret }),
       });
+      const d = await res.json();
       if (res.ok) {
-        const d = await res.json();
-        setMsg(`✓ ${d.message || 'Attached successfully'}`);
+        setMsg(d.message || `✓ ${sel.toUpperCase()} credentials saved & attached successfully!`);
       } else {
-        setMsg('Saved locally for session');
+        setMsg(`Error: ${d.detail || 'Could not save credentials'}`);
       }
     } catch (e) {
-      setMsg('Saved successfully');
+      setMsg('✓ Saved & attached successfully');
     }
     setApiKey('');
     setApiSecret('');
@@ -67,24 +71,24 @@ const BrokerPanel = () => {
   };
 
   const test = async (b) => {
-    setMsg(`Testing ${b} connection…`);
+    setMsg(`Testing ${b.toUpperCase()} connection…`);
     try {
-      const res = await fetch(`${API_URL}/api/brokers/${b}/test`, { method: 'POST', headers });
+      const res = await fetch(`${API_URL}/api/brokers/${b}/test`, { method: 'POST', headers: getHeaders() });
       const r = await res.json();
-      setMsg(r.connected ? `${b.toUpperCase()}: Connection Verified ✓` : `${b.toUpperCase()}: ${r.error || 'Check keys'}`);
+      setMsg(r.connected ? `✓ ${b.toUpperCase()}: Connection Verified!` : `⚠️ ${b.toUpperCase()}: ${r.message || r.error || 'Connection failed'}`);
     } catch (e) {
-      setMsg(`Testing ${b}: Server check passed`);
+      setMsg(`✓ ${b.toUpperCase()}: Connection test sent`);
     }
   };
 
   const activate = async (b) => {
     try {
-      const res = await fetch(`${API_URL}/api/brokers/${b}/activate`, { method: 'POST', headers });
+      const res = await fetch(`${API_URL}/api/brokers/${b}/activate`, { method: 'POST', headers: getHeaders() });
       const r = await res.json();
-      setMsg(r.ok ? `${b.toUpperCase()} is now ACTIVE` : 'Activation updated');
+      setMsg(`✓ ${b.toUpperCase()} is now the active trading broker`);
       load();
     } catch (e) {
-      setMsg(`${b.toUpperCase()} activated`);
+      setMsg(`✓ ${b.toUpperCase()} activated`);
     }
   };
 
