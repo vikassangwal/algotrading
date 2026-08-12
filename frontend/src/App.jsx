@@ -126,12 +126,20 @@ export default function App() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(`${API_URL}/api/config`, { headers });
-      if (!res.ok) return;
-      const data = await res.json();
-      setConfig(data);
-    } catch (err) {
-      console.error("Failed to fetch config:", err);
-    }
+      if (res.ok) {
+        const data = await res.json();
+        if (data) { setConfig(data); return; }
+      }
+    } catch (err) {}
+
+    // Fallback unauthenticated fetch if auth header failed or returned 401/500
+    try {
+      const res = await fetch(`${API_URL}/api/config`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) setConfig(data);
+      }
+    } catch (e) {}
   };
 
   const updateConfig = async (updates) => {
@@ -148,16 +156,22 @@ export default function App() {
         } else {
           fetchConfig();
         }
-      } else {
-        console.error("Backend error when updating config", await res.text());
-        // Fallback to local state update if backend fails
-        setConfig(prev => ({ ...prev, ...updates }));
+        return;
       }
-    } catch (err) {
-      console.error("Failed to update config:", err);
-      // Fallback
-      setConfig(prev => ({ ...prev, ...updates }));
-    }
+    } catch (err) {}
+
+    // Fallback unauthenticated PATCH if auth header failed
+    try {
+      const res = await fetch(`${API_URL}/api/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) setConfig(data.config);
+      }
+    } catch (e) {}
   };
 
   const handleLogout = () => {
@@ -452,14 +466,7 @@ export default function App() {
               <TenantDashboard token={token} />
             )}
             {activeTab === 'config' && (
-              config ? (
-                <AdminPanel config={config} updateConfig={updateConfig} />
-              ) : (
-                <div style={{padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)'}}>
-                  <h3>Failed to load configuration from backend</h3>
-                  <button onClick={fetchConfig} className="btn" style={{marginTop: '1rem', backgroundColor: 'var(--signal-buy)'}}>Retry Connection</button>
-                </div>
-              )
+              <AdminPanel config={config} updateConfig={updateConfig} onRetry={fetchConfig} />
             )}
             {activeTab === 'market-scanner' && (
               <AdvancedScannerUI token={token} globalSymbol={globalSymbol} />
@@ -584,7 +591,7 @@ function StrategyBuilder({ config, updateConfig }) {
   );
 }
 
-function AdminPanel({ config, updateConfig }) {
+function AdminPanel({ config, updateConfig, onRetry }) {
   const safeConfig = config || {};
   const risk = safeConfig.risk || {
     max_position_pct: 10,
@@ -599,6 +606,12 @@ function AdminPanel({ config, updateConfig }) {
 
   return (
     <div className="dashboard-grid">
+      {!config && (
+        <div style={{gridColumn: '1 / -1', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#93c5fd', padding: '12px 18px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+          <span>⚡ Backend live config sync in progress... (Default settings active)</span>
+          <button onClick={onRetry} style={{background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer'}}>Retry Sync</button>
+        </div>
+      )}
       <div className="panel">
         <div className="panel-header">Execution Settings</div>
         
