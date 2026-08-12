@@ -125,7 +125,7 @@ export default function App() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`${API_URL}/config`, { headers });
+      const res = await fetch(`${API_URL}/api/config`, { headers });
       if (!res.ok) return;
       const data = await res.json();
       setConfig(data);
@@ -136,14 +136,18 @@ export default function App() {
 
   const updateConfig = async (updates) => {
     try {
-      const res = await fetch(`${API_URL}/config`, {
+      const res = await fetch(`${API_URL}/api/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify(updates)
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data.config);
+        if (data.config) {
+          setConfig(data.config);
+        } else {
+          fetchConfig();
+        }
       } else {
         console.error("Backend error when updating config", await res.text());
         // Fallback to local state update if backend fails
@@ -635,28 +639,48 @@ function AdminPanel({ config, updateConfig }) {
         <div className="form-group">
           <label>Max Position Size (% of Capital)</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="1" max="100" value={risk.max_position_pct ?? 10} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <input 
+              type="range" min="1" max="100" 
+              value={risk.max_position_pct ?? 10} 
+              onChange={e => updateConfig({ risk: { ...risk, max_position_pct: parseFloat(e.target.value) } })}
+              className="form-control" style={{flexGrow: 1, cursor: 'pointer'}}
+            />
             <span>{risk.max_position_pct ?? 10}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Max Portfolio Exposure (%)</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="1" max="100" value={risk.max_portfolio_exposure_pct ?? 50} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <input 
+              type="range" min="1" max="100" 
+              value={risk.max_portfolio_exposure_pct ?? 50} 
+              onChange={e => updateConfig({ risk: { ...risk, max_portfolio_exposure_pct: parseFloat(e.target.value) } })}
+              className="form-control" style={{flexGrow: 1, cursor: 'pointer'}}
+            />
             <span>{risk.max_portfolio_exposure_pct ?? 50}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Daily Loss Limit (%) - Auto Stop</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="0.1" max="10" step="0.1" value={risk.daily_loss_limit_pct ?? 2.0} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <input 
+              type="range" min="0.1" max="10" step="0.1" 
+              value={risk.daily_loss_limit_pct ?? 2.0} 
+              onChange={e => updateConfig({ risk: { ...risk, daily_loss_limit_pct: parseFloat(e.target.value) } })}
+              className="form-control" style={{flexGrow: 1, cursor: 'pointer'}}
+            />
             <span className="text-sell">{risk.daily_loss_limit_pct ?? 2.0}%</span>
           </div>
         </div>
         <div className="form-group">
           <label>Crash Risk Halt Threshold</label>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <input type="range" min="0" max="100" value={risk.crash_risk_halt_threshold ?? 75} className="form-control" style={{flexGrow: 1}} readOnly/>
+            <input 
+              type="range" min="0" max="100" 
+              value={risk.crash_risk_halt_threshold ?? 75} 
+              onChange={e => updateConfig({ risk: { ...risk, crash_risk_halt_threshold: parseFloat(e.target.value) } })}
+              className="form-control" style={{flexGrow: 1, cursor: 'pointer'}}
+            />
             <span className="text-neutral">{risk.crash_risk_halt_threshold ?? 75}</span>
           </div>
         </div>
