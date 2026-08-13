@@ -53,7 +53,8 @@ class TechnicalModule(AnalysisModule):
         subs = composite_data.get('sub_scores', {})
         direction_up = composite_data['probability_pct'] >= 50
         checks = 0
-        for key in ["trend", "momentum", "volume", "volatility", "smart_money", "options", "risk"]:
+        all_indicator_keys = ["trend", "momentum", "volume", "volatility", "smart_money", "options", "risk", "macd", "adx", "bollinger", "stochastic", "vwap"]
+        for key in all_indicator_keys:
             val = subs.get(key, 50)
             if direction_up and val >= 55:
                 checks += 1
@@ -61,10 +62,25 @@ class TechnicalModule(AnalysisModule):
                 checks += 1
         if patterns_found:
             checks += 1
-        # Cap display at 12 institutional-style checks.
-        confluence_passed = min(12, checks)
+        
+        # Add descriptive reasons for the new indicators
+        if subs.get('macd', 50) >= 60: reasons.append("Bullish MACD Crossover and rising Histogram.")
+        elif subs.get('macd', 50) <= 40: reasons.append("Bearish MACD breakdown with falling momentum.")
+        
+        if subs.get('adx', 50) >= 60: reasons.append("Strong ADX Trend Validation with DMI+ dominance.")
+        
+        if subs.get('bollinger', 50) >= 70: reasons.append("Price action riding the Upper Bollinger Band (Strong Momentum).")
+        elif subs.get('bollinger', 50) <= 30: reasons.append("Mean Reversion setup: Price near Lower Bollinger Band.")
+        
+        if subs.get('stochastic', 50) >= 70: reasons.append("Stochastic Oscillator turning up from Oversold territory.")
+        elif subs.get('stochastic', 50) <= 30: reasons.append("Stochastic Oscillator dropping from Overbought territory.")
+        
+        if subs.get('vwap', 50) >= 60: reasons.append("Price sustaining above Daily VWAP (Institutional Accumulation).")
+        
+        # Cap display at max checks.
+        confluence_passed = min(len(all_indicator_keys) + 1, checks)
         composite_data['confluence_filters_passed'] = confluence_passed
-        reasons.append(f"AI Filter Confluence: {confluence_passed}/12 real indicator checks confirm direction.")
+        reasons.append(f"AI Filter Confluence: {confluence_passed}/{len(all_indicator_keys)} real indicator checks confirm direction.")
 
         if composite_data['action'] in ["Strong Buy", "Buy"]:
             total_score = composite_data['probability_pct'] / 100.0
