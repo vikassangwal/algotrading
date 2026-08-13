@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
@@ -38,6 +38,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
+  const markersRef = useRef(null);
   const volumeSeriesRef = useRef(null);
   const lastCandleRef = useRef(null);
   
@@ -225,6 +226,8 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       seriesRef.current.setData(getLineData(data));
     }
 
+    markersRef.current = createSeriesMarkers(seriesRef.current, []);
+
     const volData = data.map(d => ({ 
       time: d.time, value: d.volume || 0, color: d.close > d.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)' 
     }));
@@ -285,22 +288,22 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
 
     // Plot AI Signal Markers
-    if (aiAnalysis && seriesRef.current && showAiPanel && data.length > 0) {
+    if (aiAnalysis && markersRef.current && showAiPanel && data.length > 0) {
       const lastItem = data[data.length - 1];
       const action = aiAnalysis.action;
       if (action === 'STRONG BUY' || action === 'BUY') {
-        seriesRef.current.setMarkers([{
+        markersRef.current.setMarkers([{
           time: lastItem.time, position: 'belowBar', color: '#26a69a', shape: 'arrowUp', text: `AI: ${action}`
         }]);
       } else if (action === 'STRONG SELL' || action === 'SELL') {
-        seriesRef.current.setMarkers([{
+        markersRef.current.setMarkers([{
           time: lastItem.time, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown', text: `AI: ${action}`
         }]);
       } else {
-        seriesRef.current.setMarkers([]);
+        markersRef.current.setMarkers([]);
       }
-    } else if (seriesRef.current) {
-        seriesRef.current.setMarkers([]);
+    } else if (markersRef.current) {
+        markersRef.current.setMarkers([]);
     }
 
     chart.timeScale().fitContent();
