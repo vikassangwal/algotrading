@@ -8,7 +8,9 @@ from .base import AnalysisModule, ModuleSignal
 from .ai_composite_engine import AICompositeEngine
 from .pattern_engine import PatternEngine
 from .ict_engine import ICTEngine
-
+from .candlestick_engine import CandlestickEngine
+from .volume_profile_engine import VolumeProfileEngine
+from .quant_engine import QuantEngine
 logger = logging.getLogger("elco.module.technical.master")
 
 class TechnicalModule(AnalysisModule):
@@ -47,11 +49,28 @@ class TechnicalModule(AnalysisModule):
         ict_engine = ICTEngine(df_1d)
         ict_signals = ict_engine.analyze()
         
+        # Detect Candlesticks & Divergence
+        candle_engine = CandlestickEngine(df_1d)
+        candle_signals = candle_engine.analyze()
+        
+        # Detect Volume Profile & Wyckoff
+        vp_engine = VolumeProfileEngine(df_1d)
+        vp_data = vp_engine.analyze()
+        if vp_data and vp_data.get('wyckoff_phase') != "Unknown":
+            reasons.append(f"Wyckoff Phase: {vp_data['wyckoff_phase']}")
+            
+        # Detect Quant Market Structure & Volatility
+        quant_engine = QuantEngine(df_1d)
+        quant_data = quant_engine.analyze()
+        if quant_data:
+            reasons.append(f"Market Structure: {quant_data.get('market_structure', 'Unknown')}")
+            reasons.append(f"Volatility Regime: {quant_data.get('volatility_regime', 'Normal')}")
+        
         # Combine patterns and ICT
-        all_price_action = patterns_found + ict_signals
+        all_price_action = patterns_found + ict_signals + candle_signals
         
         if all_price_action:
-            reasons.append(f"Price Action & SMC Detected: {', '.join(all_price_action)}")
+            reasons.append(f"Price Action, Candlesticks & SMC Detected: {', '.join(all_price_action)}")
             composite_data['patterns_detected'] = all_price_action
         else:
             composite_data['patterns_detected'] = ["No Major Patterns Detected"]
