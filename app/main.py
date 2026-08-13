@@ -178,8 +178,8 @@ app.include_router(config_api.router)
 from .api.scanner import router as scanner_router
 app.include_router(scanner_router)
 
-# Initialize Data Provider and Engine
-provider = DhanProvider()
+from .data.kotak_provider import KotakProvider
+provider = KotakProvider()
 engine = SignalFusionEngine(provider)
 execution_engine = ExecutionEngine(provider)
 

@@ -20,7 +20,7 @@ from app.modules.risk_manager import RiskManagementModule
 from app.modules.portfolio import PortfolioManagementModule
 
 from app.data.mock_provider import MockProvider
-from app.data.dhan_provider import DhanProvider
+from app.data.kotak_provider import KotakProvider
 
 # 3. Import the Operational/Execution Layers (The Traders)
 # (Assuming these were built in previous subagent steps)
@@ -51,7 +51,7 @@ class ElcoMasterBrain:
         broker = os.getenv("BROKER_NAME", "mock").lower()
         if broker == "dhan":
             logger.info("Initializing ElcoMasterBrain with live DHAN API Provider.")
-            self.provider = DhanProvider()
+            self.provider = KotakProvider()
         else:
             logger.info("Initializing ElcoMasterBrain with Mock Provider.")
             self.provider = MockProvider(seed=42)
