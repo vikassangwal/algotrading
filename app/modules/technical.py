@@ -7,6 +7,7 @@ from .base import AnalysisModule, ModuleSignal
 # Import the AI Composite Engine
 from .ai_composite_engine import AICompositeEngine
 from .pattern_engine import PatternEngine
+from .ict_engine import ICTEngine
 
 logger = logging.getLogger("elco.module.technical.master")
 
@@ -42,11 +43,32 @@ class TechnicalModule(AnalysisModule):
         pattern_engine = PatternEngine(df_1d)
         patterns_found = pattern_engine.analyze()
         
-        if patterns_found:
-            reasons.append(f"Chart Patterns Detected: {', '.join(patterns_found)}")
-            composite_data['patterns_detected'] = patterns_found
+        # Detect ICT / SMC Concepts
+        ict_engine = ICTEngine(df_1d)
+        ict_signals = ict_engine.analyze()
+        
+        # Combine patterns and ICT
+        all_price_action = patterns_found + ict_signals
+        
+        if all_price_action:
+            reasons.append(f"Price Action & SMC Detected: {', '.join(all_price_action)}")
+            composite_data['patterns_detected'] = all_price_action
         else:
             composite_data['patterns_detected'] = ["No Major Patterns Detected"]
+
+        # Boost AI Confidence if ICT signals align with the trend
+        if ict_signals:
+            bullish_ict = any("Bullish" in s for s in ict_signals)
+            bearish_ict = any("Bearish" in s for s in ict_signals)
+            
+            if composite_data['probability_pct'] >= 50 and bullish_ict:
+                composite_data['probability_pct'] = min(98, composite_data['probability_pct'] + 10)
+                composite_data['confidence_pct'] = min(98, composite_data['confidence_pct'] + 15)
+                reasons.append("SMART MONEY BUY SIGNAL: ICT setup aligns with AI trend.")
+            elif composite_data['probability_pct'] < 50 and bearish_ict:
+                composite_data['probability_pct'] = max(2, composite_data['probability_pct'] - 10)
+                composite_data['confidence_pct'] = min(98, composite_data['confidence_pct'] + 15)
+                reasons.append("SMART MONEY SELL SIGNAL: ICT setup aligns with AI trend.")
 
         # Institutional confluence: count how many real sub-scores confirm the
         # composite direction (bullish >55 / bearish <45), plus pattern & regime.
