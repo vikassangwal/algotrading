@@ -357,13 +357,16 @@ def analyze_symbol(symbol: str, style: str = Query("intraday")):
     """
     Analyzes a stock symbol using the active modules and applies risk checks.
     """
+    from app.data.dhan_provider import _yf_symbol
+    mapped_symbol = _yf_symbol(symbol.upper())
+
     try:
         trading_style = TradingStyle(style.lower())
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid trading style. Must be one of: {[s.value for s in TradingStyle]}")
 
     # 1. Generate Fused Signal
-    signal = engine.analyze(symbol, style=trading_style)
+    signal = engine.analyze(mapped_symbol, style=trading_style)
 
     # 1b. Detect market regime so position sizing can adapt (HIGH_VOLATILITY
     # shrinks size, RANGE_BOUND trims it). Best-effort — never blocks the trade.

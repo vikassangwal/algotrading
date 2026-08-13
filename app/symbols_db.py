@@ -2,6 +2,11 @@
 # NSE + BSE — Total 4798 stocks
 
 INDIAN_STOCKS = [
+    {"symbol": "NIFTY", "name": "Nifty 50 Index", "exchange": "NSE"},
+    {"symbol": "BANKNIFTY", "name": "Nifty Bank Index", "exchange": "NSE"},
+    {"symbol": "SENSEX", "name": "BSE Sensex Index", "exchange": "BSE"},
+    {"symbol": "FINNIFTY", "name": "Nifty Financial Services", "exchange": "NSE"},
+    {"symbol": "INDIAVIX", "name": "India VIX", "exchange": "NSE"},
     {"symbol": "20MICRONS.NS", "name": "20 Microns Limited", "exchange": "NSE"},
     {"symbol": "21STCENMGM.NS", "name": "21st Century Management Services Limited", "exchange": "NSE"},
     {"symbol": "360ONE.NS", "name": "360 ONE WAM LIMITED", "exchange": "NSE"},
