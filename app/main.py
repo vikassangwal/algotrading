@@ -403,7 +403,8 @@ def search_stock(q: str = ""):
 @app.get("/api/history/{symbol}")
 def get_history(symbol: str, interval: str = "15m", period: str = "1mo"):
     """Fetches historical OHLC data for charting."""
-    ticker_symbol = symbol if ".NS" in symbol or ".BO" in symbol else f"{symbol}.NS"
+    from app.data.dhan_provider import _yf_symbol
+    ticker_symbol = _yf_symbol(symbol.upper())
     try:
         import yfinance as yf
         t = yf.Ticker(ticker_symbol)
