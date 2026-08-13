@@ -32,12 +32,15 @@ def _ensure_table_and_restore():
                 active_row = db.query(BrokerConnection).filter(BrokerConnection.broker == "dhan").first()
 
             if active_row:
-                if active_row.broker == "dhan" and active_row.api_key and active_row.api_secret:
-                    os.environ["DHAN_CLIENT_ID"] = active_row.api_key
-                    os.environ["DHAN_ACCESS_TOKEN"] = active_row.api_secret
+                config.broker_name = active_row.broker
+                if active_row.api_key:
                     config.api_key = active_row.api_key
+                if active_row.api_secret:
                     config.api_secret = active_row.api_secret
-                    config.broker_name = "dhan"
+                    
+                if active_row.broker == "dhan":
+                    os.environ["DHAN_CLIENT_ID"] = active_row.api_key or ""
+                    os.environ["DHAN_ACCESS_TOKEN"] = active_row.api_secret or ""
         finally:
             db.close()
     except Exception as e:
@@ -112,13 +115,16 @@ def save_broker(req: BrokerCredsRequest):
         db.close()
 
     # Sync runtime environment & config
+    if req.api_key:
+        config.api_key = req.api_key
+    if req.api_secret:
+        config.api_secret = req.api_secret
+
     if broker == "dhan":
         if req.api_key:
             os.environ["DHAN_CLIENT_ID"] = req.api_key
-            config.api_key = req.api_key
         if req.api_secret:
             os.environ["DHAN_ACCESS_TOKEN"] = req.api_secret
-            config.api_secret = req.api_secret
 
     config.broker_name = broker
 

@@ -68,10 +68,22 @@ class DhanRestClient:
             logger.warning(f"Dhan fundlimit fetch failed: {e}")
         return None
 
-    def get_ltp(self, exchange_segment, security_id):
-        # We need security_id for Dhan. Since we don't have a symbol mapper in this prototype,
-        # we will use yfinance for LTP as fallback, but this method is here for OMS.
-        pass
+    def get_ltp(self, exchange_segment: str, security_id: str) -> float:
+        """Fetch live LTP from Dhan Marketfeed API."""
+        url = f"{self.base_url}/marketfeed/ltp"
+        payload = {exchange_segment: [int(security_id)]}
+        try:
+            import requests
+            resp = requests.post(url, headers=self.headers, json=payload, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                if "data" in data and exchange_segment in data["data"]:
+                    return float(data["data"][exchange_segment].get(str(security_id), 0.0))
+            else:
+                logger.error(f"Dhan get_ltp failed: {resp.status_code} {resp.text}")
+        except Exception as e:
+            logger.error(f"Dhan get_ltp exception: {e}")
+        return 0.0
 
     @classmethod
     def _load_symbol_map(cls):
@@ -102,15 +114,11 @@ class DhanRestClient:
     def place_order(self, symbol, quantity, transaction_type):
         """
         Submit a REAL market order to Dhan (NSE equity, intraday).
-
-        Defense in depth: even though callers are already gated by
-        live_trading_enabled(), this refuses to hit the broker unless the
-        LIVE_TRADING env flag is explicitly 'true'. Returns the broker order id
-        on success, or None on any failure (so the caller does not record a fill).
         """
-        if os.getenv("LIVE_TRADING", "false").strip().lower() != "true":
+        from ..config import config
+        if config.paper_mode:
             logger.error(
-                "DhanRestClient.place_order called without LIVE_TRADING=true — refusing. "
+                "DhanRestClient.place_order called but Admin Panel Paper Mode is ON — refusing. "
                 "This is a safety backstop; no real order was sent."
             )
             return None
@@ -199,32 +207,55 @@ class DhanProvider(DataProvider):
     def __init__(self):
         # We also keep a mock provider as fallback for things Dhan doesn't provide
         self.fallback = MockProvider(seed=999)
-        self.rest_client = None
-        self._initialize_dhan()
+        self._rest_client = None
 
-    def _initialize_dhan(self):
-        client_code = os.getenv("DHAN_CLIENT_ID")
-        token_id = os.getenv("DHAN_ACCESS_TOKEN")
+    @property
+    def rest_client(self):
+        from ..config import config
+        client_code = config.api_key or os.getenv("DHAN_CLIENT_ID")
+        token_id = config.api_secret or os.getenv("DHAN_ACCESS_TOKEN")
         
         if not client_code or not token_id:
-            logger.warning("Dhan Credentials not found in .env. Dhan API will not work.")
-            return
-
-        try:
-            self.rest_client = DhanRestClient(client_code, token_id)
-            # Test connection
-            limits = self.rest_client.get_fund_limit()
-            if limits is not None:
-                logger.info("Successfully initialized Dhan REST wrapper!")
-            else:
-                logger.error("Dhan API returned error during init.")
-                self.rest_client = None
-        except Exception as e:
-            logger.error(f"Failed to initialize Dhan API: {e}")
-            self.rest_client = None
+            return None
+            
+        if self._rest_client is None or self._rest_client.client_id != client_code or self._rest_client.token != token_id:
+            try:
+                self._rest_client = DhanRestClient(client_code, token_id)
+                
+                limits = self._rest_client.get_fund_limit()
+                if limits is not None:
+                    logger.info("Successfully initialized Dhan REST wrapper!")
+                else:
+                    logger.error("Dhan API returned error during init.")
+                    self._rest_client = None
+            except Exception as e:
+                logger.error(f"Failed to initialize Dhan API: {e}")
+                self._rest_client = None
+                
+        return self._rest_client
 
     def get_quote(self, symbol: str) -> Quote:
-        # Use yfinance for Quotes — provides REAL market data with actual change%.
+        # 1. LIVE DATA: Fetch real-time price from Dhan Native API
+        rc = self.rest_client
+        
+        if rc is not None:
+            try:
+                raw_sym = symbol.upper().replace(".NS", "")
+                sec_id = rc.get_security_id(raw_sym)
+                if sec_id:
+                    ltp = rc.get_ltp("NSE_EQ", sec_id)
+                    if ltp and float(ltp) > 0:
+                        return Quote(
+                            symbol=symbol.upper(),
+                            ltp=float(ltp),
+                            change_pct=0.0,
+                            volume=0,
+                            ts=datetime.now(timezone.utc)
+                        )
+            except Exception as e:
+                logger.warning(f"Dhan native get_ltp failed for {symbol}: {e}")
+
+        # 2. FALLBACK: Use yfinance (15 min delayed)
         try:
             from ..yf_cache import get_safe_quote
             q = get_safe_quote(symbol)

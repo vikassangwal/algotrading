@@ -22,6 +22,12 @@ class BrokerFactory:
                 client_id=kwargs.get("api_key"),
                 access_token=kwargs.get("api_secret")
             )
+        elif broker_name == "kotak_neo":
+            from app.brokers.kotak_broker import KotakBroker
+            return KotakBroker(
+                api_key=kwargs.get("api_key"),
+                api_secret=kwargs.get("api_secret")
+            )
         elif broker_name == "mock" or not broker_name:
             return MockBroker(starting_capital=kwargs.get("capital", 1000000.0))
         else:

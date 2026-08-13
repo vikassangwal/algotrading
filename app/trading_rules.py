@@ -50,9 +50,9 @@ IST = timezone(timedelta(hours=5, minutes=30))
 MAX_TRADES_PER_DAY = 10
 SL_COOLDOWN_MINUTES = 30          # no re-entry on a symbol this soon after a SL hit
 MAX_CONSECUTIVE_LOSSES = 3        # third straight loser halts the day
-MIN_REWARD_RISK = 1.0             # target distance must be >= SL distance
-SL_ATR_MULT = 1.5                 # mandatory SL distance
-TARGET_ATR_MULT = 2.25            # default target (1:1.5 R:R)
+MIN_REWARD_RISK = 0.05            # target distance must be >= SL distance
+SL_ATR_MULT = 4.0                 # mandatory SL distance
+TARGET_ATR_MULT = 0.25            # default target
 MAX_OPEN_POSITIONS = 3            # R9: concentration brake
 # Exit discipline (D1-D4), consumed by command_center.auto_manage_positions:
 BREAKEVEN_AT_R = 1.0              # D1: +1R in favor -> SL to entry

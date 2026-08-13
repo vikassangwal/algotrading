@@ -44,6 +44,10 @@ def make_provider(broker: BrokerName) -> DataProvider:
         # Real Dhan provider (yfinance quotes + gated live order routing).
         from .dhan_provider import DhanProvider
         return DhanProvider()
+    if broker == BrokerName.KOTAK_NEO:
+        # Real Kotak provider.
+        from .kotak_provider import KotakProvider
+        return KotakProvider()
     return {
         BrokerName.MOCK: MockProvider,
         BrokerName.ZERODHA: ZerodhaProvider,

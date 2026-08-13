@@ -75,19 +75,19 @@ class AICompositeEngine:
 
         if action in ["Strong Buy", "Buy"]:
             entry = last_close
-            sl = entry - (atr * 1.5)
-            t1 = entry + (atr * 1.5)
-            t2 = entry + (atr * 3)
+            sl = entry - (atr * 4.0)
+            t1 = entry + (atr * 0.25)
+            t2 = entry + (atr * 0.5)
         elif action in ["Strong Sell", "Sell"]:
             entry = last_close
-            sl = entry + (atr * 1.5)
-            t1 = entry - (atr * 1.5)
-            t2 = entry - (atr * 3)
+            sl = entry + (atr * 4.0)
+            t1 = entry - (atr * 0.25)
+            t2 = entry - (atr * 0.5)
         else:
             entry = last_close
-            sl = last_close - atr
-            t1 = last_close + atr
-            t2 = last_close + (atr * 2)
+            sl = last_close - (atr * 4.0)
+            t1 = last_close + (atr * 0.25)
+            t2 = last_close + (atr * 0.5)
 
         return {
             "action": action,
