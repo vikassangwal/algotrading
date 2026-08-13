@@ -12,6 +12,7 @@ from .candlestick_engine import CandlestickEngine
 from .volume_profile_engine import VolumeProfileEngine
 from .quant_engine import QuantEngine
 from .ultra_quant_engine import UltraQuantEngine
+from .mtf_correlation_engine import MTFCorrelationEngine
 logger = logging.getLogger("elco.module.technical.master")
 
 class TechnicalModule(AnalysisModule):
@@ -21,6 +22,19 @@ class TechnicalModule(AnalysisModule):
         try:
             # Fetch 1D data
             candles_1d = self.provider.get_candles(symbol, timeframe="1d", count=250)
+            
+            # Fetch 15m data for MTF Analysis (wrap in try-except in case yfinance fails for intraday)
+            try:
+                candles_15m = self.provider.get_candles(symbol, timeframe="15m", count=250)
+            except Exception:
+                candles_15m = []
+                
+            # Fetch Benchmark (NIFTY 50) data for Correlation
+            try:
+                candles_bench = self.provider.get_candles("^NSEI", timeframe="1d", count=250)
+            except Exception:
+                candles_bench = []
+                
         except Exception as e:
             logger.error(f"Failed to fetch candles for {symbol}: {e}")
             return ModuleSignal(self.name, 0.0, 0.0, ["Failed to fetch market data."])
@@ -32,6 +46,16 @@ class TechnicalModule(AnalysisModule):
             'open': c.open, 'high': c.high, 'low': c.low, 'close': c.close,
             'volume': getattr(c, 'volume', 0)
         } for c in candles_1d])
+        
+        df_15m = pd.DataFrame([{
+            'open': c.open, 'high': c.high, 'low': c.low, 'close': c.close,
+            'volume': getattr(c, 'volume', 0)
+        } for c in candles_15m]) if candles_15m else None
+        
+        df_bench = pd.DataFrame([{
+            'open': c.open, 'high': c.high, 'low': c.low, 'close': c.close,
+            'volume': getattr(c, 'volume', 0)
+        } for c in candles_bench]) if candles_bench else None
 
         reasons = []
         total_score = 0.0
@@ -79,6 +103,14 @@ class TechnicalModule(AnalysisModule):
             # Overwrite final probability score with Monte Carlo average if it exists
             mc_prob = ultra_data.get('monte_carlo_win_prob', 50)
             composite_data['probability_pct'] = int(round((composite_data['probability_pct'] + mc_prob) / 2))
+            
+        # Detect MTF and Correlation
+        mtf_engine = MTFCorrelationEngine(df_1d, df_15m, df_bench)
+        mtf_data = mtf_engine.analyze()
+        if mtf_data:
+            reasons.append(f"Fractal Alignment: {mtf_data.get('mtf_alignment', 'Unknown')}")
+            reasons.append(f"Macro Correlation: {mtf_data.get('correlation_vs_benchmark', 'Unknown')}")
+            reasons.append(f"Smart Money Factor: {mtf_data.get('relative_strength', 'Unknown')}")
         
         # Combine patterns and ICT
         all_price_action = patterns_found + ict_signals + candle_signals
