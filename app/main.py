@@ -192,6 +192,13 @@ def _get_regime_engine():
         _regime_engine = MarketRegimeEngine(provider)
     return _regime_engine
 
+@app.get("/")
+def root():
+    return {"status": "ELCO AI Engine is Running", "version": "2.1.0"}
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 @app.on_event("startup")
 def _start_position_monitor():
