@@ -123,9 +123,9 @@ class AppConfig(BaseModel):
     paper_mode: bool = True
     
     # Broker API Credentials
-    broker_name: str = "mock" # options: mock, zerodha, upstox, angelone, fyers
-    api_key: str = ""
-    api_secret: str = ""
+    broker_name: str = "kotak_neo"
+    api_key: str = "+919509374991,X08WI,258008,7F7MKHWNW7CETUB2YYJPD6LVPA"
+    api_secret: str = "ed544c68-dcb3-48cb-8d2d-9fde7ed71ca7"
 
     api_keys: List[ApiKeyEntry] = Field(default_factory=list)
     
