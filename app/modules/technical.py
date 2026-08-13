@@ -11,6 +11,7 @@ from .ict_engine import ICTEngine
 from .candlestick_engine import CandlestickEngine
 from .volume_profile_engine import VolumeProfileEngine
 from .quant_engine import QuantEngine
+from .ultra_quant_engine import UltraQuantEngine
 logger = logging.getLogger("elco.module.technical.master")
 
 class TechnicalModule(AnalysisModule):
@@ -65,6 +66,19 @@ class TechnicalModule(AnalysisModule):
         if quant_data:
             reasons.append(f"Market Structure: {quant_data.get('market_structure', 'Unknown')}")
             reasons.append(f"Volatility Regime: {quant_data.get('volatility_regime', 'Normal')}")
+            
+        # Detect Ultra-Advanced Quant (FFT, Monte Carlo, Kelly, ML)
+        ultra_engine = UltraQuantEngine(df_1d)
+        ultra_data = ultra_engine.analyze()
+        if ultra_data:
+            reasons.append(f"Machine Learning Forecast: {ultra_data.get('ml_prediction')}")
+            reasons.append(f"Monte Carlo Probability (Next 5 Days): {ultra_data.get('monte_carlo_win_prob')}% Win Rate")
+            reasons.append(f"FFT Cycle Prediction: {ultra_data.get('fft_cycle')}")
+            reasons.append(f"Microstructure Volume Delta: {ultra_data.get('volume_delta_proxy')}")
+            reasons.append(f"Optimal Kelly Position Size: Risk {ultra_data.get('recommended_kelly_pct')}% of Capital")
+            # Overwrite final probability score with Monte Carlo average if it exists
+            mc_prob = ultra_data.get('monte_carlo_win_prob', 50)
+            composite_data['probability_pct'] = int(round((composite_data['probability_pct'] + mc_prob) / 2))
         
         # Combine patterns and ICT
         all_price_action = patterns_found + ict_signals + candle_signals
