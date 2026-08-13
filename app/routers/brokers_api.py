@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import logging
 import os
 from sqlalchemy import Column, String, Boolean
-from ..db import Base, db_engine, SessionLocal
+from ..db import Base, engine, SessionLocal
 from ..config import config, BrokerName
 
 logger = logging.getLogger("elco.api.brokers")
@@ -24,7 +24,7 @@ class BrokerConnection(Base):
 
 def _ensure_table_and_restore():
     try:
-        Base.metadata.create_all(bind=db_engine, tables=[BrokerConnection.__table__])
+        Base.metadata.create_all(bind=engine, tables=[BrokerConnection.__table__])
         db = SessionLocal()
         try:
             active_row = db.query(BrokerConnection).filter(BrokerConnection.is_active == True).first()
