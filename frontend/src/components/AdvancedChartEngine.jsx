@@ -600,6 +600,11 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
               style={styles.symbolInput}
               placeholder="Symbol"
             />
+            <div style={{display: 'flex', gap: '4px', marginLeft: '8px'}}>
+              <button style={{...styles.button, padding: '4px 6px'}} onClick={() => setSymbol('RELIANCE.NS')}>REL</button>
+              <button style={{...styles.button, padding: '4px 6px'}} onClick={() => setSymbol('^NSEI')}>NIFTY</button>
+              <button style={{...styles.button, padding: '4px 6px'}} onClick={() => setSymbol('^NSEBANK')}>BANK</button>
+            </div>
           </div>
           
           <div style={styles.timeframeSelector}>
