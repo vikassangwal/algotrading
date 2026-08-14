@@ -239,7 +239,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
 
   // Manage Chart Instance
   useEffect(() => {
-    if (showFullTradingView) return;
     if (!chartContainerRef.current) return;
     if (data.length === 0) return;
 
@@ -282,10 +281,14 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
 
     markersRef.current = createSeriesMarkers(seriesRef.current, []);
 
-    const volData = data.map(d => ({ 
-      time: d.time, value: d.volume || 0, color: d.close > d.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)' 
-    }));
-    volumeSeriesRef.current.setData(volData);
+    if (indicators.vol) {
+      const volData = data.map(d => ({ 
+        time: d.time, value: d.volume || 0, color: d.close > d.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)' 
+      }));
+      volumeSeriesRef.current.setData(volData);
+    } else {
+      volumeSeriesRef.current.setData([]);
+    }
     
     // Update Indicators
     const updateIndicator = (key, show, createFn, dataFn, options) => {
@@ -302,6 +305,36 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     updateIndicator('sma20', indicators.sma20, null, () => calculateSMA(data, 20), { color: '#ffeb3b', lineWidth: 2, title: 'SMA 20' });
     updateIndicator('sma50', indicators.sma50, null, () => calculateSMA(data, 50), { color: '#ff9800', lineWidth: 2, title: 'SMA 50' });
     updateIndicator('ema9', indicators.ema9, null, () => calculateEMA(data, 9), { color: '#00bcd4', lineWidth: 2, title: 'EMA 9' });
+    if (indicators.rsi) {
+        if(!indRefs.current.rsi) indRefs.current.rsi = chart.addSeries(LineSeries, { color: '#9c27b0', lineWidth: 2, priceScaleId: 'left', title: 'RSI' });
+        indRefs.current.rsi.setData(calculateRSI(data));
+    } else if(indRefs.current.rsi) { chart.removeSeries(indRefs.current.rsi); indRefs.current.rsi = null; }
+
+    if (indicators.macd) {
+        if(!indRefs.current.macdLine) {
+            indRefs.current.macdLine = chart.addSeries(LineSeries, { color: '#2196f3', lineWidth: 2, priceScaleId: 'left', title: 'MACD' });
+            indRefs.current.macdSignal = chart.addSeries(LineSeries, { color: '#f44336', lineWidth: 2, priceScaleId: 'left', title: 'Signal' });
+        }
+        const { macdLine, macdSignal } = calculateMACD(data);
+        indRefs.current.macdLine.setData(macdLine);
+        indRefs.current.macdSignal.setData(macdSignal);
+    } else if(indRefs.current.macdLine) { chart.removeSeries(indRefs.current.macdLine); chart.removeSeries(indRefs.current.macdSignal); indRefs.current.macdLine = indRefs.current.macdSignal = null; }
+
+    if (indicators.rsi) {
+        if(!indRefs.current.rsi) indRefs.current.rsi = chart.addSeries(LineSeries, { color: '#9c27b0', lineWidth: 2, priceScaleId: 'left', title: 'RSI' });
+        indRefs.current.rsi.setData(calculateRSI(data));
+    } else if(indRefs.current.rsi) { chart.removeSeries(indRefs.current.rsi); indRefs.current.rsi = null; }
+
+    if (indicators.macd) {
+        if(!indRefs.current.macdLine) {
+            indRefs.current.macdLine = chart.addSeries(LineSeries, { color: '#2196f3', lineWidth: 2, priceScaleId: 'left', title: 'MACD' });
+            indRefs.current.macdSignal = chart.addSeries(LineSeries, { color: '#f44336', lineWidth: 2, priceScaleId: 'left', title: 'Signal' });
+        }
+        const { macdLine, macdSignal } = calculateMACD(data);
+        indRefs.current.macdLine.setData(macdLine);
+        indRefs.current.macdSignal.setData(macdSignal);
+    } else if(indRefs.current.macdLine) { chart.removeSeries(indRefs.current.macdLine); chart.removeSeries(indRefs.current.macdSignal); indRefs.current.macdLine = indRefs.current.macdSignal = null; }
+
     
     if (indRefs.current.bbUpper) {
       chart.removeSeries(indRefs.current.bbUpper);
@@ -402,7 +435,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [data, activeChartType, indicators, aiAnalysis, showAiPanel, showFullTradingView]);
+  }, [data, activeChartType, indicators, aiAnalysis, showAiPanel]);
 
   useEffect(() => {
     if (data.length > 0) {
@@ -627,22 +660,14 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           
           {/* Indicators Toggle */}
           <div style={styles.indicatorSelector}>
-            <button 
-              style={{...styles.button, ...(showFullTradingView ? styles.activeButton : {})}} 
-              onClick={() => setShowFullTradingView(!showFullTradingView)}
-            >
-              📊 Full TV (All Indicators)
-            </button>
-            
-            {!showFullTradingView && (
-              <>
-                <button style={{...styles.button, ...(indicators.sma20 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma20')}>SMA 20</button>
-                <button style={{...styles.button, ...(indicators.sma50 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma50')}>SMA 50</button>
-                <button style={{...styles.button, ...(indicators.ema9 ? styles.activeButton : {})}} onClick={() => toggleIndicator('ema9')}>EMA 9</button>
-                <button style={{...styles.button, ...(indicators.bb ? styles.activeButton : {})}} onClick={() => toggleIndicator('bb')}>BB Bands</button>
-                <button style={{...styles.button, ...(indicators.sr ? styles.activeButton : {})}} onClick={() => toggleIndicator('sr')}>Supp/Res</button>
-              </>
-            )}
+            <button style={{...styles.button, ...(indicators.vol ? styles.activeButton : {})}} onClick={() => toggleIndicator('vol')}>Volume</button>
+            <button style={{...styles.button, ...(indicators.rsi ? styles.activeButton : {})}} onClick={() => toggleIndicator('rsi')}>RSI</button>
+            <button style={{...styles.button, ...(indicators.macd ? styles.activeButton : {})}} onClick={() => toggleIndicator('macd')}>MACD</button>
+            <button style={{...styles.button, ...(indicators.sma20 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma20')}>SMA 20</button>
+            <button style={{...styles.button, ...(indicators.sma50 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma50')}>SMA 50</button>
+            <button style={{...styles.button, ...(indicators.ema9 ? styles.activeButton : {})}} onClick={() => toggleIndicator('ema9')}>EMA 9</button>
+            <button style={{...styles.button, ...(indicators.bb ? styles.activeButton : {})}} onClick={() => toggleIndicator('bb')}>BB Bands</button>
+            <button style={{...styles.button, ...(indicators.sr ? styles.activeButton : {})}} onClick={() => toggleIndicator('sr')}>Supp/Res</button>
             
             <button style={{...styles.button, ...(showDomPanel ? styles.activeDomButton : styles.domButton)}} onClick={() => setShowDomPanel(!showDomPanel)}>
               📊 Order Book
@@ -692,6 +717,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           ))}
           {lastQuote && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginLeft: '12px' }}>
+              <span style={{ color: '#787b86', fontWeight: 600 }}>{symbol.toUpperCase().replace('.NS', '')}</span>
               <span style={{ fontWeight: 600 }}>₹{lastQuote.price?.toFixed(2)}</span>
               <span style={{ color: (lastQuote.change_pct ?? 0) >= 0 ? '#26a69a' : '#ef5350' }}>
                 {(lastQuote.change_pct ?? 0) >= 0 ? '+' : ''}{lastQuote.change_pct}%
@@ -702,22 +728,12 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       </div>
 
       <div style={styles.chartArea}>
-        {showFullTradingView ? (
-          <iframe
-            title="TradingView"
-            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_123&symbol=NSE:${symbol.replace('.NS', '').replace('^NSEI', 'NIFTY').replace('^NSEBANK', 'BANKNIFTY')}&interval=${timeframe === '1d' ? 'D' : timeframe.replace('m', '')}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=Asia/Kolkata`}
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-        ) : (
-          <>
-            {loading && data.length === 0 && (
-               <div style={styles.loadingOverlay}>Loading chart data...</div>
-            )}
-            <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
-            {renderAiPanel()}
-            {renderDomPanel()}
-          </>
+        {loading && data.length === 0 && (
+           <div style={styles.loadingOverlay}>Loading chart data...</div>
         )}
+        <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
+        {renderAiPanel()}
+        {renderDomPanel()}
       </div>
     </div>
   );
