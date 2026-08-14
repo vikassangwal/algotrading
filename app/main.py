@@ -1306,10 +1306,17 @@ def command_center(symbol: str):
     per-analysis breakdown, and whether a best setup is auto-tradeable."""
     from .command_center import build_command_center
     try:
-        # Ensure correct suffix for Indian stocks if missing
-        ticker_symbol = symbol.upper()
-        if not ticker_symbol.endswith(".NS") and not ticker_symbol.endswith(".BO") and not ticker_symbol.startswith("^"):
+        import urllib.parse
+        raw_sym = urllib.parse.unquote(symbol).strip().upper()
+        clean_sym = raw_sym.replace(".NS", "").replace(".BO", "").replace(" ", "")
+        
+        ticker_symbol = INDEX_SYMBOL_MAP.get(clean_sym, raw_sym)
+        if clean_sym in INDEX_SYMBOL_MAP:
+            ticker_symbol = INDEX_SYMBOL_MAP[clean_sym]
+            
+        if not ticker_symbol.endswith(".NS") and not ticker_symbol.endswith(".BO") and not ticker_symbol.startswith("^") and "=" not in ticker_symbol:
             ticker_symbol = f"{ticker_symbol}.NS"
+            
         return build_command_center(ticker_symbol, engine, provider)
     except Exception as e:
         logging.getLogger("elco.api").error(f"Command center failed for {symbol}: {e}")
@@ -1748,8 +1755,14 @@ def get_full_analysis(symbol: str):
     import time, urllib.parse
     raw_sym = urllib.parse.unquote(symbol).strip().upper()
     
+    # Strip suffixes that frontend might pass
+    clean_sym = raw_sym.replace(".NS", "").replace(".BO", "").replace(" ", "")
+    
     # Resolve index aliases
-    ticker = INDEX_SYMBOL_MAP.get(raw_sym, raw_sym)
+    ticker = INDEX_SYMBOL_MAP.get(clean_sym, raw_sym)
+    if clean_sym in INDEX_SYMBOL_MAP:
+        ticker = INDEX_SYMBOL_MAP[clean_sym]
+    
     if not ticker.endswith(".NS") and not ticker.endswith(".BO") and not ticker.startswith("^") and "=" not in ticker:
         ticker = f"{ticker}.NS"
 
