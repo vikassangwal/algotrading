@@ -1,4 +1,6 @@
-import pandas as pd
+import os
+
+code = """import pandas as pd
 import numpy as np
 import logging
 
@@ -20,12 +22,12 @@ logger = logging.getLogger("elco.module.ai_composite")
 
 
 class AICompositeEngine:
-    """Composite technical scorer.
+    \"\"\"Composite technical scorer.
 
     Every sub-score is derived from a REAL indicator on the supplied OHLCV
     frame - no random numbers. Scores are 0-100 where 50 is neutral, >50 is
     bullish, <50 is bearish.
-    """
+    \"\"\"
 
     def __init__(self, df: pd.DataFrame, options_data: dict = None, order_flow_data: dict = None):
         self.df = df
@@ -70,13 +72,13 @@ class AICompositeEngine:
         probability_pct = int(round(composite_raw))
         probability_pct = max(0, min(100, probability_pct))
 
-        if probability_pct >= 85:
+        if probability_pct >= 80:
             action = "Strong Buy"
-        elif probability_pct >= 75:
+        elif probability_pct >= 60:
             action = "Buy"
-        elif probability_pct <= 15:
+        elif probability_pct <= 20:
             action = "Strong Sell"
-        elif probability_pct <= 25:
+        elif probability_pct <= 40:
             action = "Sell"
         else:
             action = "Hold"
@@ -91,19 +93,19 @@ class AICompositeEngine:
 
         if action in ["Strong Buy", "Buy"]:
             entry = last_close
-            sl = entry - (atr * 1.5)
-            t1 = entry + (atr * 1.5)
-            t2 = entry + (atr * 3.0)
+            sl = entry - (atr * 4.0)
+            t1 = entry + (atr * 0.25)
+            t2 = entry + (atr * 0.5)
         elif action in ["Strong Sell", "Sell"]:
             entry = last_close
-            sl = entry + (atr * 1.5)
-            t1 = entry - (atr * 1.5)
-            t2 = entry - (atr * 3.0)
+            sl = entry + (atr * 4.0)
+            t1 = entry - (atr * 0.25)
+            t2 = entry - (atr * 0.5)
         else:
             entry = last_close
-            sl = last_close - (atr * 1.5)
-            t1 = last_close + (atr * 1.5)
-            t2 = last_close + (atr * 3.0)
+            sl = last_close - (atr * 4.0)
+            t1 = last_close + (atr * 0.25)
+            t2 = last_close + (atr * 0.5)
 
         return {
             "action": action,
@@ -303,154 +305,7 @@ class AICompositeEngine:
                 "entry": 0.0, "stop_loss": 0.0, "target_1": 0.0, "target_2": 0.0
             },
         }
+"""
 
-class VectorizedAIEngine:
-    """Vectorized version of AICompositeEngine for high-performance backtesting."""
-    def __init__(self, df: pd.DataFrame):
-        self.df = df.copy()
-
-    def _atr(self, period: int = 14) -> pd.Series:
-        high, low, close = self.df['high'], self.df['low'], self.df['close']
-        tr1 = high - low
-        tr2 = (high - close.shift(1)).abs()
-        tr3 = (low - close.shift(1)).abs()
-        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-        atr = tr.rolling(period).mean()
-        return atr.bfill().fillna(close * 0.01)
-
-    def calculate_all(self) -> pd.DataFrame:
-        df = self.df
-        close = df['close']
-        
-        # 1. Trend
-        ema20 = calculate_ema(close, 20)
-        ema50 = calculate_ema(close, 50)
-        ema200 = calculate_ema(close, 200)
-        trend = pd.Series(50.0, index=df.index)
-        trend += np.where(close > ema20, 8, -8)
-        trend += np.where(ema20 > ema50, 8, -8)
-        trend += np.where(ema50 > ema200, 9, -9)
-        try:
-            st = calculate_supertrend(df)
-            trend += np.where(st['Direction'] > 0, 15, -15)
-        except:
-            pass
-        trend_score = trend.clip(0, 100)
-
-        # 2. Momentum
-        rsi = calculate_rsi(close, 14).fillna(50.0)
-        roc = (close / close.shift(10) - 1.0) * 100.0
-        roc_score = 50.0 + (roc * 2.5).clip(-25.0, 25.0).fillna(0)
-        momentum_score = (0.6 * rsi + 0.4 * roc_score).clip(0, 100)
-
-        # 3. Volume
-        vol = pd.Series(50.0, index=df.index)
-        if 'volume' in df.columns and df['volume'].sum() > 0:
-            obv = calculate_obv(df)
-            recent_obv = obv - obv.shift(5)
-            vol += np.where(recent_obv > 0, 15, -15)
-            avg_vol = df['volume'].rolling(20).mean()
-            ratio = df['volume'] / avg_vol
-            vol += ((ratio - 1.0) * 15.0).clip(-15.0, 15.0).fillna(0)
-        volume_score = vol.clip(0, 100)
-
-        # 4. Volatility
-        atr = self._atr()
-        atr_pct = (atr / close) * 100.0
-        volatility_score = (90.0 - (atr_pct * 15.0)).clip(10.0, 95.0)
-
-        # 5. Smart Money
-        if 'volume' in df.columns and df['volume'].sum() > 0:
-            mfi = calculate_mfi(df, 14).fillna(50.0)
-            smart_money_score = mfi.clip(0, 100)
-        else:
-            smart_money_score = pd.Series(50.0, index=df.index)
-
-        # 6. Options (Dummy 50 for mock)
-        options_score = pd.Series(50.0, index=df.index)
-
-        # 7. MACD
-        try:
-            macd_df = calculate_macd(close)
-            macd_s = pd.Series(50.0, index=df.index)
-            macd_s += np.where(macd_df['Histogram'] > 0, 15, -15)
-            macd_s += np.where(macd_df['MACD'] > 0, 10, -10)
-            macd_score = macd_s.clip(0, 100)
-        except:
-            macd_score = pd.Series(50.0, index=df.index)
-
-        # 8. ADX
-        try:
-            adx_df = calculate_adx(df)
-            adx_s = pd.Series(50.0, index=df.index)
-            adx_val = adx_df['ADX']
-            adx_add = np.minimum(50.0, adx_val * 1.5)
-            adx_s += np.where(adx_df['+DI'] > adx_df['-DI'], adx_add, -adx_add)
-            adx_score = adx_s.clip(0, 100).fillna(50.0)
-        except:
-            adx_score = pd.Series(50.0, index=df.index)
-
-        # 9. Bollinger
-        try:
-            bb = calculate_bollinger_bands(close)
-            pos = (close - bb['Lower_Band']) / (bb['Upper_Band'] - bb['Lower_Band'])
-            bb_score = (50.0 + (pos - 0.5) * 50.0).clip(0, 100).fillna(50.0)
-        except:
-            bb_score = pd.Series(50.0, index=df.index)
-
-        # 10. Stochastic
-        try:
-            stoch = calculate_stochastic_oscillator(df)
-            k = stoch['%K']
-            st_score = k.copy()
-            st_score = np.where(k < 20, 80.0, st_score)
-            st_score = np.where(k > 80, 20.0, st_score)
-            stochastic_score = pd.Series(st_score, index=df.index).clip(0, 100).fillna(50.0)
-        except:
-            stochastic_score = pd.Series(50.0, index=df.index)
-
-        # 11. VWAP
-        if 'volume' in df.columns and df['volume'].sum() > 0:
-            try:
-                vwap = calculate_vwap(df)
-                vwap_score = pd.Series(np.where(close > vwap, 70.0, 30.0), index=df.index).fillna(50.0)
-            except:
-                vwap_score = pd.Series(50.0, index=df.index)
-        else:
-            vwap_score = pd.Series(50.0, index=df.index)
-
-        # Composite
-        composite_raw = (
-            trend_score * 0.15 + momentum_score * 0.10 + volume_score * 0.10 +
-            smart_money_score * 0.10 + volatility_score * 0.05 + options_score * 0.10 +
-            macd_score * 0.10 + adx_score * 0.10 + bb_score * 0.10 +
-            stochastic_score * 0.05 + vwap_score * 0.05
-        )
-
-        prob_pct = composite_raw.round().clip(0, 100).fillna(50).astype(int)
-        
-        # Action logic based on the user's extreme thresholds
-        conditions = [
-            prob_pct >= 70,
-            prob_pct >= 60,
-            prob_pct <= 30,
-            prob_pct <= 40
-        ]
-        choices = ["Strong Buy", "Buy", "Strong Sell", "Sell"]
-        action = np.select(conditions, choices, default="Hold")
-        
-        df['probability_pct'] = prob_pct
-        df['action'] = action
-        
-        # Stops and targets
-        df['atr'] = atr
-        df['sl'] = np.where(np.isin(action, ["Strong Buy", "Buy"]), close - (atr * 1.5),
-                   np.where(np.isin(action, ["Strong Sell", "Sell"]), close + (atr * 1.5), close - (atr * 1.5)))
-        
-        df['target_1'] = np.where(np.isin(action, ["Strong Buy", "Buy"]), close + (atr * 1.5),
-                         np.where(np.isin(action, ["Strong Sell", "Sell"]), close - (atr * 1.5), close + (atr * 1.5)))
-                         
-        df['target_2'] = np.where(np.isin(action, ["Strong Buy", "Buy"]), close + (atr * 3.0),
-                         np.where(np.isin(action, ["Strong Sell", "Sell"]), close - (atr * 3.0), close + (atr * 3.0)))
-                         
-        return df
+with open("app/modules/ai_composite_engine.py", "w", encoding="utf-8") as f:
+    f.write(code)

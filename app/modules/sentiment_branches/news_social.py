@@ -73,12 +73,12 @@ class NewsSocialEngine:
                 news_polarity = self._fetch_yfinance_news_sentiment()
 
             if news_polarity is not None:
-                if news_polarity > 0.5:
-                    score += 0.25
+                if news_polarity > 0.7:
+                    score += 0.5
                     reasons.append(f"News Sentiment: Highly Positive news flow (score: {news_polarity:.2f}).")
-                elif news_polarity < -0.5:
-                    score -= 0.25
-                    reasons.append(f"News Sentiment: Highly Negative news flow (score: {news_polarity:.2f}).")
+                elif news_polarity < -0.7:
+                    score -= 1.0  # Heavy penalty
+                    reasons.append(f"HALT SIGNAL: Extremely Negative news / Macro event detected (score: {news_polarity:.2f}).")
                 elif news_polarity > 0.1:
                     score += 0.1
                     reasons.append(f"News Sentiment: Mildly positive news flow (score: {news_polarity:.2f}).")

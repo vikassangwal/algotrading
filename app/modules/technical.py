@@ -43,6 +43,7 @@ class TechnicalModule(AnalysisModule):
             return ModuleSignal(self.name, 0.0, 0.1, ["Insufficient data for AI Composite Score."])
 
         df_1d = pd.DataFrame([{
+            'time': int(c.ts.timestamp()) if hasattr(c, 'ts') else 0,
             'open': c.open, 'high': c.high, 'low': c.low, 'close': c.close,
             'volume': getattr(c, 'volume', 0)
         } for c in candles_1d])
@@ -68,7 +69,8 @@ class TechnicalModule(AnalysisModule):
         
         # Detect Patterns
         pattern_engine = PatternEngine(df_1d)
-        patterns_found = pattern_engine.analyze()
+        patterns_found, pattern_lines = pattern_engine.analyze()
+        composite_data['chart_lines'] = pattern_lines
         
         # Detect ICT / SMC Concepts
         ict_engine = ICTEngine(df_1d)

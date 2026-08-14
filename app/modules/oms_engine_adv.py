@@ -57,6 +57,32 @@ class BracketOrder:
         )
         self.status = OrderStatus.PENDING
         
+class IcebergOrder:
+    """
+    Iceberg order splits a large quantity into smaller chunks (display quantity).
+    """
+    def __init__(self, symbol: str, total_quantity: float, side: str, order_type: str, price: Optional[float], display_quantity: float):
+        self.iceberg_id = str(uuid.uuid4())
+        self.symbol = symbol
+        self.total_quantity = total_quantity
+        self.side = side
+        self.order_type = order_type
+        self.price = price
+        self.display_quantity = display_quantity
+        self.filled_quantity = 0.0
+        self.active_child_order: Optional[Order] = None
+        self.status = OrderStatus.PENDING
+
+    def get_next_child_order(self) -> Optional[Order]:
+        remaining = self.total_quantity - self.filled_quantity
+        if remaining <= 0:
+            return None
+        qty = min(remaining, self.display_quantity)
+        self.active_child_order = Order(
+            self.symbol, qty, self.side, self.order_type, self.price, parent_id=self.iceberg_id
+        )
+        return self.active_child_order
+        
 class TrailingStopOrder(Order):
     """
     Trailing stop loss order.
@@ -137,6 +163,16 @@ class AdvancedOMSEngine:
         self.active_orders: Dict[str, Order] = {}
         self.bracket_orders: Dict[str, BracketOrder] = {}
         self.trailing_stops: Dict[str, TrailingStopOrder] = {}
+        self.iceberg_orders: Dict[str, IcebergOrder] = {}
+
+    def place_iceberg_order(self, symbol: str, total_quantity: float, side: str, order_type: str, price: float, display_quantity: float) -> IcebergOrder:
+        iceberg = IcebergOrder(symbol, total_quantity, side, order_type, price, display_quantity)
+        self.iceberg_orders[iceberg.iceberg_id] = iceberg
+        child = iceberg.get_next_child_order()
+        if child:
+            self.active_orders[child.order_id] = child
+        print(f"Iceberg order placed. ID: {iceberg.iceberg_id}, Total: {total_quantity}, Display: {display_quantity}")
+        return iceberg
 
     def place_bracket_order(self, main_order: Order, take_profit_price: float, stop_loss_price: float) -> BracketOrder:
         bracket = BracketOrder(main_order, take_profit_price, stop_loss_price)
@@ -192,3 +228,16 @@ class AdvancedOMSEngine:
                 self.active_orders[bracket.take_profit_order.order_id] = bracket.take_profit_order
                 self.active_orders[bracket.stop_loss_order.order_id] = bracket.stop_loss_order
                 print(f"Main bracket order filled. Activated TP ({bracket.take_profit_order.order_id}) and SL ({bracket.stop_loss_order.order_id}).")
+
+            # Iceberg logic: if a child order fills, create the next one
+            if parent_id and parent_id in self.iceberg_orders:
+                iceberg = self.iceberg_orders[parent_id]
+                iceberg.filled_quantity += order.quantity
+                if iceberg.filled_quantity >= iceberg.total_quantity:
+                    iceberg.status = OrderStatus.FILLED
+                    print(f"Iceberg order {iceberg.iceberg_id} fully FILLED.")
+                else:
+                    next_child = iceberg.get_next_child_order()
+                    if next_child:
+                        self.active_orders[next_child.order_id] = next_child
+                        print(f"Iceberg {iceberg.iceberg_id} spawned next child order {next_child.order_id} for qty {next_child.quantity}.")

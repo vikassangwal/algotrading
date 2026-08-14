@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
+import os
 
-const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
+new_code = """import React, { useState, useEffect, useRef } from 'react';
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries } from 'lightweight-charts';
+
+const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\\/$/, '');
 
 const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [activeChartType, setActiveChartType] = useState('candlestick');
@@ -18,27 +20,9 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     sr: false
   });
   
+  // AI State
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [showAiPanel, setShowAiPanel] = useState(true);
-  const [showDomPanel, setShowDomPanel] = useState(false);
-  const [domData, setDomData] = useState({ bids: [], asks: [] });
-
-  // Simulate Live DOM (Level 2) Data
-  useEffect(() => {
-    if (!showDomPanel || !lastQuote || !lastQuote.price) return;
-    const interval = setInterval(() => {
-      const price = lastQuote.price;
-      const step = price > 1000 ? 0.5 : 0.05;
-      const bids = [];
-      const asks = [];
-      for (let i = 1; i <= 5; i++) {
-        bids.push({ price: price - (i * step), qty: Math.floor(Math.random() * 5000) + 500 });
-        asks.push({ price: price + (i * step), qty: Math.floor(Math.random() * 5000) + 500 });
-      }
-      setDomData({ bids, asks });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showDomPanel, lastQuote]);
 
   useEffect(() => {
     if (globalSymbol && globalSymbol !== symbol) {
@@ -56,10 +40,8 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const markersRef = useRef(null);
   const volumeSeriesRef = useRef(null);
   const lastCandleRef = useRef(null);
-  const aiLinesRef = useRef([]);
   
   // Indicator Refs
   const indRefs = useRef({
@@ -245,8 +227,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       seriesRef.current.setData(getLineData(data));
     }
 
-    markersRef.current = createSeriesMarkers(seriesRef.current, []);
-
     const volData = data.map(d => ({ 
       time: d.time, value: d.volume || 0, color: d.close > d.open ? 'rgba(38, 166, 154, 0.3)' : 'rgba(239, 83, 80, 0.3)' 
     }));
@@ -307,55 +287,22 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
 
     // Plot AI Signal Markers
-    if (aiAnalysis && markersRef.current && showAiPanel && data.length > 0) {
+    if (aiAnalysis && seriesRef.current && showAiPanel && data.length > 0) {
       const lastItem = data[data.length - 1];
       const action = aiAnalysis.action;
       if (action === 'STRONG BUY' || action === 'BUY') {
-        markersRef.current.setMarkers([{
+        seriesRef.current.setMarkers([{
           time: lastItem.time, position: 'belowBar', color: '#26a69a', shape: 'arrowUp', text: `AI: ${action}`
         }]);
       } else if (action === 'STRONG SELL' || action === 'SELL') {
-        markersRef.current.setMarkers([{
+        seriesRef.current.setMarkers([{
           time: lastItem.time, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown', text: `AI: ${action}`
         }]);
       } else {
-        markersRef.current.setMarkers([]);
+        seriesRef.current.setMarkers([]);
       }
-    } else if (markersRef.current) {
-        markersRef.current.setMarkers([]);
-    }
-
-    // Clear old AI lines
-    if (aiLinesRef.current) {
-      aiLinesRef.current.forEach(series => chart.removeSeries(series));
-      aiLinesRef.current = [];
-    }
-
-    // Draw new AI lines
-    if (aiAnalysis && showAiPanel && aiAnalysis.reasoning) {
-      const jsonReason = aiAnalysis.reasoning.find(r => r.startsWith('JSON_DATA:'));
-      if (jsonReason) {
-        try {
-          const parsed = JSON.parse(jsonReason.replace('JSON_DATA:', ''));
-          if (parsed.chart_lines && parsed.chart_lines.length > 0) {
-            parsed.chart_lines.forEach(lineObj => {
-               if (lineObj && lineObj.points) {
-                 const lineSeries = chart.addSeries(LineSeries, {
-                   color: lineObj.color || '#e040fb',
-                   lineWidth: lineObj.lineWidth || 2,
-                   lineStyle: lineObj.lineStyle || 0,
-                 });
-                 // lightweight-charts needs points sorted by time
-                 const sortedPoints = [...lineObj.points].sort((a, b) => a.time - b.time);
-                 lineSeries.setData(sortedPoints);
-                 aiLinesRef.current.push(lineSeries);
-               }
-            });
-          }
-        } catch (e) {
-          console.error("Failed to parse AI JSON Data", e);
-        }
-      }
+    } else if (seriesRef.current) {
+        seriesRef.current.setMarkers([]);
     }
 
     chart.timeScale().fitContent();
@@ -476,9 +423,8 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const renderAiPanel = () => {
     if (!showAiPanel || !aiAnalysis) return null;
     
-    // Extract top 3 reasons, skipping JSON_DATA
-    const cleanReasons = (aiAnalysis.reasoning || []).filter(r => !r.startsWith('JSON_DATA:'));
-    const reasons = cleanReasons.slice(0, 3);
+    // Extract top 3 reasons
+    const reasons = aiAnalysis.reasoning?.slice(0, 3) || [];
     
     // Estimate Confidence based on scores
     let highestConf = 0;
@@ -512,40 +458,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
               <li key={idx} style={styles.aiReasonItem}>{r}</li>
             ))}
           </ul>
-        </div>
-      </div>
-    );
-  };
-
-  const renderDomPanel = () => {
-    if (!showDomPanel) return null;
-    return (
-      <div style={styles.domPanel}>
-        <div style={styles.domHeader}>
-          <span>📊 Level 2 DOM (Order Flow)</span>
-          <button style={styles.closeBtn} onClick={() => setShowDomPanel(false)}>×</button>
-        </div>
-        <div style={styles.domContent}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b2b5be', fontSize: '11px', marginBottom: '4px' }}>
-            <span>BID QTY</span><span>PRICE</span><span>ASK QTY</span>
-          </div>
-          {domData.asks.slice().reverse().map((ask, i) => (
-            <div key={`ask-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
-              <span style={{ width: '33%', textAlign: 'left' }}>-</span>
-              <span style={{ width: '34%', textAlign: 'center', color: '#ef5350' }}>{ask.price.toFixed(2)}</span>
-              <span style={{ width: '33%', textAlign: 'right', color: '#ef5350' }}>{ask.qty}</span>
-            </div>
-          ))}
-          <div style={{ display: 'flex', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', margin: '6px 0', color: '#d1d4dc' }}>
-            {lastQuote?.price?.toFixed(2) || '---'}
-          </div>
-          {domData.bids.map((bid, i) => (
-            <div key={`bid-${i}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
-              <span style={{ width: '33%', textAlign: 'left', color: '#26a69a' }}>{bid.qty}</span>
-              <span style={{ width: '34%', textAlign: 'center', color: '#26a69a' }}>{bid.price.toFixed(2)}</span>
-              <span style={{ width: '33%', textAlign: 'right' }}>-</span>
-            </div>
-          ))}
         </div>
       </div>
     );
@@ -592,9 +504,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
             <button style={{...styles.button, ...(indicators.ema9 ? styles.activeButton : {})}} onClick={() => toggleIndicator('ema9')}>EMA 9</button>
             <button style={{...styles.button, ...(indicators.bb ? styles.activeButton : {})}} onClick={() => toggleIndicator('bb')}>BB Bands</button>
             <button style={{...styles.button, ...(indicators.sr ? styles.activeButton : {})}} onClick={() => toggleIndicator('sr')}>Supp/Res</button>
-            <button style={{...styles.button, ...(showDomPanel ? styles.activeDomButton : styles.domButton)}} onClick={() => setShowDomPanel(!showDomPanel)}>
-              📊 Order Book
-            </button>
             <button style={{...styles.button, ...(showAiPanel ? styles.activeAiButton : styles.aiButton)}} onClick={() => setShowAiPanel(!showAiPanel)}>
               🤖 AI Panel
             </button>
@@ -630,7 +539,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         )}
         <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
         {renderAiPanel()}
-        {renderDomPanel()}
       </div>
     </div>
   );
@@ -683,8 +591,6 @@ const styles = {
   activeButton: { backgroundColor: '#2962ff', color: '#ffffff', borderColor: '#2962ff' },
   aiButton: { backgroundColor: 'transparent', color: '#e040fb', border: '1px solid #e040fb' },
   activeAiButton: { backgroundColor: '#e040fb', color: '#ffffff', border: '1px solid #e040fb' },
-  domButton: { backgroundColor: 'transparent', color: '#ff9800', border: '1px solid #ff9800' },
-  activeDomButton: { backgroundColor: '#ff9800', color: '#ffffff', border: '1px solid #ff9800' },
   chartArea: { flex: 1, position: 'relative', backgroundColor: '#1e222d' },
   loadingOverlay: {
     position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
@@ -696,17 +602,6 @@ const styles = {
     border: '1px solid #2b313f', borderRadius: '6px', zIndex: 20,
     boxShadow: '0 8px 16px rgba(0,0,0,0.5)', overflow: 'hidden'
   },
-  domPanel: {
-    position: 'absolute', top: '16px', right: '16px', width: '240px',
-    backgroundColor: 'rgba(19, 23, 34, 0.85)', backdropFilter: 'blur(4px)',
-    border: '1px solid #2b313f', borderRadius: '6px', zIndex: 20,
-    boxShadow: '0 8px 16px rgba(0,0,0,0.5)', overflow: 'hidden'
-  },
-  domHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#2b313f', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold'
-  },
-  domContent: { padding: '8px 12px' },
   aiHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: '#2b313f', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold'
@@ -723,3 +618,7 @@ const styles = {
 };
 
 export default AdvancedChartEngine;
+"""
+
+with open('c:/Users/HP/Downloads/algo by vk/algotrading/frontend/src/components/AdvancedChartEngine.jsx', 'w', encoding='utf-8') as f:
+    f.write(new_code)

@@ -39,8 +39,12 @@ _YF_INDEX_MAP = {
 def _yf_symbol(symbol: str) -> str:
     """Map an app symbol to its yfinance ticker (index-aware)."""
     s = symbol.upper().strip()
-    if s in _YF_INDEX_MAP:
-        return _YF_INDEX_MAP[s]
+    
+    # Strip suffixes that frontend might add
+    s_clean = s.replace(".NS", "").replace(".BO", "").replace(" ", "")
+    
+    if s_clean in _YF_INDEX_MAP:
+        return _YF_INDEX_MAP[s_clean]
     if s.startswith("^") or "." in s or "=" in s:
         return s  # already a Yahoo ticker (index, commodity, forex, or decorated)
     return f"{s}.NS"

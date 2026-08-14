@@ -103,12 +103,13 @@ class PatternEngine:
 
         return head_is_lowest and shoulders_level
 
-    def is_double_top(self, tolerance: float = 0.015) -> bool:
+    def is_double_top(self, tolerance: float = 0.015):
         """
         Detects a Double Top pattern in the recent peaks.
+        Returns (bool, dict) where dict contains coordinates for drawing.
         """
         if len(self.peak_ilocs) < 2:
-            return False
+            return False, None
             
         p1, p2 = self.peak_ilocs[-2:]
         h1 = self.df['High'].iloc[p1]
@@ -127,27 +128,36 @@ class PatternEngine:
             # Drop should be significant (e.g., at least 2% below the peaks)
             significant_drop = l_mid < avg_peak * (1 - 0.02)
             
-            return peaks_level and significant_drop
+            if peaks_level and significant_drop:
+                # Top resistance line
+                t1 = int(self.df['time'].iloc[p1]) if 'time' in self.df.columns else p1
+                t2 = int(self.df['time'].iloc[p2]) if 'time' in self.df.columns else p2
+                line = [
+                    {"time": t1, "value": h1},
+                    {"time": t2, "value": h2}
+                ]
+                return True, {"color": "#ef5350", "lineWidth": 2, "points": line}
             
-        return False
+        return False, None
 
-    def is_double_bottom(self, tolerance: float = 0.015) -> bool:
+    def is_double_bottom(self, tolerance: float = 0.015):
         """
         Detects a Double Bottom pattern in the recent troughs.
+        Returns (bool, dict)
         """
         if len(self.trough_ilocs) < 2:
-            return False
+            return False, None
             
-        t1, t2 = self.trough_ilocs[-2:]
-        l1 = self.df['Low'].iloc[t1]
-        l2 = self.df['Low'].iloc[t2]
+        t1_idx, t2_idx = self.trough_ilocs[-2:]
+        l1 = self.df['Low'].iloc[t1_idx]
+        l2 = self.df['Low'].iloc[t2_idx]
         
         # Condition 1: Troughs are at roughly the same level
         avg_trough = (l1 + l2) / 2
         troughs_level = abs(l1 - l2) / avg_trough <= tolerance
         
         # Condition 2: There is a significant peak between them
-        peaks_between = [p for p in self.peak_ilocs if t1 < p < t2]
+        peaks_between = [p for p in self.peak_ilocs if t1_idx < p < t2_idx]
         if len(peaks_between) > 0:
             p_mid = peaks_between[0]
             h_mid = self.df['High'].iloc[p_mid]
@@ -155,9 +165,16 @@ class PatternEngine:
             # Rise should be significant (e.g., at least 2% above the troughs)
             significant_rise = h_mid > avg_trough * (1 + 0.02)
             
-            return troughs_level and significant_rise
+            if troughs_level and significant_rise:
+                t1 = int(self.df['time'].iloc[t1_idx]) if 'time' in self.df.columns else t1_idx
+                t2 = int(self.df['time'].iloc[t2_idx]) if 'time' in self.df.columns else t2_idx
+                line = [
+                    {"time": t1, "value": l1},
+                    {"time": t2, "value": l2}
+                ]
+                return True, {"color": "#26a69a", "lineWidth": 2, "points": line}
             
-        return False
+        return False, None
 
     def is_triangle(self, min_points: int = 3) -> str:
         """
@@ -255,17 +272,25 @@ class PatternEngine:
 
     def analyze(self):
         """
-        Run all pattern detections and return a list of found patterns.
+        Run all pattern detections and return a list of found patterns and drawing lines.
         """
         patterns = []
+        lines = []
+        
         if self.is_head_and_shoulders():
             patterns.append("Head and Shoulders")
         if self.is_inverse_head_and_shoulders():
             patterns.append("Inverse Head and Shoulders")
-        if self.is_double_top():
+            
+        dt_found, dt_line = self.is_double_top()
+        if dt_found:
             patterns.append("Double Top")
-        if self.is_double_bottom():
+            if dt_line: lines.append(dt_line)
+            
+        db_found, db_line = self.is_double_bottom()
+        if db_found:
             patterns.append("Double Bottom")
+            if db_line: lines.append(db_line)
             
         triangle = self.is_triangle()
         if triangle:
@@ -275,4 +300,4 @@ class PatternEngine:
         if wedge_flag:
             patterns.append(wedge_flag)
             
-        return patterns
+        return patterns, lines
