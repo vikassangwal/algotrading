@@ -169,6 +169,24 @@ def get_safe_quote(symbol: str) -> dict:
     except Exception as e:
         logger.warning(f"get_safe_quote fast_info failed for {clean_sym}: {e}")
 
+        # Try Google Finance fallback for NIFTY before giving up
+        if "NSEI" in clean_sym or "NIFTY" in clean_sym.upper():
+            try:
+                import requests
+                from bs4 import BeautifulSoup
+                resp = requests.get('https://www.google.com/finance/quote/NIFTY_50:INDEXNSE', timeout=3)
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    price_div = soup.find('div', {'class': 'YMlKec fxKbKc'})
+                    if price_div:
+                        ltp = float(price_div.text.replace(',', ''))
+                        result["ltp"] = ltp
+                        _QUOTE_CACHE[clean_sym] = (result, now)
+                        _LTP_CACHE[clean_sym] = (ltp, now)
+                        return result
+            except Exception as ex:
+                logger.warning(f"Google Finance fallback failed for {clean_sym}: {ex}")
+
     # Fallback: 2-day history
     try:
         tk = yf.Ticker(clean_sym)

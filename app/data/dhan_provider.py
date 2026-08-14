@@ -95,17 +95,35 @@ class DhanRestClient:
         bundled Dhan instrument master. Cached on the class after first load."""
         if cls._symbol_map is not None:
             return cls._symbol_map
-        csv_path = os.path.join(
-            os.path.dirname(__file__), "dhan_api", "Dependencies",
-            "all_instrument 2025-05-19.csv",
-        )
+            
+        csv_dir = os.path.join(os.path.dirname(__file__), "dhan_api", "Dependencies")
+        os.makedirs(csv_dir, exist_ok=True)
+        csv_path = os.path.join(csv_dir, "all_instrument 2025-05-19.csv")
+        
+        if not os.path.exists(csv_path):
+            logger.info("Downloading Dhan instrument master CSV...")
+            import urllib.request
+            try:
+                urllib.request.urlretrieve("https://images.dhan.co/api-data/api-scrip-master.csv", csv_path)
+            except Exception as e:
+                logger.error(f"Failed to download Dhan instrument master: {e}")
+        
         mapping = {}
         try:
+            import pandas as pd
             df = pd.read_csv(csv_path, low_memory=False)
-            nse_eq = df[(df["SEM_EXM_EXCH_ID"] == "NSE") & (df["SEM_SEGMENT"] == "E")]
+            nse_eq = df[(df["SEM_EXM_EXCH_ID"] == "NSE") & (df["SEM_SEGMENT"].isin(["E", "I"]))]
             for sym, sid in zip(nse_eq["SEM_TRADING_SYMBOL"], nse_eq["SEM_SMST_SECURITY_ID"]):
                 mapping[str(sym).upper()] = str(int(sid))
-            logger.info(f"Loaded {len(mapping)} NSE-equity security IDs from instrument master.")
+                
+            # Add hardcoded aliases for common indices
+            mapping["NIFTY 50"] = mapping.get("NIFTY 50", "13")
+            mapping["NIFTY"] = mapping.get("NIFTY 50", "13")
+            mapping["^NSEI"] = mapping.get("NIFTY 50", "13")
+            mapping["BANKNIFTY"] = mapping.get("NIFTY BANK", "25")
+            mapping["^NSEBANK"] = mapping.get("NIFTY BANK", "25")
+            
+            logger.info(f"Loaded {len(mapping)} NSE security IDs from instrument master.")
         except Exception as e:
             logger.error(f"Failed to load Dhan instrument master: {e}")
         cls._symbol_map = mapping
