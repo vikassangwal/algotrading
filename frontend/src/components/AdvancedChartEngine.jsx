@@ -23,6 +23,39 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [showDomPanel, setShowDomPanel] = useState(false);
   const [showFullTradingView, setShowFullTradingView] = useState(false);
   const [domData, setDomData] = useState({ bids: [], asks: [] });
+  const [tradeQty, setTradeQty] = useState(1);
+  const [tradeMsg, setTradeMsg] = useState("");
+
+  const handleQuickTrade = async (action) => {
+    try {
+      const cleanSym = symbol.replace('.NS', '').replace('.BO', '');
+      const hdrs = { 'Content-Type': 'application/json' };
+      if (token && token.length > 20) hdrs['Authorization'] = `Bearer ${token}`;
+      
+      const res = await fetch(`${API_URL}/api/orders`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify({
+          symbol: cleanSym,
+          action: action,
+          qty: parseInt(tradeQty) || 1,
+          type: 'MARKET',
+          price: null
+        })
+      });
+      
+      if (res.ok) {
+        setTradeMsg(`✅ ${action} ${tradeQty} ${cleanSym} placed!`);
+        setTimeout(() => setTradeMsg(""), 3000);
+      } else {
+        setTradeMsg(`❌ Failed to place ${action}`);
+        setTimeout(() => setTradeMsg(""), 3000);
+      }
+    } catch (e) {
+      setTradeMsg(`❌ Error: ${e.message}`);
+      setTimeout(() => setTradeMsg(""), 3000);
+    }
+  };
 
   // Simulate Live DOM (Level 2) Data
   useEffect(() => {
@@ -612,6 +645,31 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
             <button style={{...styles.button, ...(showAiPanel ? styles.activeAiButton : styles.aiButton)}} onClick={() => setShowAiPanel(!showAiPanel)}>
               🤖 AI Panel
             </button>
+            
+            {/* Quick Trade Panel */}
+            <div style={{display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px', borderLeft: '1px solid #2b313f', paddingLeft: '8px'}}>
+              <input 
+                type="number" 
+                value={tradeQty} 
+                onChange={(e) => setTradeQty(e.target.value)}
+                style={{...styles.symbolInput, width: '50px'}}
+                min="1"
+                title="Quantity"
+              />
+              <button 
+                style={{...styles.button, backgroundColor: 'rgba(38, 166, 154, 0.2)', color: '#26a69a', borderColor: '#26a69a', fontWeight: 'bold'}}
+                onClick={() => handleQuickTrade('BUY')}
+              >
+                BUY
+              </button>
+              <button 
+                style={{...styles.button, backgroundColor: 'rgba(239, 83, 80, 0.2)', color: '#ef5350', borderColor: '#ef5350', fontWeight: 'bold'}}
+                onClick={() => handleQuickTrade('SELL')}
+              >
+                SELL
+              </button>
+              {tradeMsg && <span style={{fontSize: '12px', marginLeft: '4px', color: tradeMsg.includes('❌') ? '#ef5350' : '#26a69a'}}>{tradeMsg}</span>}
+            </div>
           </div>
         </div>
       </div>
