@@ -21,6 +21,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [showAiPanel, setShowAiPanel] = useState(true);
   const [showDomPanel, setShowDomPanel] = useState(false);
+  const [showFullTradingView, setShowFullTradingView] = useState(false);
   const [domData, setDomData] = useState({ bids: [], asks: [] });
 
   // Simulate Live DOM (Level 2) Data
@@ -205,6 +206,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
 
   // Manage Chart Instance
   useEffect(() => {
+    if (showFullTradingView) return;
     if (!chartContainerRef.current) return;
     if (data.length === 0) return;
 
@@ -367,7 +369,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [data, activeChartType, indicators, aiAnalysis, showAiPanel]);
+  }, [data, activeChartType, indicators, aiAnalysis, showAiPanel, showFullTradingView]);
 
   useEffect(() => {
     if (data.length > 0) {
@@ -587,11 +589,23 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           
           {/* Indicators Toggle */}
           <div style={styles.indicatorSelector}>
-            <button style={{...styles.button, ...(indicators.sma20 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma20')}>SMA 20</button>
-            <button style={{...styles.button, ...(indicators.sma50 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma50')}>SMA 50</button>
-            <button style={{...styles.button, ...(indicators.ema9 ? styles.activeButton : {})}} onClick={() => toggleIndicator('ema9')}>EMA 9</button>
-            <button style={{...styles.button, ...(indicators.bb ? styles.activeButton : {})}} onClick={() => toggleIndicator('bb')}>BB Bands</button>
-            <button style={{...styles.button, ...(indicators.sr ? styles.activeButton : {})}} onClick={() => toggleIndicator('sr')}>Supp/Res</button>
+            <button 
+              style={{...styles.button, ...(showFullTradingView ? styles.activeButton : {})}} 
+              onClick={() => setShowFullTradingView(!showFullTradingView)}
+            >
+              📊 Full TV (All Indicators)
+            </button>
+            
+            {!showFullTradingView && (
+              <>
+                <button style={{...styles.button, ...(indicators.sma20 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma20')}>SMA 20</button>
+                <button style={{...styles.button, ...(indicators.sma50 ? styles.activeButton : {})}} onClick={() => toggleIndicator('sma50')}>SMA 50</button>
+                <button style={{...styles.button, ...(indicators.ema9 ? styles.activeButton : {})}} onClick={() => toggleIndicator('ema9')}>EMA 9</button>
+                <button style={{...styles.button, ...(indicators.bb ? styles.activeButton : {})}} onClick={() => toggleIndicator('bb')}>BB Bands</button>
+                <button style={{...styles.button, ...(indicators.sr ? styles.activeButton : {})}} onClick={() => toggleIndicator('sr')}>Supp/Res</button>
+              </>
+            )}
+            
             <button style={{...styles.button, ...(showDomPanel ? styles.activeDomButton : styles.domButton)}} onClick={() => setShowDomPanel(!showDomPanel)}>
               📊 Order Book
             </button>
@@ -625,12 +639,22 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       </div>
 
       <div style={styles.chartArea}>
-        {loading && data.length === 0 && (
-           <div style={styles.loadingOverlay}>Loading chart data...</div>
+        {showFullTradingView ? (
+          <iframe
+            title="TradingView"
+            src={`https://s.tradingview.com/widgetembed/?frameElementId=tradingview_123&symbol=NSE:${symbol.replace('.NS', '').replace('^NSEI', 'NIFTY').replace('^NSEBANK', 'BANKNIFTY')}&interval=${timeframe === '1d' ? 'D' : timeframe.replace('m', '')}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=f1f3f6&studies=[]&theme=dark&style=1&timezone=Asia/Kolkata`}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+          />
+        ) : (
+          <>
+            {loading && data.length === 0 && (
+               <div style={styles.loadingOverlay}>Loading chart data...</div>
+            )}
+            <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
+            {renderAiPanel()}
+            {renderDomPanel()}
+          </>
         )}
-        <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
-        {renderAiPanel()}
-        {renderDomPanel()}
       </div>
     </div>
   );
