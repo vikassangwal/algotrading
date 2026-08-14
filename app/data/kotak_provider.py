@@ -201,6 +201,14 @@ class KotakProvider(DataProvider):
                 mpin = parts[2]
                 totp_secret = parts[3]
                 
+        # Hardcoded fallback since DB might overwrite config defaults
+        if not access_token or not mobile_number:
+            access_token = "ed544c68-dcb3-48cb-8d2d-9fde7ed71ca7"
+            mobile_number = "+919509374991"
+            ucc = "X08WI"
+            mpin = "258008"
+            totp_secret = "7F7MKHWNW7CETUB2YYJPD6LVPA"
+                
         # 2. Fallback to .env
         if not access_token:
             access_token = os.getenv("KOTAK_ACCESS_TOKEN")
