@@ -880,10 +880,16 @@ def get_market_indices():
     def _fetch_one(item):
         tkr, name = item
         try:
-            q = get_safe_quote(tkr)
-            last_price = q["ltp"]
-            change = q["change_pct"]
-            if last_price <= 0:
+            q = provider.get_quote(tkr)
+            if not q or q.ltp <= 0:
+                q = provider.get_quote(f"{tkr}.NS")
+                
+            if q and q.ltp > 0:
+                last_price = q.ltp
+                change = q.change_pct
+            else:
+                last_price = 0.0
+                change = 0.0
                 return None
             val_str = f"{last_price:,.2f}"
             is_up = change >= 0
@@ -1770,10 +1776,13 @@ def get_full_analysis(symbol: str):
     if ticker in _full_analysis_cache and (now - _full_analysis_cache[ticker]["ts"] < 60):
         return _full_analysis_cache[ticker]["data"]
 
-    from .yf_cache import get_safe_quote
-    quote_data = get_safe_quote(ticker)
-    ltp = quote_data.get("ltp", 0.0)
-    chg = quote_data.get("change_pct", 0.0)
+    # Use the global provider instead of hardcoded yfinance
+    q = provider.get_quote(ticker)
+    if not q or q.ltp <= 0:
+        q = provider.get_quote(ticker.replace(".NS", ""))
+        
+    ltp = q.ltp if q else 0.0
+    chg = q.change_pct if q else 0.0
 
     # Provide high-speed, realistic analysis & trade targets (<0.05s response!)
     fast_data = {
