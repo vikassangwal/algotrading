@@ -3,6 +3,8 @@ import { RefreshCw, TrendingUp, AlertTriangle, Crosshair, Filter, ChevronDown, C
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
 const DEFAULT_OPPORTUNITIES = [
+  { symbol: "^NSEI", segment: "INDEX", current_price: 24350.00, decision: "BUY", analytical_score: 0.85, catalysts: "Nifty 50 Index Trend, Market Breadth Positive", tp: 24600.00, sl: 24100.00, strategy: ["SCALPING", "INTRADAY", "OPTIONS", "TOP_PROFIT"] },
+  { symbol: "^NSEBANK", segment: "INDEX", current_price: 51200.00, decision: "STRONG BUY", analytical_score: 0.92, catalysts: "Bank Nifty Breakout, PSU Bank Rally", tp: 51800.00, sl: 50800.00, strategy: ["SCALPING", "INTRADAY", "OPTIONS", "BREAKOUT", "TOP_PROFIT"] },
   { symbol: "CDSL", segment: "EQUITY", current_price: 1540.20, decision: "STRONG BUY", analytical_score: 0.95, catalysts: "New Demat Spurt, High Intraday Volume Surge", tp: 1680.00, sl: 1450.00, strategy: ["SCALPING", "INTRADAY", "BREAKOUT", "OPTIONS", "TOP_PROFIT"] },
   { symbol: "POLYCAB", segment: "EQUITY", current_price: 6850.00, decision: "STRONG BUY", analytical_score: 0.93, catalysts: "Capex Order Win, 20-EMA Swing Pullback", tp: 7400.00, sl: 6500.00, strategy: ["SWING", "OPTIONS", "TOP_PROFIT"] },
   { symbol: "MCX", segment: "EQUITY", current_price: 5890.00, decision: "STRONG BUY", analytical_score: 0.91, catalysts: "Options Volume ATH, 52W High Breakout", tp: 6400.00, sl: 5500.00, strategy: ["SCALPING", "INTRADAY", "BREAKOUT", "OPTIONS", "TOP_PROFIT"] },
