@@ -235,7 +235,7 @@ const ChartToolbar = ({
         {mode === 'ADVANCED' && (
           <>
             <div style={styles.separator} />
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', background: '#131722', padding: '3px 8px', borderRadius: '8px', border: '1px solid #2b313f' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', background: '#131722', padding: '3px 8px', borderRadius: '8px', border: '1px solid #2b313f' }}>
               <span style={{ fontSize: '10px', color: '#8a92a5', fontWeight: 700, letterSpacing: '0.5px' }}>AUTO SETUP</span>
               
               <button 
@@ -246,11 +246,11 @@ const ChartToolbar = ({
                 🪄 AI Setup
               </button>
               
-              <input type="number" placeholder="Order Price" value={orderPrice} onChange={e => setOrderPrice(e.target.value)} style={{ ...styles.input, width: '75px', padding: '3px 6px', fontSize: '11px', height: '22px' }} title="Entry Price" />
+              <input type="number" placeholder="Order Price" value={orderPrice} onChange={e => setOrderPrice(e.target.value)} style={{ ...styles.input, width: '75px', minWidth: '75px', padding: '3px 6px', fontSize: '11px', height: '22px' }} title="Entry Price" />
               
-              <input type="number" placeholder="Stoploss" value={stopLoss} onChange={e => setStopLoss(e.target.value)} style={{ ...styles.input, width: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(239, 83, 80, 0.5)' }} title="Stoploss Price" />
+              <input type="number" placeholder="Stoploss" value={stopLoss} onChange={e => setStopLoss(e.target.value)} style={{ ...styles.input, width: '65px', minWidth: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(239, 83, 80, 0.5)' }} title="Stoploss Price" />
               
-              <select value={riskReward} onChange={e => setRiskReward(e.target.value)} style={{ background: '#252a3a', color: '#d1d4dc', border: '1px solid #363c4e', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', height: '22px', cursor: 'pointer', outline: 'none' }} title="Risk Reward Ratio">
+              <select value={riskReward} onChange={e => setRiskReward(e.target.value)} style={{ background: '#252a3a', color: '#d1d4dc', border: '1px solid #363c4e', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', height: '22px', minWidth: '60px', cursor: 'pointer', outline: 'none' }} title="Risk Reward Ratio">
                 <option value="1:1">RR 1:1</option>
                 <option value="1:2">RR 1:2</option>
                 <option value="1:3">RR 1:3</option>
@@ -258,7 +258,7 @@ const ChartToolbar = ({
                 <option value="Custom">Custom</option>
               </select>
               
-              <input type="number" placeholder="Target" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} style={{ ...styles.input, width: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(38, 166, 154, 0.5)' }} title="Target Price" />
+              <input type="number" placeholder="Target" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} style={{ ...styles.input, width: '65px', minWidth: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(38, 166, 154, 0.5)' }} title="Target Price" />
             </div>
           </>
         )}
