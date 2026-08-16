@@ -66,6 +66,45 @@ export const calculateMACD = (data, fast = 12, slow = 26, signal = 9) => {
   return { macdLine, macdSignal: sigEma };
 };
 
+export const calculateFVG = (data) => {
+  const fvgs = [];
+  for (let i = 2; i < data.length; i++) {
+    const candle1 = data[i - 2];
+    const candle2 = data[i - 1]; // The large candle
+    const candle3 = data[i];
+
+    // Bullish FVG: candle1 high < candle3 low
+    if (candle1.high < candle3.low && candle2.close > candle2.open) {
+      fvgs.push({ time: candle2.time, type: 'bullish', top: candle3.low, bottom: candle1.high });
+    }
+    // Bearish FVG: candle1 low > candle3 high
+    else if (candle1.low > candle3.high && candle2.close < candle2.open) {
+      fvgs.push({ time: candle2.time, type: 'bearish', top: candle1.low, bottom: candle3.high });
+    }
+  }
+  return fvgs;
+};
+
+export const calculatePOC = (data) => {
+  if (!data || data.length === 0) return null;
+  const volumeProfile = new Map();
+  let maxVol = 0;
+  let pocPrice = 0;
+
+  for (const d of data) {
+    const price = Math.round(d.close); // Bin by rounded price
+    const vol = d.volume || d.value || 1;
+    const currentVol = (volumeProfile.get(price) || 0) + vol;
+    volumeProfile.set(price, currentVol);
+
+    if (currentVol > maxVol) {
+      maxVol = currentVol;
+      pocPrice = price;
+    }
+  }
+  return pocPrice;
+};
+
 export const calculateRSI = (data, period = 14) => {
   if (data.length < period + 1) return [];
   const rsi = [];

@@ -9,7 +9,8 @@ import OrderBookPanel from './chart/OrderBookPanel';
 import {
   calculateSMA, calculateEMA, calculateMACD, calculateRSI, calculateBB,
   calculateVWAP, calculateATR, calculateSupertrend, calculateAIPredictor,
-  calculateStochRSI, calculateIchimoku, calculateFibonacci, calculatePivotPoints, calculateADX
+  calculateStochRSI, calculateIchimoku, calculateFibonacci, calculatePivotPoints, calculateADX,
+  calculateFVG, calculatePOC
 } from './chart/IndicatorsEngine';
 import { detectCandlePatterns, detectMarketStructure } from './chart/PatternDetection';
 
@@ -182,6 +183,39 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       });
     }
 
+    // ─── Pro Chart Enhancements (Algo Signals, FVG, POC) ───
+    let allMarkers = [];
+    const stData = calculateSupertrend(data);
+
+    // 1. Algo Execution Signals (based on Supertrend flips for demonstration)
+    for (let i = 1; i < stData.length; i++) {
+      if (stData[i - 1].trend === -1 && stData[i].trend === 1) {
+        allMarkers.push({ time: stData[i].time, position: 'belowBar', color: '#00e676', shape: 'arrowUp', text: 'ALGO BUY', size: 2 });
+      } else if (stData[i - 1].trend === 1 && stData[i].trend === -1) {
+        allMarkers.push({ time: stData[i].time, position: 'aboveBar', color: '#ff1744', shape: 'arrowDown', text: 'ALGO SELL', size: 2 });
+      }
+    }
+
+    // 2. Fair Value Gaps (FVG)
+    const fvgs = calculateFVG(data);
+    fvgs.forEach(fvg => {
+      allMarkers.push({
+        time: fvg.time,
+        position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
+        color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
+        shape: 'circle',
+        text: 'FVG',
+        size: 1
+      });
+    });
+
+    // Sort markers by time (Lightweight charts requires markers to be sorted by time)
+    allMarkers.sort((a, b) => {
+        if (a.time < b.time) return -1;
+        if (a.time > b.time) return 1;
+        return 0;
+    });
+
     // ─── Main Series ───
     if (activeChartType === 'candlestick') {
       seriesRef.current = chart.addSeries(CandlestickSeries, {
@@ -200,7 +234,22 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       seriesRef.current.setData(data.map(d => ({ time: d.time, value: d.close })));
     }
 
-    markersRef.current = createSeriesMarkers(seriesRef.current, []);
+    try {
+      seriesRef.current.setMarkers(allMarkers);
+    } catch(e) { console.error("Marker error", e) }
+
+    // 3. Point of Control (POC) Volume Profile Line
+    const pocPrice = calculatePOC(data);
+    if (pocPrice) {
+      seriesRef.current.createPriceLine({
+        price: pocPrice,
+        color: '#ff9800',
+        lineWidth: 2,
+        lineStyle: 1,
+        axisLabelVisible: true,
+        title: 'POC (Vol Profile)',
+      });
+    }
 
     // ─── Volume ───
     if (indicators.vol) {
