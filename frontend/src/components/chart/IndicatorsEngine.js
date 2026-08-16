@@ -67,6 +67,7 @@ export const calculateMACD = (data, fast = 12, slow = 26, signal = 9) => {
 };
 
 export const calculateFVG = (data) => {
+  if (!data || data.length < 3) return [];
   const fvgs = [];
   for (let i = 2; i < data.length; i++) {
     const candle1 = data[i - 2];

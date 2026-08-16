@@ -202,11 +202,11 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
 
     // ─── Pro Chart Enhancements (Algo Signals, FVG, POC) ───
+    /*
     try {
       let allMarkers = [];
       const stData = calculateSupertrend(data);
 
-      // 1. Algo Execution Signals (based on Supertrend flips for demonstration)
       if (stData && stData.length > 0) {
         for (let i = 1; i < stData.length; i++) {
           if (stData[i - 1].trend === -1 && stData[i].trend === 1) {
@@ -217,7 +217,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         }
       }
 
-      // 2. Fair Value Gaps (FVG)
       const fvgs = calculateFVG(data);
       if (fvgs && fvgs.length > 0) {
         fvgs.forEach(fvg => {
@@ -232,14 +231,12 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         });
       }
 
-      // Sort markers by time
       allMarkers.sort((a, b) => {
           if (a.time < b.time) return -1;
           if (a.time > b.time) return 1;
           return 0;
       });
 
-      // Deduplicate markers by time
       const uniqueMarkers = [];
       let lastTime = null;
       for (const marker of allMarkers) {
@@ -256,13 +253,9 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
 
       seriesRef.current.setMarkers(uniqueMarkers);
 
-      // 3. Point of Control (POC) Volume Profile Line
       const pocPrice = calculatePOC(data);
       if (pocPrice) {
-        if (window._currentPocLine) {
-          seriesRef.current.removePriceLine(window._currentPocLine);
-        }
-        window._currentPocLine = seriesRef.current.createPriceLine({
+        seriesRef.current.createPriceLine({
           price: pocPrice,
           color: '#ff9800',
           lineWidth: 2,
@@ -274,6 +267,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     } catch(err) {
       console.error("Error drawing Pro Enhancements:", err);
     }
+    */
 
     // ─── Volume ───
     if (indicators.vol) {
