@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 // Indicator display names and categories for the dropdown
 const INDICATOR_META = {
@@ -39,6 +39,25 @@ const ChartToolbar = ({
 
   const [showTimeframeDropdown, setShowTimeframeDropdown] = useState(false);
   const timeframeDropdownRef = useRef(null);
+
+  // Auto Trade Setup State
+  const [orderPrice, setOrderPrice] = useState('');
+  const [stopLoss, setStopLoss] = useState('');
+  const [targetPrice, setTargetPrice] = useState('');
+  const [riskReward, setRiskReward] = useState('1:2');
+
+  useEffect(() => {
+    if (orderPrice && stopLoss && riskReward !== 'Custom') {
+      const op = parseFloat(orderPrice);
+      const sl = parseFloat(stopLoss);
+      if (!isNaN(op) && !isNaN(sl) && op !== sl) {
+        const risk = Math.abs(op - sl);
+        const rewardMultiplier = parseFloat(riskReward.split(':')[1]);
+        const tp = op > sl ? op + (risk * rewardMultiplier) : op - (risk * rewardMultiplier);
+        setTargetPrice(tp.toFixed(2));
+      }
+    }
+  }, [orderPrice, stopLoss, riskReward]);
 
   const chartTypes = [
     { id: 'candlestick', label: 'Candles', icon: '🕯️' },
@@ -168,6 +187,30 @@ const ChartToolbar = ({
             </div>
           )}
         </div>
+
+        {/* Auto Trade Setup */}
+        {mode === 'ADVANCED' && (
+          <>
+            <div style={styles.separator} />
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', background: '#131722', padding: '3px 8px', borderRadius: '8px', border: '1px solid #2b313f' }}>
+              <span style={{ fontSize: '10px', color: '#8a92a5', fontWeight: 700, letterSpacing: '0.5px' }}>AUTO SETUP</span>
+              
+              <input type="number" placeholder="Order Price" value={orderPrice} onChange={e => setOrderPrice(e.target.value)} style={{ ...styles.input, width: '75px', padding: '3px 6px', fontSize: '11px', height: '22px' }} title="Entry Price" />
+              
+              <input type="number" placeholder="Stoploss" value={stopLoss} onChange={e => setStopLoss(e.target.value)} style={{ ...styles.input, width: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(239, 83, 80, 0.5)' }} title="Stoploss Price" />
+              
+              <select value={riskReward} onChange={e => setRiskReward(e.target.value)} style={{ background: '#252a3a', color: '#d1d4dc', border: '1px solid #363c4e', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', height: '22px', cursor: 'pointer', outline: 'none' }} title="Risk Reward Ratio">
+                <option value="1:1">RR 1:1</option>
+                <option value="1:2">RR 1:2</option>
+                <option value="1:3">RR 1:3</option>
+                <option value="1:4">RR 1:4</option>
+                <option value="Custom">Custom</option>
+              </select>
+              
+              <input type="number" placeholder="Target" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} style={{ ...styles.input, width: '65px', padding: '3px 6px', fontSize: '11px', height: '22px', border: '1px solid rgba(38, 166, 154, 0.5)' }} title="Target Price" />
+            </div>
+          </>
+        )}
 
         {/* Mode Toggle */}
         <div style={styles.modeToggle}>
