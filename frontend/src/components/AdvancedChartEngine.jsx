@@ -233,6 +233,7 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
       }
 
       // ─── Pattern Markers ───
+      const adv = mode === 'ADVANCED';
       if (adv) {
         for (const p of detectCandlePatterns(data)) {
           allMarkers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle', text: p.type });
@@ -305,8 +306,6 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
         indRefs.current[key].setData(calcFn());
       } catch (e) { console.warn(`Indicator ${key}:`, e); }
     };
-
-    const adv = mode === 'ADVANCED';
 
     // Overlays
     if (indicators.sma20 && adv) addLine('sma20', () => calculateSMA(data, 20), { color: '#ffeb3b', lineWidth: 1, title: 'SMA 20' });
