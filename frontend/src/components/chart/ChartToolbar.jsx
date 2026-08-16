@@ -12,13 +12,16 @@ const INDICATOR_META = {
   rsi: { name: 'RSI (14)', category: 'Oscillator', color: '#9c27b0' },
   macd: { name: 'MACD', category: 'Oscillator', color: '#2196f3' },
   stochrsi: { name: 'Stochastic RSI', category: 'Oscillator', color: '#00bcd4' },
+  adx: { name: 'ADX (+DI/-DI)', category: 'Oscillator', color: '#ff9800' },
   atr: { name: 'ATR', category: 'Volatility', color: '#ff5252' },
   ichimoku: { name: 'Ichimoku Cloud', category: 'Trend', color: '#4caf50' },
-  sr: { name: 'Support / Resistance', category: 'Basic', color: '#ef5350' },
+  fibonacci: { name: 'Fibonacci Retracement', category: 'Levels', color: '#e040fb' },
+  pivots: { name: 'Pivot Points (R/S)', category: 'Levels', color: '#ff9800' },
+  sr: { name: 'Support / Resistance', category: 'Levels', color: '#ef5350' },
   aipredictor: { name: '🧠 AI Super Predictor', category: '⭐ AI', color: '#e040fb' },
 };
 
-const CATEGORIES = ['⭐ AI', 'Basic', 'Moving Avg', 'Trend', 'Oscillator', 'Volatility', 'Volume'];
+const CATEGORIES = ['⭐ AI', 'Basic', 'Moving Avg', 'Trend', 'Oscillator', 'Volatility', 'Volume', 'Levels'];
 
 const ChartToolbar = ({
   mode, setMode,

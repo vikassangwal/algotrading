@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createChart, CandlestickSeries, HistogramSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
 import ChartToolbar from './chart/ChartToolbar';
 import AIMarketIntelligencePanel from './chart/AIMarketIntelligencePanel';
+import Watchlist from './chart/Watchlist';
+import QuickTradePanel from './chart/QuickTradePanel';
 import {
   calculateSMA, calculateEMA, calculateMACD, calculateRSI, calculateBB,
   calculateVWAP, calculateATR, calculateSupertrend, calculateAIPredictor,
-  calculateStochRSI, calculateIchimoku
+  calculateStochRSI, calculateIchimoku, calculateFibonacci, calculatePivotPoints, calculateADX
 } from './chart/IndicatorsEngine';
 import { detectCandlePatterns, detectMarketStructure } from './chart/PatternDetection';
 
@@ -36,7 +38,8 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [indicators, setIndicators] = useState({
     vol: true, rsi: false, macd: false, sma20: false, sma50: false,
     ema9: false, bb: false, sr: false, vwap: false, supertrend: false, atr: false,
-    aipredictor: false, stochrsi: false, ichimoku: false
+    aipredictor: false, stochrsi: false, ichimoku: false,
+    fibonacci: false, pivots: false, adx: false
   });
 
   const [aiAnalysis, setAiAnalysis] = useState(null);
@@ -267,6 +270,32 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       }
     }
 
+    // Fibonacci Retracement
+    if (indicators.fibonacci && adv) {
+      const fibs = calculateFibonacci(data);
+      fibs.forEach((f, i) => {
+        addLine(`fib${i}`, () => f.data, { color: f.color, lineWidth: 1, lineStyle: 2, title: `Fib ${f.label}` });
+      });
+    }
+
+    // Pivot Points
+    if (indicators.pivots && adv) {
+      const pvts = calculatePivotPoints(data);
+      pvts.forEach((p, i) => {
+        addLine(`pvt${i}`, () => p.data, { color: p.color, lineWidth: 1, lineStyle: 1, title: p.label });
+      });
+    }
+
+    // ADX
+    if (indicators.adx && adv) {
+      const adxData = calculateADX(data);
+      if (adxData.adx.length) {
+        addLine('adxLine', () => adxData.adx, { color: '#ff9800', lineWidth: 2, priceScaleId: 'left', title: 'ADX' });
+        addLine('pdi', () => adxData.pdi, { color: '#00e676', lineWidth: 1, priceScaleId: 'left', title: '+DI' });
+        addLine('mdi', () => adxData.mdi, { color: '#ff1744', lineWidth: 1, priceScaleId: 'left', title: '-DI' });
+      }
+    }
+
     // Support / Resistance
     if (indicators.sr || mode === 'BEGINNER') {
       const hi = Math.max(...data.map(d => d.high));
@@ -360,6 +389,18 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
   };
 
+  // Screenshot function
+  const takeScreenshot = () => {
+    if (!chartContainerRef.current) return;
+    const canvas = chartContainerRef.current.querySelector('canvas');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `${symbol.replace('.NS','')}_${timeframe}_${new Date().toISOString().slice(0,10)}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+  };
+
   return (
     <div style={st.wrapper} ref={wrapperRef}>
       <ChartToolbar
@@ -372,10 +413,13 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       />
 
       <div style={st.main}>
+        {/* Watchlist Sidebar */}
+        <Watchlist onSymbolClick={(s) => { setSymbol(s); setTimeout(fetchHistory, 100); }} currentSymbol={symbol} />
+
         <div style={st.chartArea}>
           {loading && data.length === 0 && <div style={st.loading}>⏳ Loading...</div>}
 
-          {/* OHLCV Legend (like TradingView) */}
+          {/* OHLCV Legend */}
           {displayBar && (
             <div style={st.legend}>
               <div style={st.legendRow}>
@@ -396,41 +440,33 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
               </div>
               <div style={st.legendRow}>
                 <span style={st.ohlcLabel}>O</span>
-                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
-                  {displayBar.open?.toFixed(2)}
-                </span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>{displayBar.open?.toFixed(2)}</span>
                 <span style={st.ohlcLabel}>H</span>
-                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
-                  {displayBar.high?.toFixed(2)}
-                </span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>{displayBar.high?.toFixed(2)}</span>
                 <span style={st.ohlcLabel}>L</span>
-                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
-                  {displayBar.low?.toFixed(2)}
-                </span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>{displayBar.low?.toFixed(2)}</span>
                 <span style={st.ohlcLabel}>C</span>
-                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 800, fontFamily: 'monospace', fontSize: '14px' }}>
-                  {displayBar.close?.toFixed(2)}
-                </span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 800, fontFamily: 'monospace', fontSize: '14px' }}>{displayBar.close?.toFixed(2)}</span>
                 <span style={st.ohlcLabel}>V</span>
                 <span style={{ color: '#787b86', fontFamily: 'monospace' }}>
-                  {(displayBar.volume || displayBar.value || 0) > 1e6
-                    ? `${((displayBar.volume || displayBar.value || 0) / 1e6).toFixed(2)}M`
-                    : `${((displayBar.volume || displayBar.value || 0) / 1e3).toFixed(0)}K`}
+                  {(displayBar.volume || displayBar.value || 0) > 1e6 ? `${((displayBar.volume || displayBar.value || 0) / 1e6).toFixed(2)}M` : `${((displayBar.volume || displayBar.value || 0) / 1e3).toFixed(0)}K`}
                 </span>
               </div>
             </div>
           )}
 
-          {/* Fullscreen Button */}
-          <button style={st.fullscreenBtn} onClick={() => setIsFullscreen(p => !p)} title="Fullscreen (F)">
-            {isFullscreen ? '⊡' : '⛶'}
-          </button>
+          {/* Top-right buttons */}
+          <div style={{ position: 'absolute', top: '8px', right: '12px', zIndex: 10, display: 'flex', gap: '4px' }}>
+            <button style={st.fullscreenBtn} onClick={takeScreenshot} title="Screenshot (S)">📷</button>
+            <button style={st.fullscreenBtn} onClick={() => setIsFullscreen(p => !p)} title="Fullscreen (F)">
+              {isFullscreen ? '⊡' : '⛶'}
+            </button>
+          </div>
 
           <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
 
-          {/* Keyboard shortcut hint */}
           <div style={st.shortcutHint}>
-            1-6: Timeframe · F: Fullscreen · B: Mode
+            1-6: Timeframe · F: Fullscreen · B: Mode · S: Screenshot
           </div>
         </div>
 
@@ -446,6 +482,13 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           indicators={indicators}
         />
       </div>
+
+      {/* Quick Trade Panel at bottom */}
+      <QuickTradePanel
+        symbol={symbol}
+        currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
+        token={token}
+      />
     </div>
   );
 };

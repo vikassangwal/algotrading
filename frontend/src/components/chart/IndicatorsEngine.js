@@ -433,3 +433,122 @@ export const calculateAIPredictor = (data) => {
 
   return predictorLine;
 };
+
+// ───────────────── FIBONACCI RETRACEMENT (Auto from recent swing) ─────────────────
+
+export const calculateFibonacci = (data) => {
+  if (data.length < 20) return [];
+  // Find recent swing high and swing low from last 50 bars
+  const lookback = Math.min(50, data.length);
+  const slice = data.slice(-lookback);
+  let swingHigh = -Infinity, swingLow = Infinity;
+  for (const d of slice) {
+    if (d.high > swingHigh) swingHigh = d.high;
+    if (d.low < swingLow) swingLow = d.low;
+  }
+  const diff = swingHigh - swingLow;
+  if (diff <= 0) return [];
+
+  const levels = [
+    { ratio: 0, label: '0%', color: '#787b86' },
+    { ratio: 0.236, label: '23.6%', color: '#2196f3' },
+    { ratio: 0.382, label: '38.2%', color: '#00bcd4' },
+    { ratio: 0.5, label: '50%', color: '#ff9800' },
+    { ratio: 0.618, label: '61.8%', color: '#e040fb' },
+    { ratio: 0.786, label: '78.6%', color: '#f44336' },
+    { ratio: 1, label: '100%', color: '#787b86' },
+  ];
+
+  const startTime = data[data.length - lookback]?.time || data[0].time;
+  const endTime = data[data.length - 1].time;
+
+  return levels.map(l => ({
+    label: l.label,
+    value: swingHigh - diff * l.ratio,
+    color: l.color,
+    data: [{ time: startTime, value: swingHigh - diff * l.ratio }, { time: endTime, value: swingHigh - diff * l.ratio }]
+  }));
+};
+
+// ───────────────── PIVOT POINTS (Standard Floor Pivots) ─────────────────
+
+export const calculatePivotPoints = (data) => {
+  if (data.length < 2) return [];
+  // Use previous day's data (or previous bar for intraday)
+  const prev = data[data.length - 2];
+  const h = prev.high, l = prev.low, c = prev.close;
+  const pp = (h + l + c) / 3;
+  const r1 = 2 * pp - l;
+  const s1 = 2 * pp - h;
+  const r2 = pp + (h - l);
+  const s2 = pp - (h - l);
+  const r3 = h + 2 * (pp - l);
+  const s3 = l - 2 * (h - pp);
+
+  const startTime = data[0].time;
+  const endTime = data[data.length - 1].time;
+
+  return [
+    { label: 'R3', value: r3, color: '#ff1744', data: [{ time: startTime, value: r3 }, { time: endTime, value: r3 }] },
+    { label: 'R2', value: r2, color: '#ef5350', data: [{ time: startTime, value: r2 }, { time: endTime, value: r2 }] },
+    { label: 'R1', value: r1, color: '#ff8a80', data: [{ time: startTime, value: r1 }, { time: endTime, value: r1 }] },
+    { label: 'PP', value: pp, color: '#ff9800', data: [{ time: startTime, value: pp }, { time: endTime, value: pp }] },
+    { label: 'S1', value: s1, color: '#69f0ae', data: [{ time: startTime, value: s1 }, { time: endTime, value: s1 }] },
+    { label: 'S2', value: s2, color: '#26a69a', data: [{ time: startTime, value: s2 }, { time: endTime, value: s2 }] },
+    { label: 'S3', value: s3, color: '#00e676', data: [{ time: startTime, value: s3 }, { time: endTime, value: s3 }] },
+  ];
+};
+
+// ───────────────── ADX (Average Directional Index) ─────────────────
+
+export const calculateADX = (data, period = 14) => {
+  if (data.length < period * 2 + 1) return { adx: [], pdi: [], mdi: [] };
+
+  const tr = [], plusDM = [], minusDM = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const hi = data[i].high, lo = data[i].low, pc = data[i - 1].close;
+    tr.push(Math.max(hi - lo, Math.abs(hi - pc), Math.abs(lo - pc)));
+
+    const upMove = hi - data[i - 1].high;
+    const downMove = data[i - 1].low - lo;
+    plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+
+  // Smoothed averages
+  const smooth = (arr) => {
+    const result = [];
+    let sum = 0;
+    for (let i = 0; i < arr.length; i++) {
+      if (i < period) { sum += arr[i]; if (i === period - 1) result.push(sum); }
+      else result.push(result[result.length - 1] - result[result.length - 1] / period + arr[i]);
+    }
+    return result;
+  };
+
+  const sTR = smooth(tr), sPDM = smooth(plusDM), sMDM = smooth(minusDM);
+
+  const pdi = [], mdi = [], dx = [];
+  for (let i = 0; i < sTR.length; i++) {
+    const pdiVal = sTR[i] > 0 ? (sPDM[i] / sTR[i]) * 100 : 0;
+    const mdiVal = sTR[i] > 0 ? (sMDM[i] / sTR[i]) * 100 : 0;
+    pdi.push({ time: data[i + period].time, value: pdiVal });
+    mdi.push({ time: data[i + period].time, value: mdiVal });
+    const sum = pdiVal + mdiVal;
+    dx.push(sum > 0 ? Math.abs(pdiVal - mdiVal) / sum * 100 : 0);
+  }
+
+  // ADX = smoothed DX
+  const adx = [];
+  if (dx.length >= period) {
+    let adxVal = dx.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    adx.push({ time: data[period * 2].time, value: adxVal });
+    for (let i = period; i < dx.length; i++) {
+      adxVal = (adxVal * (period - 1) + dx[i]) / period;
+      if (i + period < data.length) adx.push({ time: data[i + period].time, value: adxVal });
+    }
+  }
+
+  return { adx, pdi, mdi };
+};
