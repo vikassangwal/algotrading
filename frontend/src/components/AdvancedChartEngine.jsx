@@ -202,16 +202,15 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
 
     // ─── Pro Chart Enhancements (Algo Signals, FVG, POC) ───
-    /*
     try {
       let allMarkers = [];
       const stData = calculateSupertrend(data);
 
       if (stData && stData.length > 0) {
         for (let i = 1; i < stData.length; i++) {
-          if (stData[i - 1].trend === -1 && stData[i].trend === 1) {
+          if (stData[i] && stData[i - 1] && stData[i - 1].trend === -1 && stData[i].trend === 1) {
             allMarkers.push({ time: stData[i].time, position: 'belowBar', color: '#00e676', shape: 'arrowUp', text: 'ALGO BUY', size: 2 });
-          } else if (stData[i - 1].trend === 1 && stData[i].trend === -1) {
+          } else if (stData[i] && stData[i - 1] && stData[i - 1].trend === 1 && stData[i].trend === -1) {
             allMarkers.push({ time: stData[i].time, position: 'aboveBar', color: '#ff1744', shape: 'arrowDown', text: 'ALGO SELL', size: 2 });
           }
         }
@@ -220,54 +219,66 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       const fvgs = calculateFVG(data);
       if (fvgs && fvgs.length > 0) {
         fvgs.forEach(fvg => {
-          allMarkers.push({
-            time: fvg.time,
-            position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
-            color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
-            shape: 'circle',
-            text: 'FVG',
-            size: 1
-          });
+          if (fvg && fvg.time) {
+            allMarkers.push({
+              time: fvg.time,
+              position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
+              color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
+              shape: 'circle',
+              text: 'FVG',
+              size: 1
+            });
+          }
         });
       }
 
-      allMarkers.sort((a, b) => {
+      // Filter out invalid markers and sort
+      const validMarkers = allMarkers.filter(m => m && m.time != null);
+      validMarkers.sort((a, b) => {
           if (a.time < b.time) return -1;
           if (a.time > b.time) return 1;
           return 0;
       });
 
+      // Crash-proof deduplication
       const uniqueMarkers = [];
-      let lastTime = null;
-      for (const marker of allMarkers) {
-        if (marker.time !== lastTime) {
-          uniqueMarkers.push(marker);
-          lastTime = marker.time;
-        } else {
-          const existing = uniqueMarkers[uniqueMarkers.length - 1];
-          if (!existing.text.includes(marker.text)) {
-            existing.text += ' + ' + marker.text;
+      if (validMarkers.length > 0) {
+        let lastMarker = { ...validMarkers[0] };
+        uniqueMarkers.push(lastMarker);
+        
+        for (let i = 1; i < validMarkers.length; i++) {
+          const marker = validMarkers[i];
+          if (marker.time !== lastMarker.time) {
+            lastMarker = { ...marker };
+            uniqueMarkers.push(lastMarker);
+          } else {
+            if (lastMarker.text && marker.text && !lastMarker.text.includes(marker.text)) {
+              lastMarker.text += ' + ' + marker.text;
+            }
           }
         }
       }
 
-      seriesRef.current.setMarkers(uniqueMarkers);
+      if (seriesRef.current) {
+        seriesRef.current.setMarkers(uniqueMarkers);
+      }
 
       const pocPrice = calculatePOC(data);
-      if (pocPrice) {
-        seriesRef.current.createPriceLine({
-          price: pocPrice,
-          color: '#ff9800',
-          lineWidth: 2,
-          lineStyle: 1,
-          axisLabelVisible: true,
-          title: 'POC',
-        });
+      if (pocPrice && typeof pocPrice === 'number' && !isNaN(pocPrice)) {
+        if (seriesRef.current) {
+          seriesRef.current.createPriceLine({
+            price: pocPrice,
+            color: '#ff9800',
+            lineWidth: 2,
+            lineStyle: 1,
+            axisLabelVisible: true,
+            title: 'POC',
+          });
+        }
       }
     } catch(err) {
       console.error("Error drawing Pro Enhancements:", err);
     }
-    */
 
     // ─── Volume ───
     if (indicators.vol) {
