@@ -232,6 +232,16 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         });
       }
 
+      // ─── Pattern Markers ───
+      if (adv) {
+        for (const p of detectCandlePatterns(data)) {
+          allMarkers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle', text: p.type });
+        }
+        for (const p of detectMarketStructure(data)) {
+          allMarkers.push({ time: p.time, position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar', color: '#2196f3', shape: 'circle', text: p.type });
+        }
+      }
+
       // Filter out invalid markers and sort
       const validMarkers = allMarkers.filter(m => m && m.time != null);
       validMarkers.sort((a, b) => {
@@ -397,25 +407,6 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       addLine('srL', () => [{ time: data[0].time, value: lo }, { time: data[data.length - 1].time, value: lo }], { color: '#26a69a', lineWidth: 1, lineStyle: 2, title: 'S' });
     }
 
-    // ─── Pattern Markers ───
-    const markers = [];
-    if (adv) {
-      for (const p of detectCandlePatterns(data)) {
-        markers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle', text: p.type });
-      }
-      for (const p of detectMarketStructure(data)) {
-        markers.push({ time: p.time, position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar', color: '#2196f3', shape: 'circle', text: p.type });
-      }
-    }
-    // Deduplicate
-    markers.sort((a, b) => a.time - b.time);
-    const uMarkers = [];
-    for (const m of markers) {
-      const last = uMarkers[uMarkers.length - 1];
-      if (last && last.time === m.time) last.text += ` | ${m.text}`;
-      else uMarkers.push({ ...m });
-    }
-    markersRef.current.setMarkers(uMarkers);
 
     // Resize
     const onResize = () => {
