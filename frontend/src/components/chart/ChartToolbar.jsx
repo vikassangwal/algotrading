@@ -81,10 +81,12 @@ const ChartToolbar = ({
     else if (globalTradingStyle === 'POSITION') setTimeframe('1d');
 
     // Slight delay to allow data to potentially load if timeframe changed
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       handleAiAutoSetup();
     }, 300);
-  }, [globalTradingStyle, setTimeframe, handleAiAutoSetup]);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalTradingStyle]);
 
   useEffect(() => {
     if (orderPrice && stopLoss && riskReward !== 'Custom') {
