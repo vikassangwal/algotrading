@@ -37,6 +37,9 @@ const ChartToolbar = ({
   const [showChartTypeDropdown, setShowChartTypeDropdown] = useState(false);
   const chartTypeDropdownRef = useRef(null);
 
+  const [showTimeframeDropdown, setShowTimeframeDropdown] = useState(false);
+  const timeframeDropdownRef = useRef(null);
+
   const chartTypes = [
     { id: 'candlestick', label: 'Candles', icon: '🕯️' },
     { id: 'heikin_ashi', label: 'Heikin Ashi', icon: '📊' },
@@ -87,6 +90,12 @@ const ChartToolbar = ({
     }
   };
 
+  const handleTimeframeBlur = (e) => {
+    if (timeframeDropdownRef.current && !timeframeDropdownRef.current.contains(e.relatedTarget)) {
+      setTimeout(() => setShowTimeframeDropdown(false), 150);
+    }
+  };
+
   return (
     <div style={styles.toolbar}>
       {/* Top Row */}
@@ -104,14 +113,29 @@ const ChartToolbar = ({
 
         <div style={styles.separator} />
 
-        {/* Timeframes */}
-        <div style={{ display: 'flex', gap: '3px', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: '2px', scrollbarWidth: 'none' }}>
-          {timeframes.map(tf => (
-            <button key={tf} style={timeframe === tf ? styles.activeBtn : styles.btn}
-              onClick={() => setTimeframe(tf)}>
-              {tf.toUpperCase()}
-            </button>
-          ))}
+        {/* Timeframes Dropdown */}
+        <div style={{ position: 'relative' }} ref={timeframeDropdownRef} tabIndex={-1} onBlur={handleTimeframeBlur}>
+          <button
+            style={{ ...styles.activeBtn, background: showTimeframeDropdown ? '#1565c0' : '#2962ff', display: 'flex', alignItems: 'center', gap: '6px', minWidth: '70px', justifyContent: 'center' }}
+            onClick={() => setShowTimeframeDropdown(!showTimeframeDropdown)}
+          >
+            🕒 {timeframe.toUpperCase()}
+            <span style={{ fontSize: '9px', marginLeft: 'auto' }}>{showTimeframeDropdown ? '▲' : '▼'}</span>
+          </button>
+
+          {showTimeframeDropdown && (
+            <div style={{ ...styles.dropdown, width: '100px', zIndex: 1001 }}>
+              {timeframes.map(tf => (
+                <div
+                  key={tf}
+                  style={{ ...styles.dropdownItem, background: timeframe === tf ? '#252a3a' : 'transparent', color: timeframe === tf ? '#2962ff' : '#d1d4dc', justifyContent: 'center' }}
+                  onClick={() => { setTimeframe(tf); setShowTimeframeDropdown(false); }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{tf.toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={styles.separator} />
