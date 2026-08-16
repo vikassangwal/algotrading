@@ -101,15 +101,6 @@ const ChartToolbar = ({
           placeholder="Symbol..."
         />
 
-        {/* Quick Jumps */}
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {[['RELIANCE.NS', 'RELIANCE'], ['^NSEI', 'NIFTY'], ['^NSEBANK', 'BNIFTY']].map(([s, label]) => (
-            <button key={s} style={symbol === s ? styles.activeBtn : styles.btn}
-              onClick={() => { setSymbol(s); setTimeout(fetchHistory, 100); }}>
-              {label}
-            </button>
-          ))}
-        </div>
 
         <div style={styles.separator} />
 
