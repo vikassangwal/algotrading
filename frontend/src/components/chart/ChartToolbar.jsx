@@ -105,7 +105,7 @@ const ChartToolbar = ({
         <div style={styles.separator} />
 
         {/* Timeframes */}
-        <div style={{ display: 'flex', gap: '3px' }}>
+        <div style={{ display: 'flex', gap: '3px', overflowX: 'auto', flexWrap: 'nowrap', paddingBottom: '2px', scrollbarWidth: 'none' }}>
           {timeframes.map(tf => (
             <button key={tf} style={timeframe === tf ? styles.activeBtn : styles.btn}
               onClick={() => setTimeframe(tf)}>
