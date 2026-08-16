@@ -30,7 +30,8 @@ const ChartToolbar = ({
   activeChartType, setActiveChartType,
   indicators, toggleIndicator,
   showDomPanel, setShowDomPanel,
-  onAutoAnalyze
+  onAutoAnalyze,
+  globalTradingStyle = 'INTRADAY'
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
@@ -45,7 +46,23 @@ const ChartToolbar = ({
   const [orderPrice, setOrderPrice] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [targetPrice, setTargetPrice] = useState('');
-  const [riskReward, setRiskReward] = useState('1:2');
+  
+  const getDefaultRR = (style) => {
+    switch (style) {
+      case 'SCALPING': return '1:1';
+      case 'INTRADAY': return '1:2';
+      case 'SWING': return '1:3';
+      case 'POSITION': return '1:4';
+      default: return '1:2';
+    }
+  };
+
+  const [riskReward, setRiskReward] = useState(getDefaultRR(globalTradingStyle));
+
+  // Sync RR when global style changes
+  useEffect(() => {
+    setRiskReward(getDefaultRR(globalTradingStyle));
+  }, [globalTradingStyle]);
 
   useEffect(() => {
     if (orderPrice && stopLoss && riskReward !== 'Custom') {

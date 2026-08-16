@@ -31,7 +31,7 @@ const getHeikinAshiData = (src) => {
   return ha;
 };
 
-const AdvancedChartEngine = ({ token, globalSymbol }) => {
+const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRADAY' }) => {
   const [mode, setMode] = useState('ADVANCED');
   const [activeChartType, setActiveChartType] = useState('candlestick');
   const [symbol, setSymbol] = useState(globalSymbol || 'RELIANCE');
@@ -488,24 +488,46 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const handleAutoAnalyze = () => {
     if (!data || data.length < 20) return null;
     
+    // Adjust lookback and risk based on trading style
+    let lookback = 20;
+    let rrRatio = '1:2';
+    
+    if (globalTradingStyle === 'SCALPING') {
+      lookback = 10;
+      rrRatio = '1:1';
+    } else if (globalTradingStyle === 'SWING') {
+      lookback = 50;
+      rrRatio = '1:3';
+    } else if (globalTradingStyle === 'POSITION') {
+      lookback = 100;
+      rrRatio = '1:4';
+    }
+    
     const current = data[data.length - 1];
-    const recent = data.slice(-20);
+    const recent = data.slice(-lookback);
     const highest = Math.max(...recent.map(d => d.high));
     const lowest = Math.min(...recent.map(d => d.low));
     
     const isBullish = current.close > current.open;
     let entry = current.close;
+    
+    // Tighter stop for scalping, wider for swing
     let sl = isBullish ? lowest : highest;
+    if (globalTradingStyle === 'SCALPING') {
+       sl = isBullish ? current.low : current.high; // Immediate candle SL
+    }
+    
     let risk = Math.abs(entry - sl);
     if (risk === 0) risk = entry * 0.01;
     
-    let tp = isBullish ? entry + (risk * 2) : entry - (risk * 2);
+    const rewardMultiplier = parseFloat(rrRatio.split(':')[1]);
+    let tp = isBullish ? entry + (risk * rewardMultiplier) : entry - (risk * rewardMultiplier);
     
     return {
       entry: entry.toFixed(2),
       sl: sl.toFixed(2),
       tp: tp.toFixed(2),
-      rr: '1:2'
+      rr: rrRatio
     };
   };
 
@@ -519,6 +541,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         indicators={indicators} toggleIndicator={toggleIndicator}
         showDomPanel={showDomPanel} setShowDomPanel={setShowDomPanel}
         onAutoAnalyze={handleAutoAnalyze}
+        globalTradingStyle={globalTradingStyle}
       />
 
       <div style={st.main}>

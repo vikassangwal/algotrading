@@ -4,8 +4,23 @@ import DhanLiveTicker from './DhanLiveTicker';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
-const UltimateDashboard = ({ token, globalSymbol }) => {
-  const [tradingMode, setTradingMode] = useState('Intraday');
+const UltimateDashboard = ({ token, globalSymbol, globalTradingStyle = 'INTRADAY' }) => {
+  const mapStyle = (style) => {
+    switch (style) {
+      case 'SCALPING': return 'Scalping';
+      case 'INTRADAY': return 'Intraday';
+      case 'SWING': return 'Swing';
+      case 'POSITION': return 'Positional';
+      default: return 'Intraday';
+    }
+  };
+
+  const [tradingMode, setTradingMode] = useState(mapStyle(globalTradingStyle));
+  
+  useEffect(() => {
+    setTradingMode(mapStyle(globalTradingStyle));
+  }, [globalTradingStyle]);
+
   const [isAuto, setIsAuto] = useState(false);
   const [portfolio, setPortfolio] = useState({ daily_pnl: 0, circuit_breaker: false, active_positions: [] });
   const [analysis, setAnalysis] = useState(null);
@@ -282,13 +297,11 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
             Ultimate Command Center
           </h1>
           
-          <select value={tradingMode} onChange={e => setTradingMode(e.target.value)} style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #ef4444', outline: 'none', fontWeight: 'bold' }}>
-            <option value="Scalping" style={{ color: '#f87171', fontWeight: 'bold' }}>⚡ Scalping Radar ({scalpTf.toUpperCase()})</option>
-            <option value="Intraday">⚡ Intraday Trading</option>
-            <option value="Swing">📊 Swing Trading</option>
-            <option value="Positional">🎯 Positional Trading</option>
-            <option value="Investment">💎 Long-Term Investment</option>
-          </select>
+          <div style={{ backgroundColor: '#1e293b', color: '#f8fafc', padding: '8px 16px', borderRadius: '8px', border: '1px solid #3b82f6', fontWeight: 'bold' }}>
+            {tradingMode === 'Scalping' ? `⚡ Scalping Radar (${scalpTf.toUpperCase()})` : 
+             tradingMode === 'Intraday' ? '⚡ Intraday Trading' :
+             tradingMode === 'Swing' ? '📊 Swing Trading' : '🎯 Positional Trading'}
+          </div>
 
           {tradingMode === 'Scalping' && (
             <div style={{ display: 'flex', gap: '4px', background: '#1e293b', padding: '4px', borderRadius: '8px', border: '1px solid #334155' }}>

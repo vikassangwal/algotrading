@@ -57,6 +57,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [globalSymbol, setGlobalSymbol] = useState('RELIANCE.NS');
+  const [globalTradingStyle, setGlobalTradingStyle] = useState('INTRADAY');
   const [config, setConfig] = useState({
     capital: 1000000,
     auto_trade: 'active',
@@ -326,6 +327,27 @@ export default function App() {
         {/* Main Content */}
         <div className="main-content">
           <div className="header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'nowrap' }}>
+            <div className="header-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <select 
+                  value={globalTradingStyle} 
+                  onChange={(e) => setGlobalTradingStyle(e.target.value)}
+                  style={{
+                    background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-color)',
+                    padding: '0.5rem 2rem 0.5rem 0.75rem', borderRadius: '4px', fontSize: '0.9rem', outline: 'none',
+                    appearance: 'none', cursor: 'pointer', fontWeight: 'bold'
+                  }}
+                  title="Global Trading Style"
+                >
+                  <option value="SCALPING">⚡ Scalping</option>
+                  <option value="INTRADAY">🕒 Intraday</option>
+                  <option value="SWING">📅 Swing</option>
+                  <option value="POSITION">📈 Position</option>
+                </select>
+                <ChevronDown size={14} style={{ position: 'absolute', right: '10px', pointerEvents: 'none', color: 'var(--text-secondary)' }} />
+              </div>
+            </div>
+            
             <div className="header-title" style={{ whiteSpace: 'nowrap', minWidth: 'fit-content' }}>
               {activeTab === 'dashboard' && 'Market Overview'}
               {activeTab === 'profile' && 'Stock Biodata'}
@@ -383,7 +405,7 @@ export default function App() {
               <CommandCenter globalSymbol={globalSymbol} />
             )}
             {activeTab === 'ultimate-dashboard' && (
-              <UltimateDashboard token={token} globalSymbol={globalSymbol} />
+              <UltimateDashboard token={token} globalSymbol={globalSymbol} globalTradingStyle={globalTradingStyle} />
             )}
             {activeTab === 'dashboard' && (
               <DashboardView config={config} token={token} />
@@ -392,7 +414,7 @@ export default function App() {
               <OMSView token={token} globalSymbol={globalSymbol} />
             )}
             {activeTab === 'charts' && (
-              <AdvancedChartEngine token={token} globalSymbol={globalSymbol} />
+              <AdvancedChartEngine token={token} globalSymbol={globalSymbol} globalTradingStyle={globalTradingStyle} />
             )}
             {activeTab === 'scanner' && (
               <ScannerView token={token} globalSymbol={globalSymbol} />

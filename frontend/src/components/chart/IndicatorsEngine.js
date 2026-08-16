@@ -592,3 +592,60 @@ export const calculateADX = (data, period = 14) => {
 
   return { adx, pdi, mdi };
 };
+
+// 🤖 AI Future Forecast (Polynomial Regression / Linear Projection)
+export const calculateAIForecast = (data, forecastSteps = 30) => {
+  if (data.length < 50) return [];
+  
+  const slice = data.slice(-50);
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+  const n = slice.length;
+  
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += slice[i].close;
+    sumXY += i * slice[i].close;
+    sumX2 += i * i;
+  }
+  
+  const m = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const b = (sumY - m * sumX) / n;
+  
+  let sumSqErr = 0;
+  for(let i=0; i<n; i++) {
+      const pred = m * i + b;
+      sumSqErr += Math.pow(slice[i].close - pred, 2);
+  }
+  const stdDev = Math.sqrt(sumSqErr / n);
+
+  const forecast = [];
+  const lastTime = data[data.length - 1].time;
+  
+  let interval = 60;
+  if (data.length > 2) {
+      interval = data[data.length - 1].time - data[data.length - 2].time;
+  }
+
+  const lastClose = data[data.length - 1].close;
+  const regAtCurrent = m * n + b;
+  const offset = lastClose - regAtCurrent;
+
+  forecast.push({ time: lastTime, value: lastClose, upper: lastClose, lower: lastClose });
+
+  for (let i = 1; i <= forecastSteps; i++) {
+    const futureTime = lastTime + (interval * i);
+    const rawVal = m * (n + i) + b;
+    const blendedVal = rawVal + (offset * Math.exp(-i / 5)); 
+    
+    const cloudExpansion = stdDev * (i / forecastSteps) * 2.5;
+    
+    forecast.push({
+      time: futureTime,
+      value: blendedVal,
+      upper: blendedVal + cloudExpansion,
+      lower: blendedVal - cloudExpansion
+    });
+  }
+  
+  return forecast;
+};
