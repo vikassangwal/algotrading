@@ -15,13 +15,17 @@ const QuickTradePanel = ({ symbol, currentPrice, token, atr }) => {
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      await fetch(`${API_URL}/api/config`, {
+      const res = await fetch(`${API_URL}/api/config`, {
         method: 'PATCH', headers,
         body: JSON.stringify({ auto_trade: newState ? 'active' : 'off' })
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `Server error: ${res.status}`);
+      }
       setMsg(`Auto-Trade ${newState ? 'ACTIVATED' : 'DEACTIVATED'}`);
     } catch (e) {
-      setMsg('Failed to toggle Auto-Trade');
+      setMsg(e.message || 'Failed to toggle Auto-Trade');
       setAutoTrade(!newState);
     }
     setTimeout(() => setMsg(''), 3000);
@@ -37,7 +41,10 @@ const QuickTradePanel = ({ symbol, currentPrice, token, atr }) => {
         method: 'POST', headers,
         body: JSON.stringify({ symbol: symbol.toUpperCase().replace('.NS', ''), action, qty: parseInt(qty), type: orderType })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || `Trade failed: ${res.status}`);
+      }
       setMsg(data.message || data.detail || 'Order placed');
     } catch (e) {
       setMsg('Error: ' + e.message);

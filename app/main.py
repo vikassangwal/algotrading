@@ -677,6 +677,31 @@ async def ws_live(websocket: WebSocket):
     except Exception as e:
         logging.getLogger("elco.api").warning(f"/ws/live closed: {e}")
 
+@app.websocket("/ws/options")
+async def ws_options(websocket: WebSocket):
+    from . import auth as _auth_mod
+    from .modules.options_data import OptionsDataEngine
+    token = websocket.query_params.get("token", "")
+    if not _auth_mod.verify_token(token):
+        await websocket.close(code=4401)
+        return
+        
+    symbol = websocket.query_params.get("symbol", "NIFTY").upper().strip()
+    date = websocket.query_params.get("date", "")
+    
+    await websocket.accept()
+    engine = OptionsDataEngine()
+    
+    try:
+        while True:
+            chain = engine.get_option_chain(symbol, date)
+            await websocket.send_json({"type": "chain", "data": chain})
+            await asyncio.sleep(5) # 5 seconds polling to avoid NSE rate limit
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logging.getLogger("elco.options").warning(f"/ws/options closed: {e}")
+
 from pydantic import BaseModel
 class AlertCreate(BaseModel):
     symbol: str

@@ -40,14 +40,43 @@ const OptionChain = ({ token, globalSymbol }) => {
     return () => clearTimeout(timeoutId);
   }, [symbol]);
 
-  // Fetch option chain when symbol or selectedDate changes
+  // Connect to WebSocket for Live Option Chain
   useEffect(() => {
     if (!symbol || !selectedDate) return;
+    
+    // Initial fetch to show data quickly before WS connects
     fetchChain();
-    // Refresh every 10s
-    const interval = setInterval(fetchChain, 30000);
-    return () => clearInterval(interval);
-  }, [symbol, selectedDate]);
+    
+    const wsUrl = `${API_URL.replace(/^http/, 'ws')}/ws/options?token=${encodeURIComponent(token || 'demo')}&symbol=${encodeURIComponent(symbol)}&date=${encodeURIComponent(selectedDate)}`;
+    let ws = null;
+    
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const res = JSON.parse(event.data);
+          if (res.type === 'chain' && res.data) {
+            const data = res.data;
+            setSpotPrice(data.underlyingPrice || 0);
+            setMaxPain(data.max_pain || 0);
+            
+            const rows = (data.strikes || []).map(strike => {
+              const call = data.calls.find(c => c.strike === strike) || {};
+              const put = data.puts.find(p => p.strike === strike) || {};
+              return { strike, call, put };
+            });
+            setChainData(rows);
+            setError('');
+            setLoading(false);
+          }
+        } catch(e) {}
+      };
+    } catch(e) {}
+    
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [symbol, selectedDate, token]);
 
   const fetchChain = async () => {
     setLoading(true);
@@ -72,7 +101,7 @@ const OptionChain = ({ token, globalSymbol }) => {
     } catch (err) {
       setError('Connection error');
     }
-    setLoading(false);
+    // We do NOT set loading false here because WS takes over
   };
 
   return (
@@ -81,7 +110,12 @@ const OptionChain = ({ token, globalSymbol }) => {
       {/* Controls Header */}
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px'}}>
         <div>
-          <h2 style={{ color: '#f9fafb', fontSize: '20px', fontWeight: 'bold', margin: '0 0 10px 0' }}>Live Option Chain</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <h2 style={{ color: '#f9fafb', fontSize: '20px', fontWeight: 'bold', margin: 0 }}>Option Chain</h2>
+            <span style={{ backgroundColor: '#05966922', color: '#10b981', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #10b98155', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 4px #10b981', animation: 'pulse 1.5s infinite'}} /> Live WebSocket
+            </span>
+          </div>
           <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
             <input 
               type="text" 
@@ -162,7 +196,7 @@ const OptionChain = ({ token, globalSymbol }) => {
                   <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit', color: '#9ca3af' }}>{row.call.theta?.toFixed(3) || '-'}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit', color: '#9ca3af' }}>{row.call.gamma?.toFixed(4) || '-'}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit', color: row.call.delta > 0 ? '#10b981' : '#9ca3af' }}>{row.call.delta?.toFixed(3) || '-'}</td>
-                  <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit' }}>{formatNum(row.call.volume)}</td>
+                  <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit', color: (row.call.volume > row.call.oi && row.call.oi > 0) ? '#fbbf24' : 'inherit' }}>{formatNum(row.call.volume)}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit' }}>{formatNum(row.call.oi)}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMCall ? '#1e3a8a33' : 'inherit', fontWeight: 'bold', color: '#3b82f6', borderRight: '1px solid #374151' }}>
                     {formatLTP(row.call.ltp)}
@@ -178,7 +212,7 @@ const OptionChain = ({ token, globalSymbol }) => {
                     {formatLTP(row.put.ltp)}
                   </td>
                   <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit' }}>{formatNum(row.put.oi)}</td>
-                  <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit' }}>{formatNum(row.put.volume)}</td>
+                  <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit', color: (row.put.volume > row.put.oi && row.put.oi > 0) ? '#fbbf24' : 'inherit' }}>{formatNum(row.put.volume)}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit', color: row.put.delta < 0 ? '#ef4444' : '#9ca3af' }}>{row.put.delta?.toFixed(3) || '-'}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit', color: '#9ca3af' }}>{row.put.gamma?.toFixed(4) || '-'}</td>
                   <td style={{ ...tdStyle, backgroundColor: isITMPut ? '#83184333' : 'inherit', color: '#9ca3af' }}>{row.put.theta?.toFixed(3) || '-'}</td>

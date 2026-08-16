@@ -63,7 +63,7 @@ const UniversalScreener = ({ onNavigate }) => {
         </div>
       </div>
 
-      <div style={{ background: '#0d1117', border: '1px solid #1e222d', borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto', background: '#0d1117', border: '1px solid #1e222d', borderRadius: '8px' }}>
         <table style={st.table}>
           <thead>
             <tr>
