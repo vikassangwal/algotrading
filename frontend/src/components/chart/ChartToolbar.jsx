@@ -36,8 +36,7 @@ const ChartToolbar = ({
 
   const chartTypes = [
     { id: 'candlestick', label: '🕯️ Candles' },
-    { id: 'heikin_ashi', label: '📊 Heikin Ashi' },
-    { id: 'renko', label: '🧱 Renko' }
+    { id: 'heikin_ashi', label: '📊 Heikin Ashi' }
   ];
   const timeframes = ['1m', '5m', '15m', '1h', '1d', '1wk'];
 
@@ -200,13 +199,6 @@ const ChartToolbar = ({
             <span style={{ fontSize: '16px' }}>🤖</span> AI Mode: Auto-monitoring Support, Resistance & Patterns
           </span>
         )}
-
-        <button
-          style={{ ...(showDomPanel ? styles.activeBtn : styles.btn), marginLeft: 'auto', background: showDomPanel ? '#ff9800' : '#252a3a' }}
-          onClick={() => setShowDomPanel(!showDomPanel)}
-        >
-          📊 Order Book
-        </button>
       </div>
     </div>
   );

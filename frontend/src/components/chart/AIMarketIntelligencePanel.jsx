@@ -278,8 +278,51 @@ const AIMarketIntelligencePanel = ({
           )}
 
           {/* ════════════ TRADE SCENARIOS TAB ════════════ */}
-          {activeTab === 'scenarios' && (
+          {activeTab === 'scenarios' && (() => {
+            // ATR-based dynamic levels (NOT hardcoded percentages)
+            const atrVal = metrics.atr;
+            const isBullish = metrics.trendScore >= 50;
+            const longEntry = currentPrice + atrVal * 0.2;
+            const longT1 = currentPrice + atrVal * 1.5;
+            const longT2 = currentPrice + atrVal * 3;
+            const longSL = currentPrice - atrVal * 1;
+            const longRisk = Math.abs(longEntry - longSL);
+            const longReward = Math.abs(longT1 - longEntry);
+            const longRR = longRisk > 0 ? (longReward / longRisk).toFixed(1) : '—';
+            const shortEntry = currentPrice - atrVal * 0.2;
+            const shortT1 = currentPrice - atrVal * 1.5;
+            const shortT2 = currentPrice - atrVal * 3;
+            const shortSL = currentPrice + atrVal * 1;
+            const shortRisk = Math.abs(shortSL - shortEntry);
+            const shortReward = Math.abs(shortEntry - shortT1);
+            const shortRR = shortRisk > 0 ? (shortReward / shortRisk).toFixed(1) : '—';
+
+            // Backend AI signal (if available)
+            const aiAction = aiAnalysis?.action || (isBullish ? 'BUY' : 'SELL');
+            const aiConf = aiAnalysis?.confidence ? `${(aiAnalysis.confidence * 100).toFixed(0)}%` : `${metrics.trendScore}%`;
+
+            return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {/* AI Recommendation */}
+              {aiAnalysis && (
+                <div style={{ ...s.section, background: 'linear-gradient(135deg, #2962ff11, #131722)', border: '1px solid #2962ff33' }}>
+                  <div style={s.label}>🤖 Backend AI Signal</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '16px', color: aiAction === 'BUY' ? '#00e676' : aiAction === 'SELL' ? '#ff1744' : '#ff9800' }}>
+                      {aiAction}
+                    </span>
+                    <span style={{ ...s.pill, background: '#2962ff22', color: '#2979ff' }}>Confidence: {aiConf}</span>
+                  </div>
+                  {aiAnalysis?.reason && <div style={{ fontSize: '10px', color: '#8a92a5', marginTop: '4px' }}>{aiAnalysis.reason}</div>}
+                </div>
+              )}
+
+              {/* ATR Info */}
+              <div style={{ margin: '0 12px', fontSize: '10px', color: '#565d6e', display: 'flex', justifyContent: 'space-between' }}>
+                <span>ATR(14): ₹{atrVal.toFixed(2)}</span>
+                <span>Based on real volatility</span>
+              </div>
+
               {/* Long Setup */}
               <div style={{ ...s.section, background: 'linear-gradient(135deg, #00e67609, #131722)', border: '1px solid #00e67633' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -288,26 +331,26 @@ const AIMarketIntelligencePanel = ({
                 </div>
                 <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
-                    <div style={s.label}>Entry Zone</div>
-                    <div style={{ ...s.val, color: '#fff' }}>₹{(currentPrice * 1.001).toFixed(2)}</div>
+                    <div style={s.label}>Entry (ATR×0.2)</div>
+                    <div style={{ ...s.val, color: '#fff' }}>₹{longEntry.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Target 1</div>
-                    <div style={{ ...s.val, color: '#00e676' }}>₹{(currentPrice * 1.015).toFixed(2)}</div>
+                    <div style={s.label}>Target 1 (ATR×1.5)</div>
+                    <div style={{ ...s.val, color: '#00e676' }}>₹{longT1.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Target 2</div>
-                    <div style={{ ...s.val, color: '#69f0ae' }}>₹{(currentPrice * 1.03).toFixed(2)}</div>
+                    <div style={s.label}>Target 2 (ATR×3)</div>
+                    <div style={{ ...s.val, color: '#69f0ae' }}>₹{longT2.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Stop Loss</div>
-                    <div style={{ ...s.val, color: '#ff1744' }}>₹{(currentPrice * 0.99).toFixed(2)}</div>
+                    <div style={s.label}>Stop Loss (ATR×1)</div>
+                    <div style={{ ...s.val, color: '#ff1744' }}>₹{longSL.toFixed(2)}</div>
                   </div>
                 </div>
                 <div style={{ marginTop: '8px', padding: '6px 8px', background: '#00e67611', borderRadius: '4px' }}>
                   <div style={{ ...s.row }}>
                     <span style={s.label}>Risk:Reward</span>
-                    <span style={{ fontWeight: 800, color: '#00e676' }}>1 : 1.5</span>
+                    <span style={{ fontWeight: 800, color: '#00e676' }}>1 : {longRR}</span>
                   </div>
                 </div>
               </div>
@@ -320,29 +363,36 @@ const AIMarketIntelligencePanel = ({
                 </div>
                 <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <div>
-                    <div style={s.label}>Entry Zone</div>
-                    <div style={{ ...s.val, color: '#fff' }}>₹{(currentPrice * 0.999).toFixed(2)}</div>
+                    <div style={s.label}>Entry (ATR×0.2)</div>
+                    <div style={{ ...s.val, color: '#fff' }}>₹{shortEntry.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Target 1</div>
-                    <div style={{ ...s.val, color: '#ff1744' }}>₹{(currentPrice * 0.985).toFixed(2)}</div>
+                    <div style={s.label}>Target 1 (ATR×1.5)</div>
+                    <div style={{ ...s.val, color: '#ff1744' }}>₹{shortT1.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Target 2</div>
-                    <div style={{ ...s.val, color: '#ff8a80' }}>₹{(currentPrice * 0.97).toFixed(2)}</div>
+                    <div style={s.label}>Target 2 (ATR×3)</div>
+                    <div style={{ ...s.val, color: '#ff8a80' }}>₹{shortT2.toFixed(2)}</div>
                   </div>
                   <div>
-                    <div style={s.label}>Stop Loss</div>
-                    <div style={{ ...s.val, color: '#00e676' }}>₹{(currentPrice * 1.01).toFixed(2)}</div>
+                    <div style={s.label}>Stop Loss (ATR×1)</div>
+                    <div style={{ ...s.val, color: '#00e676' }}>₹{shortSL.toFixed(2)}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: '8px', padding: '6px 8px', background: '#ff174411', borderRadius: '4px' }}>
+                  <div style={{ ...s.row }}>
+                    <span style={s.label}>Risk:Reward</span>
+                    <span style={{ fontWeight: 800, color: '#ff1744' }}>1 : {shortRR}</span>
                   </div>
                 </div>
               </div>
 
               <div style={{ margin: '4px 12px', padding: '8px', background: '#1a1e2e', borderRadius: '6px', textAlign: 'center', fontSize: '9px', color: '#565d6e' }}>
-                ⚠️ AI projections are probability-based estimates, not guaranteed outcomes. Always use your own risk management.
+                ⚠️ Levels based on ATR(14) volatility. Not guaranteed outcomes.
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ════════════ QUANT TAB (Advanced Only) ════════════ */}
           {activeTab === 'quant' && mode === 'ADVANCED' && (

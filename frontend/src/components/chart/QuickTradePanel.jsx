@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
-const QuickTradePanel = ({ symbol, currentPrice, token }) => {
+const QuickTradePanel = ({ symbol, currentPrice, token, atr }) => {
   const [qty, setQty] = useState(1);
   const [orderType, setOrderType] = useState('MARKET');
   const [msg, setMsg] = useState('');
@@ -27,7 +27,7 @@ const QuickTradePanel = ({ symbol, currentPrice, token }) => {
     setTimeout(() => setMsg(''), 5000);
   };
 
-  const riskAmt = (currentPrice * qty * 0.01).toFixed(2); // 1% SL risk
+  const riskAmt = (atr ? (atr * qty) : (currentPrice * qty * 0.01)).toFixed(2);
   const posValue = (currentPrice * qty).toFixed(2);
 
   const s = {
@@ -95,7 +95,7 @@ const QuickTradePanel = ({ symbol, currentPrice, token }) => {
       <div style={{ width: '1px', height: '20px', background: '#1e222d' }} />
 
       <span style={s.info}>Val: ₹{posValue}</span>
-      <span style={s.info}>Risk(1%): ₹{riskAmt}</span>
+      <span style={s.info}>Risk (ATR): ₹{riskAmt}</span>
 
       {msg && (
         <span style={{

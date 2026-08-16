@@ -488,6 +488,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         symbol={symbol}
         currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
         token={token}
+        atr={data.length > 0 ? (calculateATR(data).slice(-1)[0]?.value || 0) : null}
       />
     </div>
   );
