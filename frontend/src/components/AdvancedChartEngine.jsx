@@ -183,56 +183,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       });
     }
 
-    // ─── Pro Chart Enhancements (Algo Signals, FVG, POC) ───
-    let allMarkers = [];
-    const stData = calculateSupertrend(data);
-
-    // 1. Algo Execution Signals (based on Supertrend flips for demonstration)
-    for (let i = 1; i < stData.length; i++) {
-      if (stData[i - 1].trend === -1 && stData[i].trend === 1) {
-        allMarkers.push({ time: stData[i].time, position: 'belowBar', color: '#00e676', shape: 'arrowUp', text: 'ALGO BUY', size: 2 });
-      } else if (stData[i - 1].trend === 1 && stData[i].trend === -1) {
-        allMarkers.push({ time: stData[i].time, position: 'aboveBar', color: '#ff1744', shape: 'arrowDown', text: 'ALGO SELL', size: 2 });
-      }
-    }
-
-    // 2. Fair Value Gaps (FVG)
-    const fvgs = calculateFVG(data);
-    fvgs.forEach(fvg => {
-      allMarkers.push({
-        time: fvg.time,
-        position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
-        color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
-        shape: 'circle',
-        text: 'FVG',
-        size: 1
-      });
-    });
-
-    // Sort markers by time (Lightweight charts requires markers to be sorted by time)
-    allMarkers.sort((a, b) => {
-        if (a.time < b.time) return -1;
-        if (a.time > b.time) return 1;
-        return 0;
-    });
-
-    // Deduplicate markers by time (keep only one marker per candle to avoid Lightweight Charts crash)
-    const uniqueMarkers = [];
-    let lastTime = null;
-    for (const marker of allMarkers) {
-      if (marker.time !== lastTime) {
-        uniqueMarkers.push(marker);
-        lastTime = marker.time;
-      } else {
-        // If there's already a marker, we can merge the text
-        const existing = uniqueMarkers[uniqueMarkers.length - 1];
-        if (!existing.text.includes(marker.text)) {
-          existing.text += ' + ' + marker.text;
-        }
-      }
-    }
-
-    // ─── Main Series ───
+    // ─── Main Series (moved up so we can attach price lines safely) ───
     if (activeChartType === 'candlestick') {
       seriesRef.current = chart.addSeries(CandlestickSeries, {
         upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
@@ -250,21 +201,78 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
       seriesRef.current.setData(data.map(d => ({ time: d.time, value: d.close })));
     }
 
+    // ─── Pro Chart Enhancements (Algo Signals, FVG, POC) ───
     try {
-      seriesRef.current.setMarkers(uniqueMarkers);
-    } catch(e) { console.error("Marker error", e) }
+      let allMarkers = [];
+      const stData = calculateSupertrend(data);
 
-    // 3. Point of Control (POC) Volume Profile Line
-    const pocPrice = calculatePOC(data);
-    if (pocPrice) {
-      seriesRef.current.createPriceLine({
-        price: pocPrice,
-        color: '#ff9800',
-        lineWidth: 2,
-        lineStyle: 1,
-        axisLabelVisible: true,
-        title: 'POC (Vol Profile)',
+      // 1. Algo Execution Signals (based on Supertrend flips for demonstration)
+      if (stData && stData.length > 0) {
+        for (let i = 1; i < stData.length; i++) {
+          if (stData[i - 1].trend === -1 && stData[i].trend === 1) {
+            allMarkers.push({ time: stData[i].time, position: 'belowBar', color: '#00e676', shape: 'arrowUp', text: 'ALGO BUY', size: 2 });
+          } else if (stData[i - 1].trend === 1 && stData[i].trend === -1) {
+            allMarkers.push({ time: stData[i].time, position: 'aboveBar', color: '#ff1744', shape: 'arrowDown', text: 'ALGO SELL', size: 2 });
+          }
+        }
+      }
+
+      // 2. Fair Value Gaps (FVG)
+      const fvgs = calculateFVG(data);
+      if (fvgs && fvgs.length > 0) {
+        fvgs.forEach(fvg => {
+          allMarkers.push({
+            time: fvg.time,
+            position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
+            color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
+            shape: 'circle',
+            text: 'FVG',
+            size: 1
+          });
+        });
+      }
+
+      // Sort markers by time
+      allMarkers.sort((a, b) => {
+          if (a.time < b.time) return -1;
+          if (a.time > b.time) return 1;
+          return 0;
       });
+
+      // Deduplicate markers by time
+      const uniqueMarkers = [];
+      let lastTime = null;
+      for (const marker of allMarkers) {
+        if (marker.time !== lastTime) {
+          uniqueMarkers.push(marker);
+          lastTime = marker.time;
+        } else {
+          const existing = uniqueMarkers[uniqueMarkers.length - 1];
+          if (!existing.text.includes(marker.text)) {
+            existing.text += ' + ' + marker.text;
+          }
+        }
+      }
+
+      seriesRef.current.setMarkers(uniqueMarkers);
+
+      // 3. Point of Control (POC) Volume Profile Line
+      const pocPrice = calculatePOC(data);
+      if (pocPrice) {
+        if (window._currentPocLine) {
+          seriesRef.current.removePriceLine(window._currentPocLine);
+        }
+        window._currentPocLine = seriesRef.current.createPriceLine({
+          price: pocPrice,
+          color: '#ff9800',
+          lineWidth: 2,
+          lineStyle: 1,
+          axisLabelVisible: true,
+          title: 'POC',
+        });
+      }
+    } catch(err) {
+      console.error("Error drawing Pro Enhancements:", err);
     }
 
     // ─── Volume ───
