@@ -11,21 +11,19 @@ import { detectCandlePatterns, detectMarketStructure } from './chart/PatternDete
 
 const API_URL = (import.meta.env.VITE_API_URL || 'https://elco-backend.onrender.com').replace(/\/$/, '');
 
-// ─── Heikin Ashi helper (pure function, declared before use) ───
-const getHeikinAshiData = (sourceData) => {
-  if (sourceData.length === 0) return [];
-  const haData = [];
-  let prevHAOpen = sourceData[0].open;
-  let prevHAClose = sourceData[0].close;
-  for (let i = 0; i < sourceData.length; i++) {
-    const { time, open, high, low, close } = sourceData[i];
-    const haClose = (open + high + low + close) / 4;
-    const haOpen = i === 0 ? (open + close) / 2 : (prevHAOpen + prevHAClose) / 2;
-    haData.push({ time, open: haOpen, high: Math.max(high, haOpen, haClose), low: Math.min(low, haOpen, haClose), close: haClose });
-    prevHAOpen = haOpen;
-    prevHAClose = haClose;
+// ─── Heikin Ashi helper ───
+const getHeikinAshiData = (src) => {
+  if (!src.length) return [];
+  const ha = [];
+  let pO = src[0].open, pC = src[0].close;
+  for (let i = 0; i < src.length; i++) {
+    const { time, open, high, low, close } = src[i];
+    const hC = (open + high + low + close) / 4;
+    const hO = i === 0 ? (open + close) / 2 : (pO + pC) / 2;
+    ha.push({ time, open: hO, high: Math.max(high, hO, hC), low: Math.min(low, hO, hC), close: hC });
+    pO = hO; pC = hC;
   }
-  return haData;
+  return ha;
 };
 
 const AdvancedChartEngine = ({ token, globalSymbol }) => {
@@ -33,6 +31,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [activeChartType, setActiveChartType] = useState('candlestick');
   const [symbol, setSymbol] = useState(globalSymbol || 'RELIANCE');
   const [timeframe, setTimeframe] = useState('15m');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [indicators, setIndicators] = useState({
     vol: true, rsi: false, macd: false, sma20: false, sma50: false,
@@ -45,6 +44,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastQuote, setLastQuote] = useState(null);
+  const [crosshairData, setCrosshairData] = useState(null);
 
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -52,14 +52,14 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const markersRef = useRef(null);
   const volumeSeriesRef = useRef(null);
   const lastCandleRef = useRef(null);
-
-  // Track all indicator series for proper cleanup
   const indRefs = useRef({});
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
     if (globalSymbol && globalSymbol !== symbol) setSymbol(globalSymbol);
   }, [globalSymbol]);
 
+  // ─── Fetch history ───
   const fetchHistory = useCallback(async () => {
     if (!symbol) return;
     setLoading(true);
@@ -72,32 +72,23 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
 
       const sym = symbol.toUpperCase().replace('.NS', '');
       let res = await fetch(`${API_URL}/api/history/${sym}.NS?interval=${timeframe}&period=${period}`, { headers }).catch(() => null);
-      if (!res || !res.ok) {
-        res = await fetch(`${API_URL}/api/history/${symbol.toUpperCase()}?interval=${timeframe}&period=${period}`, { headers }).catch(() => null);
-      }
+      if (!res || !res.ok) res = await fetch(`${API_URL}/api/history/${symbol.toUpperCase()}?interval=${timeframe}&period=${period}`, { headers }).catch(() => null);
 
       if (res && res.ok) {
-        const historyData = await res.json();
-        // Deduplicate and sort by time
+        const raw = await res.json();
         const seen = new Set();
-        const uniqueData = [];
-        for (const item of historyData) {
+        const unique = [];
+        for (const item of raw) {
           if (!seen.has(item.time)) {
             seen.add(item.time);
-            // Normalize volume field: API sends "value" for volume
-            uniqueData.push({
-              ...item,
-              volume: item.volume || item.value || 0
-            });
+            unique.push({ ...item, volume: item.volume || item.value || 0 });
           }
         }
-        uniqueData.sort((a, b) => a.time - b.time);
-        setData(uniqueData);
-        lastCandleRef.current = uniqueData.length ? { ...uniqueData[uniqueData.length - 1] } : null;
+        unique.sort((a, b) => a.time - b.time);
+        setData(unique);
+        lastCandleRef.current = unique.length ? { ...unique[unique.length - 1] } : null;
       }
-    } catch (err) {
-      console.error("Error fetching history:", err);
-    }
+    } catch (err) { console.error("History fetch error:", err); }
     setLoading(false);
   }, [symbol, timeframe, token]);
 
@@ -105,59 +96,71 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     if (!symbol) return;
     try {
       const res = await fetch(`${API_URL}/analyze/${symbol.toUpperCase().replace('.NS', '')}`);
-      if (res.ok) setAiAnalysis(await res.json());
-      else setAiAnalysis(null);
+      if (res.ok) setAiAnalysis(await res.json()); else setAiAnalysis(null);
     } catch { setAiAnalysis(null); }
   }, [symbol]);
 
-  useEffect(() => {
-    fetchHistory();
-    fetchAnalysis();
-  }, [fetchHistory, fetchAnalysis]);
+  useEffect(() => { fetchHistory(); fetchAnalysis(); }, [fetchHistory, fetchAnalysis]);
 
-  // ─── CLEANUP: Remove all indicator series from chart ───
+  // ─── Keyboard shortcuts ───
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      const key = e.key.toLowerCase();
+      const tfMap = { '1': '1m', '2': '5m', '3': '15m', '4': '1h', '5': '1d', '6': '1wk' };
+      if (tfMap[key]) { setTimeframe(tfMap[key]); e.preventDefault(); }
+      if (key === 'f') { setIsFullscreen(p => !p); e.preventDefault(); }
+      if (key === 'b') { setMode(p => p === 'BEGINNER' ? 'ADVANCED' : 'BEGINNER'); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ─── Cleanup indicator series ───
   const cleanupIndicators = useCallback((chart) => {
     if (!chart) return;
-    const refs = indRefs.current;
-    for (const key of Object.keys(refs)) {
-      try {
-        if (refs[key]) {
-          chart.removeSeries(refs[key]);
-        }
-      } catch (e) { /* series already removed */ }
-      refs[key] = null;
+    for (const key of Object.keys(indRefs.current)) {
+      try { if (indRefs.current[key]) chart.removeSeries(indRefs.current[key]); } catch {}
+      indRefs.current[key] = null;
     }
   }, []);
 
-  // ─── MAIN CHART RENDER EFFECT ───
+  // ─── MAIN CHART RENDER ───
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) return;
 
-    // Create chart if not exists
     if (!chartRef.current) {
       chartRef.current = createChart(chartContainerRef.current, {
-        layout: { background: { type: 'solid', color: '#131722' }, textColor: '#d1d4dc' },
-        grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
-        crosshair: { mode: 1 },
-        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#2b313f' },
-        rightPriceScale: { borderColor: '#2b313f', autoScale: true },
+        layout: { background: { type: 'solid', color: '#0a0e17' }, textColor: '#787b86', fontSize: 11 },
+        grid: { vertLines: { color: '#141820' }, horzLines: { color: '#141820' } },
+        crosshair: { mode: 0, vertLine: { color: '#2962ff44', width: 1, style: 0, labelBackgroundColor: '#2962ff' }, horzLine: { color: '#2962ff44', width: 1, style: 0, labelBackgroundColor: '#2962ff' } },
+        timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#1e222d', rightOffset: 12 },
+        rightPriceScale: { borderColor: '#1e222d', autoScale: true },
         leftPriceScale: { visible: false },
+        watermark: { visible: true, text: symbol.toUpperCase().replace('.NS', ''), color: '#ffffff08', fontSize: 80, fontFamily: 'Arial', fontWeight: 'bold', horzAlign: 'center', vertAlign: 'center' },
+      });
+
+      // Crosshair move handler for OHLCV legend
+      chartRef.current.subscribeCrosshairMove((param) => {
+        if (!param || !param.time) { setCrosshairData(null); return; }
+        const bar = data.find(d => d.time === param.time);
+        if (bar) setCrosshairData(bar);
       });
     }
 
     const chart = chartRef.current;
 
-    // Remove old main series + indicators
-    if (seriesRef.current) {
-      try { chart.removeSeries(seriesRef.current); } catch {}
-      seriesRef.current = null;
-    }
-    cleanupIndicators(chart);
+    // Update watermark on symbol change
+    chart.applyOptions({
+      watermark: { text: symbol.toUpperCase().replace('.NS', ''), visible: true, color: '#ffffff08', fontSize: 80, fontFamily: 'Arial', fontWeight: 'bold', horzAlign: 'center', vertAlign: 'center' },
+    });
 
-    // Create volume series if needed
+    // Remove old series
+    if (seriesRef.current) { try { chart.removeSeries(seriesRef.current); } catch {} seriesRef.current = null; }
+    cleanupIndicators(chart);
     if (!volumeSeriesRef.current) {
       volumeSeriesRef.current = chart.addSeries(HistogramSeries, {
-        color: '#26a69a', priceFormat: { type: 'volume' }, priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
+        color: '#26a69a', priceFormat: { type: 'volume' }, priceScaleId: '', scaleMargins: { top: 0.82, bottom: 0 }
       });
     }
 
@@ -184,158 +187,122 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     // ─── Volume ───
     if (indicators.vol) {
       volumeSeriesRef.current.setData(data.map(d => ({
-        time: d.time,
-        value: d.volume || d.value || 0,
-        color: d.close > d.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)'
+        time: d.time, value: d.volume || d.value || 0,
+        color: d.close > d.open ? 'rgba(38,166,154,0.25)' : 'rgba(239,83,80,0.25)'
       })));
-    } else {
-      volumeSeriesRef.current.setData([]);
-    }
+    } else { volumeSeriesRef.current.setData([]); }
 
-    // ─── Helper to add/remove line indicators safely ───
+    // ─── Add line indicator helper ───
     const addLine = (key, calcFn, opts) => {
-      if (mode === 'ADVANCED' || key === 'sr') {
-        try {
-          indRefs.current[key] = chart.addSeries(LineSeries, opts);
-          indRefs.current[key].setData(calcFn());
-        } catch (e) { console.warn(`Indicator ${key} failed:`, e); }
-      }
+      try {
+        indRefs.current[key] = chart.addSeries(LineSeries, opts);
+        indRefs.current[key].setData(calcFn());
+      } catch (e) { console.warn(`Indicator ${key}:`, e); }
     };
 
-    // ─── Overlay Indicators (on price scale) ───
-    if (indicators.sma20) addLine('sma20', () => calculateSMA(data, 20), { color: '#ffeb3b', lineWidth: 2, title: 'SMA 20' });
-    if (indicators.sma50) addLine('sma50', () => calculateSMA(data, 50), { color: '#ff9800', lineWidth: 2, title: 'SMA 50' });
-    if (indicators.ema9) addLine('ema9', () => calculateEMA(data, 9), { color: '#00bcd4', lineWidth: 2, title: 'EMA 9' });
-    if (indicators.vwap) addLine('vwap', () => calculateVWAP(data), { color: '#e040fb', lineWidth: 2, title: 'VWAP' });
-    if (indicators.atr) addLine('atr', () => calculateATR(data), { color: '#ff5252', lineWidth: 2, priceScaleId: 'left', title: 'ATR' });
+    const adv = mode === 'ADVANCED';
+
+    // Overlays
+    if (indicators.sma20 && adv) addLine('sma20', () => calculateSMA(data, 20), { color: '#ffeb3b', lineWidth: 1, title: 'SMA 20' });
+    if (indicators.sma50 && adv) addLine('sma50', () => calculateSMA(data, 50), { color: '#ff9800', lineWidth: 1, title: 'SMA 50' });
+    if (indicators.ema9 && adv) addLine('ema9', () => calculateEMA(data, 9), { color: '#00bcd4', lineWidth: 1, title: 'EMA 9' });
+    if (indicators.vwap && adv) addLine('vwap', () => calculateVWAP(data), { color: '#e040fb', lineWidth: 2, title: 'VWAP', lineStyle: 2 });
+    if (indicators.atr && adv) addLine('atr', () => calculateATR(data), { color: '#ff5252', lineWidth: 1, priceScaleId: 'left', title: 'ATR' });
 
     // Bollinger Bands
-    if (indicators.bb && mode === 'ADVANCED') {
-      const bbData = calculateBB(data, 20, 2);
-      addLine('bbUpper', () => bbData.upper, { color: 'rgba(33,150,243,0.5)', lineWidth: 1, title: 'BB Upper' });
-      addLine('bbMiddle', () => bbData.middle, { color: 'rgba(33,150,243,0.3)', lineWidth: 1, lineStyle: 2, title: 'BB Mid' });
-      addLine('bbLower', () => bbData.lower, { color: 'rgba(33,150,243,0.5)', lineWidth: 1, title: 'BB Lower' });
+    if (indicators.bb && adv) {
+      const bb = calculateBB(data, 20, 2);
+      addLine('bbU', () => bb.upper, { color: 'rgba(33,150,243,0.5)', lineWidth: 1, title: 'BB↑' });
+      addLine('bbM', () => bb.middle, { color: 'rgba(33,150,243,0.3)', lineWidth: 1, lineStyle: 2, title: 'BB' });
+      addLine('bbL', () => bb.lower, { color: 'rgba(33,150,243,0.5)', lineWidth: 1, title: 'BB↓' });
     }
 
     // Supertrend
-    if (indicators.supertrend && mode === 'ADVANCED') {
-      const stData = calculateSupertrend(data);
-      if (stData.length > 0) {
-        indRefs.current.supertrend = chart.addSeries(LineSeries, { lineWidth: 2, title: 'Supertrend' });
-        indRefs.current.supertrend.setData(stData.map(d => ({
-          time: d.time, value: d.value,
-          color: d.trend === 1 ? '#00e676' : '#ff1744'
-        })));
+    if (indicators.supertrend && adv) {
+      const st = calculateSupertrend(data);
+      if (st.length) {
+        indRefs.current.supertrend = chart.addSeries(LineSeries, { lineWidth: 2, title: 'ST' });
+        indRefs.current.supertrend.setData(st.map(d => ({ time: d.time, value: d.value, color: d.trend === 1 ? '#00e676' : '#ff1744' })));
       }
     }
 
     // AI Predictor
-    if (indicators.aipredictor && mode === 'ADVANCED') {
-      const aiData = calculateAIPredictor(data);
-      if (aiData.length > 0) {
-        indRefs.current.aipredictor = chart.addSeries(LineSeries, {
-          lineWidth: 3, title: 'AI Predictor', lineStyle: 0
-        });
-        indRefs.current.aipredictor.setData(aiData.map(d => ({
-          time: d.time, value: d.value, color: d.color
-        })));
+    if (indicators.aipredictor && adv) {
+      const ai = calculateAIPredictor(data);
+      if (ai.length) {
+        indRefs.current.aipredictor = chart.addSeries(LineSeries, { lineWidth: 3, title: '🧠 AI', lineStyle: 0 });
+        indRefs.current.aipredictor.setData(ai.map(d => ({ time: d.time, value: d.value, color: d.color })));
       }
     }
 
     // RSI
-    if (indicators.rsi && mode === 'ADVANCED') {
-      addLine('rsi', () => calculateRSI(data), { color: '#9c27b0', lineWidth: 2, priceScaleId: 'left', title: 'RSI' });
-    }
+    if (indicators.rsi && adv) addLine('rsi', () => calculateRSI(data), { color: '#9c27b0', lineWidth: 1, priceScaleId: 'left', title: 'RSI' });
 
     // Stochastic RSI
-    if (indicators.stochrsi && mode === 'ADVANCED') {
+    if (indicators.stochrsi && adv) {
       const sr = calculateStochRSI(data);
-      if (sr.k.length > 0) {
-        addLine('stochK', () => sr.k, { color: '#00bcd4', lineWidth: 1, priceScaleId: 'left', title: '%K' });
-        addLine('stochD', () => sr.d, { color: '#ff9800', lineWidth: 1, priceScaleId: 'left', title: '%D' });
+      if (sr.k.length) {
+        addLine('stK', () => sr.k, { color: '#00bcd4', lineWidth: 1, priceScaleId: 'left', title: '%K' });
+        addLine('stD', () => sr.d, { color: '#ff9800', lineWidth: 1, priceScaleId: 'left', title: '%D' });
       }
     }
 
     // MACD
-    if (indicators.macd && mode === 'ADVANCED') {
-      const { macdLine, macdSignal } = calculateMACD(data);
-      if (macdLine.length > 0) {
-        addLine('macdLine', () => macdLine, { color: '#2196f3', lineWidth: 2, priceScaleId: 'left', title: 'MACD' });
-        addLine('macdSignal', () => macdSignal, { color: '#f44336', lineWidth: 2, priceScaleId: 'left', title: 'Signal' });
+    if (indicators.macd && adv) {
+      const m = calculateMACD(data);
+      if (m.macdLine.length) {
+        addLine('macdL', () => m.macdLine, { color: '#2196f3', lineWidth: 1, priceScaleId: 'left', title: 'MACD' });
+        addLine('macdS', () => m.macdSignal, { color: '#f44336', lineWidth: 1, priceScaleId: 'left', title: 'Sig' });
       }
     }
 
     // Ichimoku
-    if (indicators.ichimoku && mode === 'ADVANCED') {
+    if (indicators.ichimoku && adv) {
       const ich = calculateIchimoku(data);
-      if (ich.tenkan.length > 0) {
-        addLine('ichTenkan', () => ich.tenkan, { color: '#2196f3', lineWidth: 1, title: 'Tenkan' });
-        addLine('ichKijun', () => ich.kijun, { color: '#ef5350', lineWidth: 1, title: 'Kijun' });
-        addLine('ichSpanA', () => ich.spanA, { color: 'rgba(76,175,80,0.4)', lineWidth: 1, title: 'Span A' });
-        addLine('ichSpanB', () => ich.spanB, { color: 'rgba(244,67,54,0.4)', lineWidth: 1, title: 'Span B' });
+      if (ich.tenkan.length) {
+        addLine('ichT', () => ich.tenkan, { color: '#2196f3', lineWidth: 1, title: 'Tenkan' });
+        addLine('ichK', () => ich.kijun, { color: '#ef5350', lineWidth: 1, title: 'Kijun' });
+        addLine('ichA', () => ich.spanA, { color: 'rgba(76,175,80,0.35)', lineWidth: 1, title: 'SpanA' });
+        addLine('ichB', () => ich.spanB, { color: 'rgba(244,67,54,0.35)', lineWidth: 1, title: 'SpanB' });
       }
     }
 
     // Support / Resistance
     if (indicators.sr || mode === 'BEGINNER') {
-      const maxHigh = Math.max(...data.map(d => d.high));
-      const minLow = Math.min(...data.map(d => d.low));
-      addLine('srHigh', () => [{ time: data[0].time, value: maxHigh }, { time: data[data.length - 1].time, value: maxHigh }],
-        { color: '#ef5350', lineWidth: 1, lineStyle: 2, title: 'Resistance' });
-      addLine('srLow', () => [{ time: data[0].time, value: minLow }, { time: data[data.length - 1].time, value: minLow }],
-        { color: '#26a69a', lineWidth: 1, lineStyle: 2, title: 'Support' });
+      const hi = Math.max(...data.map(d => d.high));
+      const lo = Math.min(...data.map(d => d.low));
+      addLine('srH', () => [{ time: data[0].time, value: hi }, { time: data[data.length - 1].time, value: hi }], { color: '#ef5350', lineWidth: 1, lineStyle: 2, title: 'R' });
+      addLine('srL', () => [{ time: data[0].time, value: lo }, { time: data[data.length - 1].time, value: lo }], { color: '#26a69a', lineWidth: 1, lineStyle: 2, title: 'S' });
     }
 
-    // ─── Pattern Markers (Advanced only) ───
-    const activeMarkers = [];
-    if (mode === 'ADVANCED') {
-      const patterns = detectCandlePatterns(data);
-      for (const p of patterns) {
-        activeMarkers.push({
-          time: p.time,
-          position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar',
-          color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800',
-          shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle',
-          text: p.type
-        });
+    // ─── Pattern Markers ───
+    const markers = [];
+    if (adv) {
+      for (const p of detectCandlePatterns(data)) {
+        markers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle', text: p.type });
       }
-      const pivots = detectMarketStructure(data);
-      for (const p of pivots) {
-        activeMarkers.push({
-          time: p.time,
-          position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar',
-          color: '#2196f3', shape: 'circle', text: p.type
-        });
+      for (const p of detectMarketStructure(data)) {
+        markers.push({ time: p.time, position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar', color: '#2196f3', shape: 'circle', text: p.type });
       }
     }
-
-    // Deduplicate markers by time
-    activeMarkers.sort((a, b) => a.time - b.time);
-    const uniqueMarkers = [];
-    for (const m of activeMarkers) {
-      const last = uniqueMarkers[uniqueMarkers.length - 1];
-      if (last && last.time === m.time) {
-        last.text += ` | ${m.text}`;
-      } else {
-        uniqueMarkers.push({ ...m });
-      }
+    // Deduplicate
+    markers.sort((a, b) => a.time - b.time);
+    const uMarkers = [];
+    for (const m of markers) {
+      const last = uMarkers[uMarkers.length - 1];
+      if (last && last.time === m.time) last.text += ` | ${m.text}`;
+      else uMarkers.push({ ...m });
     }
-    markersRef.current.setMarkers(uniqueMarkers);
+    markersRef.current.setMarkers(uMarkers);
 
-    // ─── Resize handler ───
-    const handleResize = () => {
-      if (chartContainerRef.current) {
-        chart.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight
-        });
-      }
+    // Resize
+    const onResize = () => {
+      if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth, height: chartContainerRef.current.clientHeight });
     };
-    window.addEventListener('resize', handleResize);
-    handleResize();
-
-    return () => window.removeEventListener('resize', handleResize);
-  }, [data, activeChartType, indicators, mode, cleanupIndicators]);
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, [data, activeChartType, indicators, mode, cleanupIndicators, symbol]);
 
   // ─── Live quote polling ───
   useEffect(() => {
@@ -343,34 +310,58 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     let active = true;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/quote/${symbol.toUpperCase().replace('.NS', '')}`);
-        if (res.ok && active) {
-          const q = await res.json();
-          setLastQuote(q);
-        }
+        const r = await fetch(`${API_URL}/api/quote/${symbol.toUpperCase().replace('.NS', '')}`);
+        if (r.ok && active) setLastQuote(await r.json());
       } catch {}
     };
     poll();
-    const iv = setInterval(poll, 10000);
+    const iv = setInterval(poll, 8000);
     return () => { active = false; clearInterval(iv); };
   }, [symbol]);
 
-  // Memoized pattern data for AI panel
   const patternsMemo = useMemo(() => detectCandlePatterns(data), [data]);
   const msMemo = useMemo(() => detectMarketStructure(data), [data]);
-
   const toggleIndicator = (ind) => setIndicators(p => ({ ...p, [ind]: !p[ind] }));
 
-  const styles = {
-    wrapper: { display: 'flex', flexDirection: 'column', height: '80vh', background: '#131722', borderRadius: '8px', overflow: 'hidden', border: '1px solid #2b313f' },
+  // Display bar (crosshair or last candle)
+  const displayBar = crosshairData || (data.length ? data[data.length - 1] : null);
+
+  const st = {
+    wrapper: {
+      display: 'flex', flexDirection: 'column',
+      height: isFullscreen ? '100vh' : '82vh',
+      background: '#0a0e17', borderRadius: isFullscreen ? 0 : '10px',
+      overflow: 'hidden', border: isFullscreen ? 'none' : '1px solid #1e222d',
+      position: isFullscreen ? 'fixed' : 'relative',
+      top: isFullscreen ? 0 : 'auto', left: isFullscreen ? 0 : 'auto',
+      width: isFullscreen ? '100vw' : 'auto',
+      zIndex: isFullscreen ? 9999 : 'auto',
+    },
     main: { display: 'flex', flex: 1, overflow: 'hidden' },
-    chartArea: { flex: 1, position: 'relative' },
-    loading: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#787b86', zIndex: 10, fontSize: '14px' },
-    ticker: { position: 'absolute', top: '16px', left: '16px', zIndex: 10, background: 'rgba(19,23,34,0.85)', padding: '8px 14px', borderRadius: '8px', border: '1px solid #2b313f', backdropFilter: 'blur(8px)' }
+    chartArea: { flex: 1, position: 'relative', background: '#0a0e17' },
+    loading: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', color: '#787b86', zIndex: 10, fontSize: '14px' },
+    legend: {
+      position: 'absolute', top: '8px', left: '12px', zIndex: 10,
+      background: 'rgba(10,14,23,0.85)', padding: '8px 12px', borderRadius: '8px',
+      border: '1px solid #1e222d', backdropFilter: 'blur(12px)',
+      display: 'flex', flexDirection: 'column', gap: '4px',
+    },
+    legendRow: { display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' },
+    ohlcLabel: { color: '#565d6e', fontSize: '10px', fontWeight: 600 },
+    fullscreenBtn: {
+      position: 'absolute', top: '8px', right: '12px', zIndex: 10,
+      background: 'rgba(10,14,23,0.85)', color: '#787b86', border: '1px solid #1e222d',
+      padding: '6px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px',
+      backdropFilter: 'blur(8px)',
+    },
+    shortcutHint: {
+      position: 'absolute', bottom: '8px', left: '12px', zIndex: 10,
+      fontSize: '9px', color: '#363c4e',
+    }
   };
 
   return (
-    <div style={styles.wrapper}>
+    <div style={st.wrapper} ref={wrapperRef}>
       <ChartToolbar
         mode={mode} setMode={setMode}
         symbol={symbol} setSymbol={setSymbol} fetchHistory={fetchHistory}
@@ -380,31 +371,67 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         showDomPanel={showDomPanel} setShowDomPanel={setShowDomPanel}
       />
 
-      <div style={styles.main}>
-        <div style={styles.chartArea}>
-          {loading && data.length === 0 && <div style={styles.loading}>⏳ Loading Chart Data...</div>}
+      <div style={st.main}>
+        <div style={st.chartArea}>
+          {loading && data.length === 0 && <div style={st.loading}>⏳ Loading...</div>}
 
-          {lastQuote && (
-            <div style={styles.ticker}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ color: '#fff', fontWeight: 700, fontSize: '16px' }}>{symbol.toUpperCase().replace('.NS', '')}</span>
-                <span style={{ fontWeight: 700, fontSize: '20px', color: (lastQuote.change_pct || 0) >= 0 ? '#26a69a' : '#ef5350' }}>
-                  ₹{lastQuote.price?.toFixed(2)}
+          {/* OHLCV Legend (like TradingView) */}
+          {displayBar && (
+            <div style={st.legend}>
+              <div style={st.legendRow}>
+                <span style={{ color: '#fff', fontWeight: 800, fontSize: '15px' }}>
+                  {symbol.toUpperCase().replace('.NS', '')}
                 </span>
-                <span style={{
-                  fontSize: '13px', fontWeight: 600,
-                  padding: '2px 8px', borderRadius: '4px',
-                  background: (lastQuote.change_pct || 0) >= 0 ? 'rgba(38,166,154,0.15)' : 'rgba(239,83,80,0.15)',
-                  color: (lastQuote.change_pct || 0) >= 0 ? '#26a69a' : '#ef5350'
-                }}>
-                  {(lastQuote.change_pct || 0) >= 0 ? '+' : ''}{lastQuote.change_pct}%
+                <span style={{ color: '#565d6e', fontSize: '10px' }}>{timeframe.toUpperCase()}</span>
+                {lastQuote && (
+                  <span style={{
+                    fontSize: '11px', fontWeight: 700, padding: '1px 6px', borderRadius: '3px',
+                    background: (lastQuote.change_pct || 0) >= 0 ? 'rgba(38,166,154,0.15)' : 'rgba(239,83,80,0.15)',
+                    color: (lastQuote.change_pct || 0) >= 0 ? '#26a69a' : '#ef5350'
+                  }}>
+                    {(lastQuote.change_pct || 0) >= 0 ? '+' : ''}{lastQuote.change_pct}%
+                  </span>
+                )}
+                {lastQuote?.delayed && <span style={{ fontSize: '8px', color: '#565d6e', background: '#1e222d', padding: '1px 4px', borderRadius: '2px' }}>DELAYED</span>}
+              </div>
+              <div style={st.legendRow}>
+                <span style={st.ohlcLabel}>O</span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
+                  {displayBar.open?.toFixed(2)}
                 </span>
-                {lastQuote.delayed && <span style={{ fontSize: '10px', color: '#787b86', background: '#2b313f', padding: '2px 6px', borderRadius: '3px' }}>DELAYED</span>}
+                <span style={st.ohlcLabel}>H</span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
+                  {displayBar.high?.toFixed(2)}
+                </span>
+                <span style={st.ohlcLabel}>L</span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 600, fontFamily: 'monospace' }}>
+                  {displayBar.low?.toFixed(2)}
+                </span>
+                <span style={st.ohlcLabel}>C</span>
+                <span style={{ color: displayBar.close >= displayBar.open ? '#26a69a' : '#ef5350', fontWeight: 800, fontFamily: 'monospace', fontSize: '14px' }}>
+                  {displayBar.close?.toFixed(2)}
+                </span>
+                <span style={st.ohlcLabel}>V</span>
+                <span style={{ color: '#787b86', fontFamily: 'monospace' }}>
+                  {(displayBar.volume || displayBar.value || 0) > 1e6
+                    ? `${((displayBar.volume || displayBar.value || 0) / 1e6).toFixed(2)}M`
+                    : `${((displayBar.volume || displayBar.value || 0) / 1e3).toFixed(0)}K`}
+                </span>
               </div>
             </div>
           )}
 
+          {/* Fullscreen Button */}
+          <button style={st.fullscreenBtn} onClick={() => setIsFullscreen(p => !p)} title="Fullscreen (F)">
+            {isFullscreen ? '⊡' : '⛶'}
+          </button>
+
           <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
+
+          {/* Keyboard shortcut hint */}
+          <div style={st.shortcutHint}>
+            1-6: Timeframe · F: Fullscreen · B: Mode
+          </div>
         </div>
 
         <AIMarketIntelligencePanel
@@ -413,8 +440,10 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           symbol={symbol}
           timeframe={timeframe}
           currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
+          data={data}
           patterns={patternsMemo}
           marketStructure={msMemo}
+          indicators={indicators}
         />
       </div>
     </div>
