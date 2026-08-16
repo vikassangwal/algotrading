@@ -216,6 +216,22 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         return 0;
     });
 
+    // Deduplicate markers by time (keep only one marker per candle to avoid Lightweight Charts crash)
+    const uniqueMarkers = [];
+    let lastTime = null;
+    for (const marker of allMarkers) {
+      if (marker.time !== lastTime) {
+        uniqueMarkers.push(marker);
+        lastTime = marker.time;
+      } else {
+        // If there's already a marker, we can merge the text
+        const existing = uniqueMarkers[uniqueMarkers.length - 1];
+        if (!existing.text.includes(marker.text)) {
+          existing.text += ' + ' + marker.text;
+        }
+      }
+    }
+
     // ─── Main Series ───
     if (activeChartType === 'candlestick') {
       seriesRef.current = chart.addSeries(CandlestickSeries, {
@@ -235,7 +251,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
 
     try {
-      seriesRef.current.setMarkers(allMarkers);
+      seriesRef.current.setMarkers(uniqueMarkers);
     } catch(e) { console.error("Marker error", e) }
 
     // 3. Point of Control (POC) Volume Profile Line
