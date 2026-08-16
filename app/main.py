@@ -1735,28 +1735,29 @@ def auto_hunt_run_now(symbols: str = ""):
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()][:5] or None
     return hunt_daemon.run_hunt(syms)
 
-_SCREENER_BEST_CACHE = {"data": None, "ts": 0}
+_SCREENER_BEST_CACHE = {}
 
 @app.get("/api/screener/best")
-def screen_best_stocks(top_n: int = 10):
-    """Rank the NIFTY-50 universe by aligned multi-factor evidence. Cached for 10 minutes for 0ms response."""
+def screen_best_stocks(top_n: int = 10, mode: str = "Intraday"):
+    """Rank the NIFTY-50 universe by aligned multi-factor evidence. Cached for 10 minutes per mode."""
     import time
     now = time.time()
-    if _SCREENER_BEST_CACHE["data"] and (now - _SCREENER_BEST_CACHE["ts"] < 600):
-        return _SCREENER_BEST_CACHE["data"]
+    cache_key = f"{mode}_{top_n}"
+    
+    if cache_key in _SCREENER_BEST_CACHE and (now - _SCREENER_BEST_CACHE[cache_key]["ts"] < 600):
+        return _SCREENER_BEST_CACHE[cache_key]["data"]
 
     try:
         from .modules.stock_ranker import rank_universe
-        res = rank_universe(top_n=max(1, min(top_n, 25)))
+        res = rank_universe(top_n=max(1, min(top_n, 25)), mode=mode)
         if res and isinstance(res, dict) and ("best_long" in res or "best_short" in res):
-            _SCREENER_BEST_CACHE["data"] = res
-            _SCREENER_BEST_CACHE["ts"] = now
+            _SCREENER_BEST_CACHE[cache_key] = {"data": res, "ts": now}
             return res
     except Exception as e:
         print(f"Error in rank_universe: {e}")
 
-    if _SCREENER_BEST_CACHE["data"]:
-        return _SCREENER_BEST_CACHE["data"]
+    if cache_key in _SCREENER_BEST_CACHE and _SCREENER_BEST_CACHE[cache_key]["data"]:
+        return _SCREENER_BEST_CACHE[cache_key]["data"]
 
     # Fallback response if initial calculation is pending
     return {

@@ -182,7 +182,7 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
   const fetchAutoScan = async () => {
     setScanning(true);
     try {
-      const res = await fetch(`${API_URL}/api/screener/best?top_n=10`);
+      const res = await fetch(`${API_URL}/api/screener/best?top_n=10&mode=${tradingMode}`);
       if (res.ok) {
         const data = await res.json();
         setScannerData(data);
@@ -196,7 +196,7 @@ const UltimateDashboard = ({ token, globalSymbol }) => {
 
   useEffect(() => {
     fetchAutoScan();
-  }, []);
+  }, [tradingMode]);
 
   const quote = analysis?.quote || {};
   const price = quote.price ?? 0;

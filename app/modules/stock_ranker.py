@@ -189,15 +189,27 @@ def full_market_universe(min_turnover_cr: float = MIN_TURNOVER_CR,
     }
 
 
-def rank_universe(symbols: Optional[List[str]] = None, top_n: int = 10) -> Dict[str, Any]:
+def rank_universe(symbols: Optional[List[str]] = None, top_n: int = 10, mode: str = "Intraday") -> Dict[str, Any]:
     """Batch-download the universe and rank by |score|. Real data only —
     symbols that fail to download are listed in 'skipped', never guessed."""
     import yfinance as yf
 
     symbols = [s.upper() for s in (symbols or NIFTY50)]
     tickers = [f"{s}.NS" for s in symbols]
+    
+    # Adjust timeframe based on mode
+    period, interval = "1y", "1d"
+    if mode == "Scalping":
+        period, interval = "5d", "5m"
+    elif mode == "Intraday":
+        period, interval = "1mo", "15m"
+    elif mode == "Swing":
+        period, interval = "1y", "1d"
+    elif mode == "Positional":
+        period, interval = "2y", "1wk"
+        
     try:
-        raw = yf.download(tickers, period="1y", interval="1d", progress=False,
+        raw = yf.download(tickers, period=period, interval=interval, progress=False,
                           auto_adjust=True, group_by="ticker", threads=True)
     except Exception as e:
         return {"error": f"batch download failed: {e}", "ranked": [], "skipped": symbols}
