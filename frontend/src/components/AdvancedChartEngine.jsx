@@ -333,10 +333,22 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
 
     // AI Predictor
     if (indicators.aipredictor && adv) {
-      const ai = calculateAIPredictor(data);
-      if (ai.length) {
-        indRefs.current.aipredictor = chart.addSeries(LineSeries, { lineWidth: 3, title: '🧠 AI', lineStyle: 0 });
-        indRefs.current.aipredictor.setData(ai.map(d => ({ time: d.time, value: d.value, color: d.color })));
+      const aiResult = calculateAIPredictor(data);
+      if (aiResult && aiResult.line && aiResult.line.length) {
+        indRefs.current.aipredictor = chart.addSeries(LineSeries, { lineWidth: 3, title: '🔮 AI Line', lineStyle: 0 });
+        indRefs.current.aipredictor.setData(aiResult.line.map(d => ({ time: d.time, value: d.value, color: d.color })));
+      }
+      if (aiResult && aiResult.futureCandles && aiResult.futureCandles.length) {
+        indRefs.current.aifuture = chart.addSeries(CandlestickSeries, {
+          upColor: 'rgba(224, 64, 251, 0.4)',
+          downColor: 'rgba(224, 64, 251, 0.4)',
+          borderUpColor: '#e040fb',
+          borderDownColor: '#e040fb',
+          wickUpColor: '#e040fb',
+          wickDownColor: '#e040fb',
+          title: '🔮 Future Forecast'
+        });
+        indRefs.current.aifuture.setData(aiResult.futureCandles);
       }
     }
 

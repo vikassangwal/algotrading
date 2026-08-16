@@ -444,7 +444,8 @@ export const calculateAIPredictor = (data) => {
     predictorLine.push({ time: t, value: predictedValue, color, score, confidence });
   }
 
-  // Future Projection (5 candles ahead)
+  const futureCandles = [];
+  // Future Projection (15 candles ahead)
   if (predictorLine.length >= 3) {
     const last = data[data.length - 1];
     let lastPrice = last.close;
@@ -456,22 +457,28 @@ export const calculateAIPredictor = (data) => {
                       predictorLine[predictorLine.length - 2].score +
                       predictorLine[predictorLine.length - 3].score) / 3;
     const atrLast = maps.atr.get(last.time) || Math.abs(last.high - last.low);
-    const momentum = (avgScore / 20) * atrLast * 0.4;
+    const momentum = (avgScore / 20) * atrLast * 0.8;
 
-    for (let f = 1; f <= 5; f++) {
+    for (let f = 1; f <= 15; f++) {
       lastTime += timeStep;
-      lastPrice += momentum * (1 - f * 0.1); // Decay projection
-      predictorLine.push({
+      
+      const noise = (Math.sin(f * 0.8) + Math.cos(f * 1.5)) * atrLast * 0.2;
+      const trendMove = momentum * (1 - f * 0.05); // slight decay
+      
+      const open = lastPrice;
+      const close = open + trendMove + noise;
+      const high = Math.max(open, close) + atrLast * 0.4 * Math.abs(Math.sin(f));
+      const low = Math.min(open, close) - atrLast * 0.4 * Math.abs(Math.cos(f));
+      
+      futureCandles.push({
         time: lastTime,
-        value: lastPrice,
-        color: '#e040fb', // Purple = future
-        score: avgScore,
-        confidence: Math.max(0, 0.8 - f * 0.12)
+        open, high, low, close
       });
+      lastPrice = close;
     }
   }
 
-  return predictorLine;
+  return { line: predictorLine, futureCandles };
 };
 
 // ───────────────── FIBONACCI RETRACEMENT (Auto from recent swing) ─────────────────
