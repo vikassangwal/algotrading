@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 // Indicator display names and categories for the dropdown
 const INDICATOR_META = {
@@ -59,10 +59,32 @@ const ChartToolbar = ({
 
   const [riskReward, setRiskReward] = useState(getDefaultRR(globalTradingStyle));
 
-  // Sync RR when global style changes
+  const handleAiAutoSetup = useCallback(() => {
+    if (onAutoAnalyze) {
+      const result = onAutoAnalyze();
+      if (result) {
+        setOrderPrice(result.entry);
+        setStopLoss(result.sl);
+        setTargetPrice(result.tp);
+        setRiskReward(result.rr);
+      }
+    }
+  }, [onAutoAnalyze]);
+
+  // Sync RR, timeframe, and re-analyze when global style changes
   useEffect(() => {
     setRiskReward(getDefaultRR(globalTradingStyle));
-  }, [globalTradingStyle]);
+    
+    if (globalTradingStyle === 'SCALPING') setTimeframe('1m');
+    else if (globalTradingStyle === 'INTRADAY') setTimeframe('15m');
+    else if (globalTradingStyle === 'SWING') setTimeframe('1h');
+    else if (globalTradingStyle === 'POSITION') setTimeframe('1d');
+
+    // Slight delay to allow data to potentially load if timeframe changed
+    setTimeout(() => {
+      handleAiAutoSetup();
+    }, 300);
+  }, [globalTradingStyle, setTimeframe, handleAiAutoSetup]);
 
   useEffect(() => {
     if (orderPrice && stopLoss && riskReward !== 'Custom') {
@@ -77,17 +99,6 @@ const ChartToolbar = ({
     }
   }, [orderPrice, stopLoss, riskReward]);
 
-  const handleAiAutoSetup = () => {
-    if (onAutoAnalyze) {
-      const result = onAutoAnalyze();
-      if (result) {
-        setOrderPrice(result.entry);
-        setStopLoss(result.sl);
-        setTargetPrice(result.tp);
-        setRiskReward(result.rr);
-      }
-    }
-  };
 
   const chartTypes = [
     { id: 'candlestick', label: 'Candles', icon: '🕯️' },
