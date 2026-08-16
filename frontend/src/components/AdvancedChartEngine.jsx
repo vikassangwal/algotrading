@@ -485,6 +485,30 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
     }
   };
 
+  const handleAutoAnalyze = () => {
+    if (!data || data.length < 20) return null;
+    
+    const current = data[data.length - 1];
+    const recent = data.slice(-20);
+    const highest = Math.max(...recent.map(d => d.high));
+    const lowest = Math.min(...recent.map(d => d.low));
+    
+    const isBullish = current.close > current.open;
+    let entry = current.close;
+    let sl = isBullish ? lowest : highest;
+    let risk = Math.abs(entry - sl);
+    if (risk === 0) risk = entry * 0.01;
+    
+    let tp = isBullish ? entry + (risk * 2) : entry - (risk * 2);
+    
+    return {
+      entry: entry.toFixed(2),
+      sl: sl.toFixed(2),
+      tp: tp.toFixed(2),
+      rr: '1:2'
+    };
+  };
+
   return (
     <div style={st.wrapper} ref={wrapperRef}>
       <ChartToolbar
@@ -494,6 +518,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
         activeChartType={activeChartType} setActiveChartType={setActiveChartType}
         indicators={indicators} toggleIndicator={toggleIndicator}
         showDomPanel={showDomPanel} setShowDomPanel={setShowDomPanel}
+        onAutoAnalyze={handleAutoAnalyze}
       />
 
       <div style={st.main}>

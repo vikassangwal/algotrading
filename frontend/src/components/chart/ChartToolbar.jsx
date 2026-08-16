@@ -29,7 +29,8 @@ const ChartToolbar = ({
   timeframe, setTimeframe,
   activeChartType, setActiveChartType,
   indicators, toggleIndicator,
-  showDomPanel, setShowDomPanel
+  showDomPanel, setShowDomPanel,
+  onAutoAnalyze
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
@@ -58,6 +59,18 @@ const ChartToolbar = ({
       }
     }
   }, [orderPrice, stopLoss, riskReward]);
+
+  const handleAiAutoSetup = () => {
+    if (onAutoAnalyze) {
+      const result = onAutoAnalyze();
+      if (result) {
+        setOrderPrice(result.entry);
+        setStopLoss(result.sl);
+        setTargetPrice(result.tp);
+        setRiskReward(result.rr);
+      }
+    }
+  };
 
   const chartTypes = [
     { id: 'candlestick', label: 'Candles', icon: '🕯️' },
@@ -194,6 +207,14 @@ const ChartToolbar = ({
             <div style={styles.separator} />
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', background: '#131722', padding: '3px 8px', borderRadius: '8px', border: '1px solid #2b313f' }}>
               <span style={{ fontSize: '10px', color: '#8a92a5', fontWeight: 700, letterSpacing: '0.5px' }}>AUTO SETUP</span>
+              
+              <button 
+                onClick={handleAiAutoSetup}
+                style={{ ...styles.activeBtn, padding: '2px 8px', fontSize: '10px', background: 'linear-gradient(90deg, #6200ea, #2962ff)', border: 'none', marginLeft: '4px', marginRight: '4px' }}
+                title="AI Auto Analyze & Fill"
+              >
+                🪄 AI Setup
+              </button>
               
               <input type="number" placeholder="Order Price" value={orderPrice} onChange={e => setOrderPrice(e.target.value)} style={{ ...styles.input, width: '75px', padding: '3px 6px', fontSize: '11px', height: '22px' }} title="Entry Price" />
               
