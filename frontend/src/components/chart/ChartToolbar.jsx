@@ -34,9 +34,13 @@ const ChartToolbar = ({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
+  const [showChartTypeDropdown, setShowChartTypeDropdown] = useState(false);
+  const chartTypeDropdownRef = useRef(null);
+
   const chartTypes = [
-    { id: 'candlestick', label: '🕯️ Candles' },
-    { id: 'heikin_ashi', label: '📊 Heikin Ashi' }
+    { id: 'candlestick', label: 'Candles', icon: '🕯️' },
+    { id: 'heikin_ashi', label: 'Heikin Ashi', icon: '📊' },
+    { id: 'renko', label: 'Renko (Line)', icon: '📈' }
   ];
   const timeframes = ['1m', '5m', '15m', '1h', '1d', '1wk'];
 
@@ -70,10 +74,16 @@ const ChartToolbar = ({
     catHeader: { padding: '6px 14px', fontSize: '10px', color: '#787b86', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }
   };
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   const handleBlur = (e) => {
     if (dropdownRef.current && !dropdownRef.current.contains(e.relatedTarget)) {
       setTimeout(() => setShowDropdown(false), 150);
+    }
+  };
+
+  const handleChartTypeBlur = (e) => {
+    if (chartTypeDropdownRef.current && !chartTypeDropdownRef.current.contains(e.relatedTarget)) {
+      setTimeout(() => setShowChartTypeDropdown(false), 150);
     }
   };
 
@@ -115,14 +125,33 @@ const ChartToolbar = ({
 
         <div style={styles.separator} />
 
-        {/* Chart Types */}
-        <div style={{ display: 'flex', gap: '3px' }}>
-          {chartTypes.map(ct => (
-            <button key={ct.id} style={activeChartType === ct.id ? styles.activeBtn : styles.btn}
-              onClick={() => setActiveChartType(ct.id)}>
-              {ct.label}
-            </button>
-          ))}
+        {/* Chart Types Dropdown */}
+        <div style={{ position: 'relative' }} ref={chartTypeDropdownRef} tabIndex={-1} onBlur={handleChartTypeBlur}>
+          <button
+            style={{ ...styles.activeBtn, background: showChartTypeDropdown ? '#1565c0' : '#2962ff', display: 'flex', alignItems: 'center', gap: '6px', minWidth: '130px', justifyContent: 'center' }}
+            onClick={() => setShowChartTypeDropdown(!showChartTypeDropdown)}
+          >
+            {chartTypes.find(c => c.id === activeChartType)?.icon} {chartTypes.find(c => c.id === activeChartType)?.label || 'Chart Type'}
+            <span style={{ fontSize: '9px', marginLeft: 'auto' }}>{showChartTypeDropdown ? '▲' : '▼'}</span>
+          </button>
+
+          {showChartTypeDropdown && (
+            <div style={{ ...styles.dropdown, width: '150px' }}>
+              {chartTypes.map(ct => (
+                <div
+                  key={ct.id}
+                  style={{ ...styles.dropdownItem, background: activeChartType === ct.id ? '#252a3a' : 'transparent', color: activeChartType === ct.id ? '#2962ff' : '#d1d4dc' }}
+                  onClick={() => { setActiveChartType(ct.id); setShowChartTypeDropdown(false); }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>{ct.icon}</span>
+                    <span>{ct.label}</span>
+                  </span>
+                  {activeChartType === ct.id && <span style={{ fontSize: '12px', color: '#2962ff' }}>✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Mode Toggle */}
