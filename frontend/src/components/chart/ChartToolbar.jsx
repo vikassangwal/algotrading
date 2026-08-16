@@ -199,6 +199,13 @@ const ChartToolbar = ({
             <span style={{ fontSize: '16px' }}>🤖</span> AI Mode: Auto-monitoring Support, Resistance & Patterns
           </span>
         )}
+
+        <button
+          style={{ ...(showDomPanel ? styles.activeBtn : styles.btn), marginLeft: 'auto', background: showDomPanel ? '#ff9800' : '#252a3a' }}
+          onClick={() => setShowDomPanel(!showDomPanel)}
+        >
+          📊 Order Book
+        </button>
       </div>
     </div>
   );

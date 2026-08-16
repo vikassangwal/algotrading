@@ -81,6 +81,8 @@ const DhanLiveTicker = ({ symbol = 'RELIANCE.NS', initialPrice = 0, initialChang
                 if (tick.change_pct !== undefined) setChangePct(tick.change_pct);
               }
             }
+          } else if (data.type === 'alerts' && data.alerts) {
+            window.dispatchEvent(new CustomEvent('ALERTS_TRIGGERED', { detail: data.alerts }));
           }
         } catch (e) {}
       };

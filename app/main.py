@@ -404,7 +404,61 @@ def analyze_symbol(symbol: str, style: str = Query("intraday")):
         }
     }
 
-@app.get("/api/search")
+@app.get("/api/screener/universal")
+def run_screener_universal():
+    """
+    Runs the SignalFusionEngine on a predefined list of top stocks and returns aggregated results.
+    """
+    from .data.live_feed import live_cache
+    
+    symbols = "RELIANCE,TCS,HDFCBANK,INFY,ICICIBANK,SBIN,BHARTIARTL,ITC,LT,BAJFINANCE,KOTAKBANK,AXISBANK,HINDUNILVR,TATAMOTORS,SUNPHARMA"
+    
+    results = []
+    sym_list = [s.strip().upper() for s in symbols.split(",")]
+    
+    for sym in sym_list:
+        try:
+            # Get live quote
+            quote = live_cache.get(sym) or {}
+            current_price = quote.get("price", 100) # Fallback to prevent divide by zero
+            
+            # Get AI signal
+            from app.data.dhan_provider import _yf_symbol
+            mapped_symbol = _yf_symbol(sym)
+            signal = engine.analyze(mapped_symbol, style=TradingStyle("intraday"))
+            
+            # Calculate ATR-based Targets and SL (rough estimate if real ATR not easily available here)
+            # Assuming ~1.5% ATR for typical Nifty50 stock for target
+            atr_approx = current_price * 0.015
+            if signal.action == "BUY":
+                tp = current_price + (atr_approx * 1.5)
+                sl = current_price - (atr_approx * 1.0)
+            elif signal.action == "SELL":
+                tp = current_price - (atr_approx * 1.5)
+                sl = current_price + (atr_approx * 1.0)
+            else:
+                tp = current_price * 1.01
+                sl = current_price * 0.99
+                
+            # Catalyst formatting
+            catalysts = ", ".join([f"{k}: {v['score']}" for k, v in list(signal.contributions.items())[:2]]) or "Technical Momentum"
+
+            results.append({
+                "symbol": sym,
+                "segment": "EQUITY",
+                "current_price": quote.get("price", 0),
+                "decision": "STRONG BUY" if (signal.action == "BUY" and signal.overall_confidence > 0.8) else signal.action,
+                "analytical_score": signal.overall_confidence,
+                "catalysts": catalysts,
+                "tp": tp,
+                "sl": sl,
+                "strategy": ["INTRADAY", "AI_DRIVEN"]
+            })
+        except Exception as e:
+            logging.getLogger("elco.api").warning(f"Screener failed for {sym}: {e}")
+            
+    results.sort(key=lambda x: x["analytical_score"], reverse=True)
+    return {"data": results}
 def search_stock(q: str = ""):
     """Searches the database for a matching stock symbol."""
     from .symbols_db import search_symbols
@@ -610,11 +664,41 @@ async def ws_live(websocket: WebSocket):
                     fresh[sym] = t
             if fresh:
                 await websocket.send_json({"type": "ticks", "ticks": fresh})
+                
+            # Check price alerts
+            from app.price_alerts import check_alerts
+            triggered_alerts = check_alerts(live_cache)
+            if triggered_alerts:
+                await websocket.send_json({"type": "alerts", "alerts": triggered_alerts})
+                
             await asyncio.sleep(0.25)  # 4 pushes/sec max — plenty for a chart
     except WebSocketDisconnect:
         pass
     except Exception as e:
         logging.getLogger("elco.api").warning(f"/ws/live closed: {e}")
+
+from pydantic import BaseModel
+class AlertCreate(BaseModel):
+    symbol: str
+    condition: str
+    price: float
+
+@app.get("/api/alerts")
+def get_active_alerts():
+    from app.price_alerts import get_alerts
+    return {"alerts": get_alerts()}
+
+@app.post("/api/alerts")
+def create_price_alert(alert: AlertCreate):
+    from app.price_alerts import add_alert
+    new_alert = add_alert(alert.symbol, alert.condition, alert.price)
+    return {"status": "success", "alert": new_alert}
+
+@app.delete("/api/alerts/{alert_id}")
+def delete_price_alert(alert_id: str):
+    from app.price_alerts import remove_alert
+    remove_alert(alert_id)
+    return {"status": "success"}
 
 
 @app.get("/portfolio")

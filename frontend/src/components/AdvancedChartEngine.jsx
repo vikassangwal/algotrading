@@ -4,6 +4,8 @@ import ChartToolbar from './chart/ChartToolbar';
 import AIMarketIntelligencePanel from './chart/AIMarketIntelligencePanel';
 import Watchlist from './chart/Watchlist';
 import QuickTradePanel from './chart/QuickTradePanel';
+import AlertsPanel from './chart/AlertsPanel';
+import OrderBookPanel from './chart/OrderBookPanel';
 import {
   calculateSMA, calculateEMA, calculateMACD, calculateRSI, calculateBB,
   calculateVWAP, calculateATR, calculateSupertrend, calculateAIPredictor,
@@ -34,6 +36,7 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   const [symbol, setSymbol] = useState(globalSymbol || 'RELIANCE');
   const [timeframe, setTimeframe] = useState('15m');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showDomPanel, setShowDomPanel] = useState(false);
 
   const [indicators, setIndicators] = useState({
     vol: true, rsi: false, macd: false, sma20: false, sma50: false,
@@ -43,11 +46,11 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   });
 
   const [aiAnalysis, setAiAnalysis] = useState(null);
-  const [showDomPanel, setShowDomPanel] = useState(false);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastQuote, setLastQuote] = useState(null);
   const [crosshairData, setCrosshairData] = useState(null);
+  const [toastAlerts, setToastAlerts] = useState([]);
 
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -61,6 +64,18 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
   useEffect(() => {
     if (globalSymbol && globalSymbol !== symbol) setSymbol(globalSymbol);
   }, [globalSymbol]);
+
+  useEffect(() => {
+    const handleAlerts = (e) => {
+      const newAlerts = e.detail;
+      setToastAlerts(prev => [...prev, ...newAlerts]);
+      setTimeout(() => {
+        setToastAlerts(prev => prev.filter(a => !newAlerts.find(na => na.id === a.id)));
+      }, 8000);
+    };
+    window.addEventListener('ALERTS_TRIGGERED', handleAlerts);
+    return () => window.removeEventListener('ALERTS_TRIGGERED', handleAlerts);
+  }, []);
 
   // ─── Fetch history ───
   const fetchHistory = useCallback(async () => {
@@ -470,26 +485,50 @@ const AdvancedChartEngine = ({ token, globalSymbol }) => {
           </div>
         </div>
 
-        <AIMarketIntelligencePanel
-          mode={mode}
-          aiAnalysis={aiAnalysis}
+        {showDomPanel ? (
+          <OrderBookPanel
+            symbol={symbol}
+            currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
+          />
+        ) : (
+          <AIMarketIntelligencePanel
+            mode={mode}
+            aiAnalysis={aiAnalysis}
+            symbol={symbol}
+            timeframe={timeframe}
+            currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
+            data={data}
+            patterns={patternsMemo}
+            marketStructure={msMemo}
+            indicators={indicators}
+          />
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px' }}>
+        {/* Quick Trade Panel at bottom */}
+        <QuickTradePanel
           symbol={symbol}
-          timeframe={timeframe}
           currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
-          data={data}
-          patterns={patternsMemo}
-          marketStructure={msMemo}
-          indicators={indicators}
+          token={token}
+          atr={data.length > 0 ? (calculateATR(data).slice(-1)[0]?.value || 0) : null}
+        />
+        {/* Alerts Panel */}
+        <AlertsPanel
+          symbol={symbol}
+          currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
+          token={token}
         />
       </div>
 
-      {/* Quick Trade Panel at bottom */}
-      <QuickTradePanel
-        symbol={symbol}
-        currentPrice={lastCandleRef.current?.close || lastQuote?.price || 0}
-        token={token}
-        atr={data.length > 0 ? (calculateATR(data).slice(-1)[0]?.value || 0) : null}
-      />
+      {/* Floating Toast Alerts */}
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {toastAlerts.map(a => (
+          <div key={a.id} style={{ background: '#2962ff', color: '#fff', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderLeft: '4px solid #fff', fontSize: '13px', fontWeight: 700, animation: 'slideIn 0.3s ease-out' }}>
+            🚨 ALERT TRIGGERED: {a.symbol} crossed {a.condition} ₹{a.price.toFixed(2)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

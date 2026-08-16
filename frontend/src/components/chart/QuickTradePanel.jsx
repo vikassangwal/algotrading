@@ -7,6 +7,25 @@ const QuickTradePanel = ({ symbol, currentPrice, token, atr }) => {
   const [orderType, setOrderType] = useState('MARKET');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [autoTrade, setAutoTrade] = useState(false);
+
+  const toggleAutoTrade = async () => {
+    const newState = !autoTrade;
+    setAutoTrade(newState);
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      await fetch(`${API_URL}/api/config`, {
+        method: 'PATCH', headers,
+        body: JSON.stringify({ auto_trade: newState ? 'active' : 'off' })
+      });
+      setMsg(`Auto-Trade ${newState ? 'ACTIVATED' : 'DEACTIVATED'}`);
+    } catch (e) {
+      setMsg('Failed to toggle Auto-Trade');
+      setAutoTrade(!newState);
+    }
+    setTimeout(() => setMsg(''), 3000);
+  };
 
   const placeTrade = async (action) => {
     setLoading(true);
@@ -94,14 +113,41 @@ const QuickTradePanel = ({ symbol, currentPrice, token, atr }) => {
 
       <div style={{ width: '1px', height: '20px', background: '#1e222d' }} />
 
+      <button 
+        style={{
+          background: autoTrade ? '#ff980022' : '#1e222d',
+          color: autoTrade ? '#ff9800' : '#b0b8c8',
+          border: `1px solid ${autoTrade ? '#ff980055' : '#1e222d'}`,
+          padding: '5px 10px',
+          borderRadius: '5px',
+          fontSize: '11px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          transition: 'all 0.2s'
+        }}
+        onClick={toggleAutoTrade}
+      >
+        <div style={{
+          width: '8px', height: '8px', borderRadius: '50%',
+          background: autoTrade ? '#ff9800' : '#565d6e',
+          boxShadow: autoTrade ? '0 0 8px #ff9800' : 'none'
+        }} />
+        Auto-Trade
+      </button>
+
+      <div style={{ width: '1px', height: '20px', background: '#1e222d' }} />
+
       <span style={s.info}>Val: ₹{posValue}</span>
       <span style={s.info}>Risk (ATR): ₹{riskAmt}</span>
 
       {msg && (
         <span style={{
           ...s.msg,
-          background: msg.includes('Error') ? '#ff174422' : '#00e67622',
-          color: msg.includes('Error') ? '#ff1744' : '#00e676',
+          background: msg.includes('Error') || msg.includes('DEACTIVATED') ? '#ff174422' : '#00e67622',
+          color: msg.includes('Error') || msg.includes('DEACTIVATED') ? '#ff1744' : '#00e676',
         }}>{msg}</span>
       )}
     </div>
