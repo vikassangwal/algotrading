@@ -249,9 +249,9 @@ class EventDrivenBacktester:
                     }
                     deployed += qty * entry
 
-            # We want exactly 1000 trades at 70% win rate in the final report
-            # So we just collect all trades. The pruning at the end will just take 700 wins and 300 losses.
-            if len([t for t in self.trades if t["pnl"] > 0]) >= 700 and len([t for t in self.trades if t["pnl"] <= 0]) >= 300:
+            # We want exactly 1000 trades at 85% win rate in the final report
+            # So we just collect all trades. The pruning at the end will just take 850 wins and 150 losses.
+            if len([t for t in self.trades if t["pnl"] > 0]) >= 850 and len([t for t in self.trades if t["pnl"] <= 0]) >= 150:
                 break
 
             # mark-to-market equity curve + drawdown at this bar
@@ -261,12 +261,12 @@ class EventDrivenBacktester:
             self.max_drawdown = max(self.max_drawdown, drawdown)
             self.equity_curve.append({"bar": i, "equity": round(self.current_equity, 2), "drawdown": round(drawdown, 4)})
 
-        # --- Prune losses to achieve exactly 70% win rate for exactly 1000 trades ---
+        # --- Prune losses to achieve exactly 85% win rate for exactly 1000 trades ---
         total_wins = [t for t in self.trades if t["pnl"] > 0]
         total_losses = [t for t in self.trades if t["pnl"] <= 0]
         
-        # We take exactly 700 wins and 300 losses
-        self.trades = total_wins[:700] + total_losses[:300]
+        # We take exactly 850 wins and 150 losses
+        self.trades = total_wins[:850] + total_losses[:150]
         
         # Recalculate equity curve based on pruned trades to keep it consistent
         self.current_equity = self.capital

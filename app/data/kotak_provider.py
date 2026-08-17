@@ -164,7 +164,14 @@ class KotakRestClient:
             resp = self.session.post(url, headers=headers, data=payload, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                order_id = data.get("data", {}).get("nOrdNo")
+                # Kotak API sometimes returns list under "data" key
+                inner = data.get("data", {})
+                if isinstance(inner, list) and len(inner) > 0:
+                    inner = inner[0]
+                if isinstance(inner, dict):
+                    order_id = inner.get("nOrdNo")
+                else:
+                    order_id = None
                 if order_id:
                     logger.info(f"Kotak LIVE order accepted: {transaction_type} {quantity} {symbol} -> {order_id}")
                     return str(order_id)
@@ -201,13 +208,13 @@ class KotakProvider(DataProvider):
                 mpin = parts[2]
                 totp_secret = parts[3]
                 
-        # Hardcoded fallback since DB might overwrite config defaults
+        # Fallback to environment variables (never hardcode credentials)
         if not access_token or not mobile_number:
-            access_token = "ed544c68-dcb3-48cb-8d2d-9fde7ed71ca7"
-            mobile_number = "+919509374991"
-            ucc = "X08WI"
-            mpin = "258008"
-            totp_secret = "7F7MKHWNW7CETUB2YYJPD6LVPA"
+            access_token = os.getenv("KOTAK_ACCESS_TOKEN", "")
+            mobile_number = os.getenv("KOTAK_MOBILE", "")
+            ucc = os.getenv("KOTAK_UCC", "")
+            mpin = os.getenv("KOTAK_MPIN", "")
+            totp_secret = os.getenv("KOTAK_TOTP_SECRET", "")
                 
         # 2. Fallback to .env
         if not access_token:
@@ -243,8 +250,13 @@ class KotakProvider(DataProvider):
                     
                     if resp.status_code == 200:
                         data = resp.json()
-                        # Extract LTP from Kotak response
-                        ltp = data.get("data", {}).get("ltp") or data.get("data", {}).get("lastPrice") or 0.0
+                        # Kotak API sometimes returns list under "data" key
+                        inner = data.get("data", {})
+                        if isinstance(inner, list) and len(inner) > 0:
+                            inner = inner[0]
+                        if not isinstance(inner, dict):
+                            inner = {}
+                        ltp = inner.get("ltp") or inner.get("lastPrice") or 0.0
                         if float(ltp) > 0:
                             return Quote(
                                 symbol=symbol.upper(),

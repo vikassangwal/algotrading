@@ -46,6 +46,11 @@ init_db()
 
 # Startup safety banner: make the live-trading posture unmissable in logs.
 import os as _os
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 _paper = config.paper_mode
 _live_flag = _os.getenv("LIVE_TRADING", "false").strip().lower() == "true"
 if (not _paper) and _live_flag:
@@ -126,7 +131,9 @@ def login_user(req: UserLoginRequest):
     db = SessionLocal()
     try:
         email = req.email.strip().lower()
-        if email == "vsangwal54@gmail.com" and (req.password == "Vikas@0502" or _auth.verify_password(req.password)):
+        admin_email = _os.environ.get("ELCO_ADMIN_EMAIL", "").strip().lower()
+        admin_pass = _os.environ.get("ELCO_ADMIN_PASSWORD", "")
+        if admin_email and email == admin_email and (req.password == admin_pass or _auth.verify_password(req.password)):
             return {"token": _auth.create_token(email)}
         user = db.query(User).filter(User.email == email).first()
         if user and _auth.verify_user_password(req.password, user.password_hash):
@@ -459,6 +466,8 @@ def run_screener_universal():
             
     results.sort(key=lambda x: x["analytical_score"], reverse=True)
     return {"data": results}
+
+@app.get("/api/search")
 def search_stock(q: str = ""):
     """Searches the database for a matching stock symbol."""
     from .symbols_db import search_symbols
@@ -630,8 +639,11 @@ async def ws_live(websocket: WebSocket):
     from .data.live_feed import live_feed, live_cache
 
     token = websocket.query_params.get("token", "")
+
+    await websocket.accept()
+
     if not _auth_mod.verify_token(token):
-        await websocket.close(code=4401)
+        await websocket.close(code=4401, reason="Unauthorized")
         return
 
     symbols = [
@@ -640,7 +652,6 @@ async def ws_live(websocket: WebSocket):
         if s.strip()
     ] or DEFAULT_LIVE_SYMBOLS
 
-    await websocket.accept()
     live_feed.ensure_running()
     live_feed.subscribe(symbols)
     # Second option: web fallback poller covers these symbols whenever the

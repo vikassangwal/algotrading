@@ -7,6 +7,7 @@ const vol = (d) => d.volume || d.value || 0;
 // ───────────────────────── CORE INDICATORS ─────────────────────────
 
 export const calculateSMA = (data, period) => {
+  if (!data || !data.length || data.length < period) return [];
   const sma = [];
   let sum = 0;
   for (let i = 0; i < data.length; i++) {
@@ -20,6 +21,7 @@ export const calculateSMA = (data, period) => {
 };
 
 export const calculateEMA = (data, period) => {
+  if (!data || !data.length || data.length < period) return [];
   const ema = [];
   const k = 2 / (period + 1);
   // Use SMA of first `period` values as seed

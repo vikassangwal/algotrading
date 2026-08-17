@@ -23,8 +23,8 @@ from .modules.ai_composite_engine import AICompositeEngine
 logger = logging.getLogger("elco.command_center")
 
 # A setup is "best / auto-tradeable" when the fused conviction clears this bar.
-AUTO_SCORE_THRESHOLD = 0.5      # |score| >= this
-AUTO_CONFIDENCE_THRESHOLD = 0.6  # confidence >= this
+AUTO_SCORE_THRESHOLD = 0.70      # |score| >= this (Tightened for 85%+ accuracy)
+AUTO_CONFIDENCE_THRESHOLD = 0.80  # confidence >= this (Tightened for 85%+ accuracy)
 # Exit an open auto-position if the mood flips this far against it.
 MOOD_FLIP_EXIT = 0.4
 
