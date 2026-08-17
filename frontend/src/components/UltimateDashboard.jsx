@@ -49,6 +49,8 @@ const UltimateDashboard = ({ token, globalSymbol, globalTradingStyle = 'INTRADAY
           } else if (data.status === 'error') {
             setAvailableFunds({ available: data.message });
           }
+        } else {
+           setAvailableFunds({ available: `Backend Updating... (${res.status})` });
         }
       } catch (e) {
         setAvailableFunds({ available: "Disconnected" });
