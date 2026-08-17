@@ -829,11 +829,19 @@ def place_order(order: OrderRequest):
     try:
         success = execution_engine.execute_signal(signal, requested_allocation)
         if success:
-            return {"status": "success", "message": f"Paper trade executed: {act} {qty} x {symbol} @ ₹{current_price:.2f}"}
+            mode = "LIVE" if not config.paper_mode else "Paper"
+            return {"status": "success", "message": f"{mode} trade executed: {act} {qty} x {symbol} @ ₹{current_price:.2f}"}
     except Exception as e:
         _log.error(f"Execution engine error: {e}")
+        # In live mode, don't silently fallback to paper — tell the user what failed
+        if not config.paper_mode:
+            raise HTTPException(status_code=400, detail=f"Live trade failed: {str(e)}")
 
-    # 3. Fallback: record a direct paper trade in DB (skip risk rules for manual paper orders)
+    # In LIVE mode, execution engine rejected — return error instead of silent paper fallback
+    if not config.paper_mode:
+        return {"status": "error", "message": f"Live trade rejected by risk rules or broker for {symbol}. Check Admin Panel logs."}
+
+    # 3. Paper mode fallback: record a direct paper trade in DB (skip risk rules for manual paper orders)
     _log.info(f"Execution engine rejected — recording direct paper trade for {symbol}")
     try:
         from .db import SessionLocal, TradeRecord as DBTradeRecord

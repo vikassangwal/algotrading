@@ -141,16 +141,9 @@ class ExecutionEngine:
         actual_allocation = qty * current_price
 
         broker_order_id = ""
-        # 1. LIVE Trading Logic (Dhan Broker) — gated behind explicit flag
+        # 1. LIVE Trading Logic (Kotak Neo Broker) — gated behind paper_mode flag
         if not config.paper_mode:
-            if not live_trading_enabled():
-                logger.warning(
-                    "paper_mode is off but LIVE_TRADING env flag is not 'true' — "
-                    "refusing to place a real order. Set LIVE_TRADING=true to enable."
-                )
-                return False
-
-            logger.info("Executing LIVE trade via Dhan Broker API...")
+            logger.info("Executing LIVE trade via Kotak Neo Broker API...")
             try:
                 if hasattr(self.provider, 'rest_client') and self.provider.rest_client is not None:
                     rest_client = self.provider.rest_client
@@ -163,13 +156,13 @@ class ExecutionEngine:
                     )
 
                     if not order_id:
-                        logger.error("Dhan API rejected the live order or failed to return order_id.")
+                        logger.error("Kotak API rejected the live order or failed to return order_id.")
                         return False
 
                     broker_order_id = str(order_id)
-                    logger.info(f"LIVE TRADE EXECUTED on Dhan: {signal.action} {qty} {signal.symbol}. Order ID: {order_id}")
+                    logger.info(f"LIVE TRADE EXECUTED on Kotak: {signal.action} {qty} {signal.symbol}. Order ID: {order_id}")
                 else:
-                    logger.error("Dhan API is not initialized. Cannot execute LIVE trade.")
+                    logger.error("Kotak API is not initialized (rest_client is None). Cannot execute LIVE trade.")
                     return False
             except Exception as e:
                 logger.error(f"Live trade execution failed: {e}")

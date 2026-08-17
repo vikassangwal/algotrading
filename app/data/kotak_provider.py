@@ -128,10 +128,24 @@ class KotakRestClient:
             logger.error(f"Kotak login exception: {e}")
             return False
 
+    def _clean_auth(self):
+        """Return consumer key WITHOUT Bearer prefix."""
+        return self.access_token.replace("Bearer ", "").strip() if self.access_token else ""
+
+    def _relogin_if_needed(self, status_code):
+        """Auto re-login on 401 Unauthorized (session expired)."""
+        if status_code == 401:
+            logger.warning("Kotak session expired (401). Re-logging in...")
+            return self.login()
+        return False
+
     def get_fund_limit(self):
+        if not self.session_token:
+            logger.warning("Kotak not logged in for fund limit.")
+            return None
         url = "https://gw-napi.kotaksecurities.com/Orders/2.0/quick/user/limits"
         headers = {
-            "Authorization": self.access_token, # already has Bearer
+            "Authorization": self._clean_auth(),
             "neo-fin-key": "neotradeapi",
             "Sid": str(self.session_sid),
             "Auth": str(self.session_token),
@@ -142,8 +156,12 @@ class KotakRestClient:
             resp = self.session.post(url, headers=headers, data=body, timeout=5)
             if resp.status_code == 200:
                 return resp.json()
+            elif resp.status_code == 401:
+                if self._relogin_if_needed(401):
+                    return self.get_fund_limit()  # retry once
             elif resp.status_code == 503:
                 return {"available": "Kotak Margin Servers Offline (503)", "utilized": 0}
+            logger.warning(f"Kotak limits API returned {resp.status_code}: {resp.text[:200]}")
             return None
         except Exception as e:
             logger.error(f"Kotak limits API failed: {e}")
@@ -157,9 +175,13 @@ class KotakRestClient:
             
         if not self.base_url or not self.session_token:
             logger.error("Kotak not logged in. Cannot place order.")
-            return None
+            # Try re-login once
+            if not self.login():
+                return None
 
-        ts = f"{symbol}-EQ"
+        # Clean symbol: remove .NS, .BO suffixes for Kotak API
+        clean_sym = symbol.upper().replace(".NS", "").replace(".BO", "")
+        ts = f"{clean_sym}-EQ"
         
         jData = {
             "am": "NO",
@@ -177,8 +199,10 @@ class KotakRestClient:
             "tt": "B" if transaction_type.upper() == "BUY" else "S"
         }
         
-        url = f"{self.base_url}/quick/order/rule/ms/place"
+        # Use NAPI endpoint (v2 API) as primary, fallback to baseUrl
+        url = f"https://gw-napi.kotaksecurities.com/Orders/2.0/quick/order/rule/ms/place"
         headers = {
+            "Authorization": self._clean_auth(),
             "Auth": self.session_token,
             "Sid": str(self.session_sid),
             "neo-fin-key": "neotradeapi",
@@ -188,6 +212,19 @@ class KotakRestClient:
         
         try:
             resp = self.session.post(url, headers=headers, data=payload, timeout=10)
+            
+            # If NAPI returns 503, try baseUrl fallback
+            if resp.status_code == 503 and self.base_url:
+                fallback_url = f"{self.base_url}/quick/order/rule/ms/place"
+                logger.info(f"NAPI 503, trying baseUrl fallback: {fallback_url}")
+                resp = self.session.post(fallback_url, headers=headers, data=payload, timeout=10)
+            
+            # Auto re-login on 401
+            if resp.status_code == 401:
+                if self._relogin_if_needed(401):
+                    return self.place_order(symbol, quantity, transaction_type)
+                return None
+            
             if resp.status_code == 200:
                 data = resp.json()
                 if isinstance(data, list) and len(data) > 0:
@@ -203,9 +240,14 @@ class KotakRestClient:
                 else:
                     order_id = None
                 if order_id:
-                    logger.info(f"Kotak LIVE order accepted: {transaction_type} {quantity} {symbol} -> {order_id}")
+                    logger.info(f"Kotak LIVE order accepted: {transaction_type} {quantity} {clean_sym} -> {order_id}")
                     return str(order_id)
-            logger.error(f"Kotak order rejected ({resp.status_code}): {resp.text}")
+                    
+                # Check for error in response
+                err_msg = data.get("errMsg") or data.get("message") or ""
+                logger.error(f"Kotak order response (no order ID): {data}")
+            else:
+                logger.error(f"Kotak order rejected ({resp.status_code}): {resp.text[:300]}")
         except Exception as e:
             logger.error(f"Kotak order placement failed: {e}")
             
@@ -257,9 +299,24 @@ class KotakProvider(DataProvider):
         
         if not access_token or not mobile_number:
             return None
+        
+        # Detect credential changes — reset client if Admin Panel credentials were updated
+        if self._rest_client is not None:
+            old_key = self._rest_client.access_token
+            clean_new = access_token.replace("Bearer ", "").strip()
+            clean_old = old_key.replace("Bearer ", "").strip() if old_key else ""
+            if clean_new != clean_old:
+                logger.info("Kotak credentials changed in Admin Panel. Resetting client...")
+                self._rest_client = None
+                self._logged_in = False
             
         if self._rest_client is None:
             self._rest_client = KotakRestClient(access_token, mobile_number, ucc, mpin, totp_secret)
+            self._logged_in = self._rest_client.login()
+        
+        # Retry login if previous attempt failed (transient network error, etc.)
+        if not self._logged_in:
+            logger.info("Kotak not logged in. Retrying login...")
             self._logged_in = self._rest_client.login()
             
         return self._rest_client if self._logged_in else None
