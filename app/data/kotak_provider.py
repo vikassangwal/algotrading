@@ -124,9 +124,7 @@ class KotakRestClient:
             return False
 
     def get_fund_limit(self):
-        if not self.base_url:
-            return None
-        url = f"{self.base_url}/orderapi/1.0/quick/user/limits"
+        url = "https://gw-napi.kotaksecurities.com/Orders/2.0/quick/user/limits"
         headers = {
             "Authorization": self.access_token, # already has Bearer
             "neo-fin-key": "neotradeapi",
