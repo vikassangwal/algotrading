@@ -114,17 +114,17 @@ class AutoTrader:
             taken.append(action)
             self._log(action)
 
-        # 2. Add Dynamic Universal Screener Signals
+        # 2. Add Dynamic Universal Screener Signals (Continuous Equity Scanner)
         try:
             from .screener.live_screener import LiveScreener
             from .elco_brain import ElcoMasterBrain
             screener = LiveScreener(ElcoMasterBrain())
-            # Only scan Universal once every 15 scans (approx 15 mins if loop is 60s) to avoid rate limits
-            if self.scans_done % 15 == 1:
-                logger.info("AutoTrader: Running Universal Dynamic Screener...")
-                dynamic_results = screener.run_universal_scan(max_workers=5)
-                # Take top 3 best setups
-                top_setups = [r for r in dynamic_results if abs(r.get("analytical_score", 0)) > 70][:3]
+            # Scan all equity stocks continuously every 2 scans (every 2 minutes)
+            if self.scans_done % 2 == 1:
+                logger.info("AutoTrader: Continuously scanning ALL equity stocks across Nifty 50, Midcaps & Smallcaps...")
+                dynamic_results = screener.run_universal_scan(max_workers=10)
+                # Take top high-conviction setups clearing 75+ conviction score
+                top_setups = [r for r in dynamic_results if abs(r.get("analytical_score", 0)) >= 75][:3]
                 
                 for setup in top_setups:
                     sym = setup["symbol"]
