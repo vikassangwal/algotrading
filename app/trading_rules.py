@@ -50,7 +50,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 MAX_TRADES_PER_DAY = 10
 SL_COOLDOWN_MINUTES = 30          # no re-entry on a symbol this soon after a SL hit
 MAX_CONSECUTIVE_LOSSES = 3        # third straight loser halts the day
-MIN_REWARD_RISK = 0.05            # target distance must be >= SL distance
+MIN_REWARD_RISK = 2.0             # target distance must be >= 2x SL distance (1:2 RR minimum)
 SL_ATR_MULT = 4.0                 # mandatory SL distance
 TARGET_ATR_MULT = 0.25            # default target
 MAX_OPEN_POSITIONS = 3            # R9: concentration brake
@@ -156,13 +156,39 @@ def check_entry_rules(symbol: str, is_live: bool,
     return RuleVerdict(True)
 
 
-def compute_mandatory_stops(side: str, entry_price: float, atr: float) -> Dict[str, float]:
-    """R3 + R4 — every trade gets an SL and target at entry. ATR-based; if ATR
-    is unusable, falls back to 2% of price (still never naked)."""
+def compute_mandatory_stops(side: str, entry_price: float, atr: float, style: str = "INTRADAY", confidence: float = 0.75) -> Dict[str, float]:
+    """R3 + R4 — every trade gets an SL and target at entry. ATR-based.
+    Dynamically adjusts Risk-Reward based on Trading Style and AI Confidence."""
+    
+    # Default fallback multipliers
+    dyn_sl_mult = SL_ATR_MULT
+    dyn_tgt_mult = TARGET_ATR_MULT
+    
+    style_upper = (style or "INTRADAY").upper()
+    
+    if style_upper == "SCALPING":
+        dyn_sl_mult = 1.0
+        dyn_tgt_mult = 2.0   # RR 1:2 (User enforced minimum)
+    elif style_upper == "INTRADAY":
+        dyn_sl_mult = 1.5
+        dyn_tgt_mult = 3.0   # RR 1:2
+    elif style_upper == "SWING":
+        dyn_sl_mult = 2.0
+        dyn_tgt_mult = 6.0   # RR 1:3
+    elif style_upper == "POSITION":
+        dyn_sl_mult = 3.0
+        dyn_tgt_mult = 12.0  # RR 1:4
+        
+    # Scale target slightly based on AI confidence (higher confidence -> stretch target by up to 20%)
+    if confidence > 0.8:
+        dyn_tgt_mult *= 1.2
+        
     if atr is None or atr <= 0:
-        atr = entry_price * 0.02 / SL_ATR_MULT
-    sl_dist = atr * SL_ATR_MULT
-    tgt_dist = max(atr * TARGET_ATR_MULT, sl_dist * MIN_REWARD_RISK)  # R4 floor
+        atr = entry_price * 0.02 / dyn_sl_mult
+        
+    sl_dist = atr * dyn_sl_mult
+    tgt_dist = max(atr * dyn_tgt_mult, sl_dist * MIN_REWARD_RISK)  # R4 floor
+    
     if side == "BUY":
         return {"stop_loss": round(entry_price - sl_dist, 2),
                 "target": round(entry_price + tgt_dist, 2)}

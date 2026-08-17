@@ -114,6 +114,62 @@ class AutoTrader:
             taken.append(action)
             self._log(action)
 
+        # 2. Add Dynamic Universal Screener Signals
+        try:
+            from .screener.live_screener import LiveScreener
+            from .elco_brain import ElcoMasterBrain
+            screener = LiveScreener(ElcoMasterBrain())
+            # Only scan Universal once every 15 scans (approx 15 mins if loop is 60s) to avoid rate limits
+            if self.scans_done % 15 == 1:
+                logger.info("AutoTrader: Running Universal Dynamic Screener...")
+                dynamic_results = screener.run_universal_scan(max_workers=5)
+                # Take top 3 best setups
+                top_setups = [r for r in dynamic_results if abs(r.get("analytical_score", 0)) > 70][:3]
+                
+                for setup in top_setups:
+                    sym = setup["symbol"]
+                    if sym in execution_engine.open_positions:
+                        continue
+                    
+                    side = "BUY" if setup["decision"] == "STRONG_BUY" or setup["analytical_score"] > 0 else "SELL"
+                    
+                    # Execute dynamic signal
+                    from .engine import FusedSignal
+                    from .config import TradingStyle
+                    
+                    signal = FusedSignal(
+                        symbol=sym,
+                        overall_score=1.0 if side == "BUY" else -1.0,
+                        overall_confidence=abs(setup["analytical_score"]) / 100.0,
+                        style=TradingStyle.INTRADAY,
+                        reasons=[f"Dynamic AI Screener picked {sym} with score {setup['analytical_score']}"]
+                    )
+                    
+                    allocation = risk_manager.calculate_position_size(signal)
+                    executed = False
+                    reason = "risk manager rejected sizing"
+                    if allocation > 0:
+                        ok = execution_engine.execute_signal(signal, allocation)
+                        executed = bool(ok)
+                        reason = "executed through gated chain" if ok else "blocked by mandatory rules / execution gate"
+
+                    action = {
+                        "time": _now_iso(),
+                        "strategy": "Dynamic_AI_Screener",
+                        "symbol": sym,
+                        "signal": side,
+                        "executed": executed,
+                        "reason": reason,
+                        "allocation": round(allocation, 2) if executed else 0,
+                    }
+                    if executed:
+                        action["verification"] = self.verify_trade(sym, execution_engine)
+                        action["options_piggyback"] = self._options_piggyback(sym, side)
+                    taken.append(action)
+                    self._log(action)
+        except Exception as e:
+            logger.error(f"AutoTrader Dynamic Screener failed: {e}")
+
         return taken
 
     @staticmethod
@@ -136,17 +192,45 @@ class AutoTrader:
             strikes = chain.get("strikes") or []
             if not spot or not strikes:
                 return {"attempted": False, "reason": "chain missing spot/strikes"}
-            atm = min(strikes, key=lambda s: abs(s - spot))
+            
+            # Dynamic Fund-Based Strike Selection
+            # Allocate max 10% of total capital for this options trade
+            max_budget = config.capital * 0.10
+            
             opt_type = "CE" if side == "BUY" else "PE"
-            ltp = _find_ltp(chain, atm, opt_type)
-            if not ltp:
-                return {"attempted": False, "reason": f"no LTP at ATM {atm} {opt_type}"}
-            budget = config.capital * 0.005  # 0.5% — piggyback stays small
-            qty = int(budget // ltp)
-            if qty < 1:
-                return {"attempted": False,
-                        "reason": f"premium ₹{ltp} exceeds piggyback budget ₹{budget:,.0f}"}
-            r = open_trade(symbol, atm, opt_type, qty, chain.get("expirationDate", ""))
+            
+            # Sort strikes by closeness to ATM
+            sorted_strikes = sorted(strikes, key=lambda s: abs(s - spot))
+            
+            selected_strike = None
+            selected_ltp = None
+            
+            for strike in sorted_strikes:
+                # Prevent picking deeply OTM strikes (limit to 5% away from spot price)
+                if abs(strike - spot) / spot > 0.05:
+                    continue 
+                    
+                ltp = _find_ltp(chain, strike, opt_type)
+                if ltp is None or ltp <= 0:
+                    continue
+                
+                # We assume a conservative lot size of 25 for margin checks if it's an index, or 100 for stocks.
+                # Since we don't have exact lot size, we estimate cost per unit and require at least a basic budget fit.
+                estimated_lot_size = 25 
+                cost_per_lot = ltp * estimated_lot_size
+                
+                if cost_per_lot <= max_budget:
+                    selected_strike = strike
+                    selected_ltp = ltp
+                    break # Found the closest affordable strike!
+                    
+            if not selected_strike:
+                return {"attempted": False, "reason": f"No affordable {opt_type} strike found within ₹{max_budget:,.0f} budget limit"}
+            
+            # Calculate quantity to buy
+            qty = max(1, int(max_budget // (selected_ltp * 25)))
+            
+            r = open_trade(symbol, selected_strike, opt_type, qty, chain.get("expirationDate", ""))
             return {"attempted": True, "ok": r.get("ok", False),
                     "detail": r if r.get("ok") else r.get("reason"),
                     "mode": "PAPER"}

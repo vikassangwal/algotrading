@@ -225,7 +225,6 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
               position: fvg.type === 'bullish' ? 'belowBar' : 'aboveBar',
               color: fvg.type === 'bullish' ? '#2196F3' : '#FF9800',
               shape: 'circle',
-              text: 'FVG',
               size: 1
             });
           }
@@ -236,10 +235,10 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
       const adv = mode === 'ADVANCED';
       if (adv) {
         for (const p of detectCandlePatterns(data)) {
-          allMarkers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle', text: p.type });
+          allMarkers.push({ time: p.time, position: p.signal === 'Bullish' ? 'belowBar' : 'aboveBar', color: p.signal === 'Bullish' ? '#26a69a' : p.signal === 'Bearish' ? '#ef5350' : '#ff9800', shape: p.signal === 'Bullish' ? 'arrowUp' : p.signal === 'Bearish' ? 'arrowDown' : 'circle' });
         }
         for (const p of detectMarketStructure(data)) {
-          allMarkers.push({ time: p.time, position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar', color: '#2196f3', shape: 'circle', text: p.type });
+          allMarkers.push({ time: p.time, position: (p.type === 'HL' || p.type === 'LL') ? 'belowBar' : 'aboveBar', color: '#2196f3', shape: 'circle' });
         }
       }
 
@@ -271,7 +270,11 @@ const AdvancedChartEngine = ({ token, globalSymbol, globalTradingStyle = 'INTRAD
       }
 
       if (seriesRef.current) {
-        seriesRef.current.setMarkers(uniqueMarkers);
+        try {
+          createSeriesMarkers(seriesRef.current, uniqueMarkers);
+        } catch (e) {
+          console.warn("Could not set markers", e);
+        }
       }
 
       const pocPrice = calculatePOC(data);

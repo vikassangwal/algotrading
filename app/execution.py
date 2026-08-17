@@ -184,7 +184,14 @@ class ExecutionEngine:
         # R3/R4 — mandatory stop-loss + target attached at entry (ATR-based).
         from .trading_rules import compute_mandatory_stops, record_entry
         atr = self._current_atr(signal.symbol)
-        stops = compute_mandatory_stops(signal.action, current_price, atr)
+        
+        style_str = getattr(getattr(signal, "style", None), "name", "") or getattr(getattr(signal, "style", None), "value", "") or "INTRADAY"
+        confidence = getattr(signal, "overall_confidence", 0.75)
+        
+        stops = compute_mandatory_stops(
+            signal.action, current_price, atr, 
+            style=style_str, confidence=confidence
+        )
 
         trade = TradeRecord(
             trade_id=trade_id,
