@@ -58,6 +58,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [globalSymbol, setGlobalSymbol] = useState('RELIANCE.NS');
   const [globalTradingStyle, setGlobalTradingStyle] = useState('INTRADAY');
+  const [availableFunds, setAvailableFunds] = useState(null);
   const [config, setConfig] = useState({
     capital: 1000000,
     auto_trade: 'active',
@@ -124,7 +125,30 @@ export default function App() {
   useEffect(() => {
     fetchConfig();
     fetchTickers();
-    const interval = setInterval(fetchTickers, 60000);
+    
+    const fetchFunds = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/funds`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success' && data.funds) {
+            setAvailableFunds(data.funds);
+          } else if (data.status === 'error') {
+            setAvailableFunds({ available: data.message });
+          }
+        } else {
+           setAvailableFunds({ available: `Backend Updating... (${res.status})` });
+        }
+      } catch (e) {
+        setAvailableFunds({ available: "Disconnected" });
+      }
+    };
+    fetchFunds();
+
+    const interval = setInterval(() => {
+      fetchTickers();
+      fetchFunds();
+    }, 60000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -387,8 +411,12 @@ export default function App() {
               }} />
             </div>
             <div style={{ whiteSpace: 'nowrap' }}>
-              <span style={{marginRight: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Capital:</span>
-              <span style={{fontWeight: 600}}>₹ {config?.capital != null ? config.capital.toLocaleString() : '---'}</span>
+              <span style={{marginRight: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)'}}>Fund:</span>
+              <span style={{fontWeight: 600, color: '#3b82f6'}}>
+                {availableFunds 
+                  ? (availableFunds.available ? availableFunds.available : (availableFunds.cash ? `₹${availableFunds.cash.toLocaleString()}` : '---')) 
+                  : (config?.capital != null ? `₹${config.capital.toLocaleString()} (Mock)` : '---')}
+              </span>
             </div>
           </div>
           
