@@ -52,16 +52,21 @@ class KotakRestClient:
             logger.error("Kotak credentials incomplete.")
             return False
             
+        clean_auth = self.access_token.replace("Bearer ", "").strip() if self.access_token else ""
+        clean_mobile = self.mobile_number.strip()
+        if len(clean_mobile) == 10 and not clean_mobile.startswith("+"):
+            clean_mobile = "+91" + clean_mobile
+
         try:
             # 1. TOTP Login
             url1 = "https://mis.kotaksecurities.com/login/1.0/tradeApiLogin"
             headers1 = {
-                "Authorization": self.access_token,
+                "Authorization": clean_auth,
                 "neo-fin-key": "neotradeapi",
                 "Content-Type": "application/json"
             }
             payload1 = {
-                "mobileNumber": self.mobile_number,
+                "mobileNumber": clean_mobile,
                 "ucc": self.ucc,
                 "totp": self._generate_totp()
             }
@@ -82,7 +87,7 @@ class KotakRestClient:
             # 2. MPIN Validate
             url2 = "https://mis.kotaksecurities.com/login/1.0/tradeApiValidate"
             headers2 = {
-                "Authorization": self.access_token,
+                "Authorization": clean_auth,
                 "neo-fin-key": "neotradeapi",
                 "sid": str(self.view_sid),
                 "Auth": self.view_token,
