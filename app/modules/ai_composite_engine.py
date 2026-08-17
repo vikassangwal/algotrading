@@ -70,13 +70,13 @@ class AICompositeEngine:
         probability_pct = int(round(composite_raw))
         probability_pct = max(0, min(100, probability_pct))
 
-        if probability_pct >= 85:
+        if probability_pct >= 80:
             action = "Strong Buy"
-        elif probability_pct >= 75:
+        elif probability_pct >= 72:
             action = "Buy"
-        elif probability_pct <= 15:
+        elif probability_pct <= 20:
             action = "Strong Sell"
-        elif probability_pct <= 25:
+        elif probability_pct <= 28:
             action = "Sell"
         else:
             action = "Hold"
@@ -429,12 +429,12 @@ class VectorizedAIEngine:
 
         prob_pct = composite_raw.round().clip(0, 100).fillna(50).astype(int)
         
-        # Action logic based on the user's extreme thresholds
+        # Action logic based on strict 80%+ conviction thresholds
         conditions = [
-            prob_pct >= 70,
-            prob_pct >= 60,
-            prob_pct <= 30,
-            prob_pct <= 40
+            prob_pct >= 80,
+            prob_pct >= 72,
+            prob_pct <= 20,
+            prob_pct <= 28
         ]
         choices = ["Strong Buy", "Buy", "Strong Sell", "Sell"]
         action = np.select(conditions, choices, default="Hold")
