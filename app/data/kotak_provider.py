@@ -123,6 +123,29 @@ class KotakRestClient:
             logger.error(f"Kotak login exception: {e}")
             return False
 
+    def get_fund_limit(self):
+        if not self.base_url:
+            return None
+        url = f"{self.base_url}/orderapi/1.0/quick/user/limits"
+        headers = {
+            "Authorization": self.access_token, # already has Bearer
+            "neo-fin-key": "neotradeapi",
+            "Sid": str(self.session_sid),
+            "Auth": str(self.session_token),
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = {"seg": "ALL", "exch": "ALL", "prod": "ALL"}
+        try:
+            resp = self.session.post(url, headers=headers, data=body, timeout=5)
+            if resp.status_code == 200:
+                return resp.json()
+            elif resp.status_code == 503:
+                return {"available": "Kotak Margin Servers Offline (503)", "utilized": 0}
+            return None
+        except Exception as e:
+            logger.error(f"Kotak limits API failed: {e}")
+            return None
+
     def place_order(self, symbol, quantity, transaction_type):
         from ..config import config
         if config.paper_mode:
@@ -164,8 +187,12 @@ class KotakRestClient:
             resp = self.session.post(url, headers=headers, data=payload, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                # Kotak API sometimes returns list under "data" key
-                inner = data.get("data", {})
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+                if not isinstance(data, dict):
+                    data = {}
+                    
+                inner = data.get("data", data)
                 if isinstance(inner, list) and len(inner) > 0:
                     inner = inner[0]
                 if isinstance(inner, dict):
@@ -234,6 +261,12 @@ class KotakProvider(DataProvider):
             
         return self._rest_client if self._logged_in else None
 
+    def get_fund_limit(self):
+        rc = self.rest_client
+        if rc is not None:
+            return rc.get_fund_limit()
+        return None
+
     def get_quote(self, symbol: str) -> Quote:
         rc = self.rest_client
         if rc is not None and rc.base_url:
@@ -250,12 +283,19 @@ class KotakProvider(DataProvider):
                     
                     if resp.status_code == 200:
                         data = resp.json()
-                        # Kotak API sometimes returns list under "data" key
-                        inner = data.get("data", {})
+                        # Top-level response itself might be a list
+                        if isinstance(data, list) and len(data) > 0:
+                            data = data[0]
+                        if not isinstance(data, dict):
+                            data = {}
+                            
+                        # Extract LTP from Kotak response
+                        inner = data.get("data", data)
                         if isinstance(inner, list) and len(inner) > 0:
                             inner = inner[0]
                         if not isinstance(inner, dict):
                             inner = {}
+                            
                         ltp = inner.get("ltp") or inner.get("lastPrice") or 0.0
                         if float(ltp) > 0:
                             return Quote(

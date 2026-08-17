@@ -467,6 +467,15 @@ def run_screener_universal():
     results.sort(key=lambda x: x["analytical_score"], reverse=True)
     return {"data": results}
 
+@app.get("/api/funds")
+def get_funds():
+    if provider is None:
+        return {"error": "Provider not initialized"}
+    funds = provider.get_fund_limit()
+    if funds:
+        return {"status": "success", "funds": funds}
+    return {"status": "error", "message": "Could not fetch funds or API offline"}
+
 @app.get("/api/search")
 def search_stock(q: str = ""):
     """Searches the database for a matching stock symbol."""

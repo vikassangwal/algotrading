@@ -36,6 +36,29 @@ const UltimateDashboard = ({ token, globalSymbol, globalTradingStyle = 'INTRADAY
   const [mlInsights, setMlInsights] = useState(null);
   const [scannerData, setScannerData] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [availableFunds, setAvailableFunds] = useState(null);
+
+  useEffect(() => {
+    const fetchFunds = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/funds`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success' && data.funds) {
+            setAvailableFunds(data.funds);
+          } else if (data.status === 'error') {
+            setAvailableFunds({ available: data.message });
+          }
+        }
+      } catch (e) {
+        setAvailableFunds({ available: "Disconnected" });
+      }
+    };
+    fetchFunds();
+    const intv = setInterval(fetchFunds, 30000);
+    return () => clearInterval(intv);
+  }, [token]);
+
 
   useEffect(() => {
     if (globalSymbol) {
@@ -603,6 +626,16 @@ const UltimateDashboard = ({ token, globalSymbol, globalTradingStyle = 'INTRADAY
         {/* Right Column: Live MTM (P&L), Institutional Data & Real Trade Memory */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* Available Funds Card */}
+          <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '15px', margin: '0 0 8px 0', color: '#cbd5e1' }}>Available Funds (Margin)</h2>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#3b82f6' }}>
+              {availableFunds 
+                ? (availableFunds.available ? availableFunds.available : (availableFunds.cash ? `?${availableFunds.cash.toLocaleString()}` : 'Check App')) 
+                : 'Fetching...'}
+            </div>
+          </div>
+
           {/* Live MTM (P&L) Card */}
           <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '24px', border: '1px solid #1e293b', textAlign: 'center' }}>
             <h2 style={{ fontSize: '15px', margin: '0 0 8px 0', color: '#cbd5e1' }}>Live MTM (P&L)</h2>
