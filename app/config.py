@@ -118,9 +118,9 @@ class AppConfig(BaseModel):
     styles_enabled: Dict[TradingStyle, bool] = Field(default_factory=lambda: {s: True for s in TradingStyle})
 
     risk: RiskSettings = Field(default_factory=RiskSettings)
-    auto_trade: AutoTradeState = AutoTradeState.OFF
+    auto_trade: AutoTradeState = AutoTradeState.ACTIVE
     # Execution
-    paper_mode: bool = True
+    paper_mode: bool = False
     
     # Broker API Credentials
     broker_name: str = "kotak_neo"
