@@ -26,15 +26,8 @@ class KotakRestClient:
         self.ucc = ucc
         self.mpin = mpin
         self.totp_secret = totp_secret
-        
-        self.view_token = None
-        self.view_sid = None
-        
-        self.session_token = None
-        self.session_sid = None
-        self.base_url = None
-        
-        self.session = requests.Session()
+        self.client = None
+        self._logged_in = False
         
     def _generate_totp(self) -> str:
         if not pyotp:
@@ -47,213 +40,92 @@ class KotakRestClient:
         return totp.now()
 
     def login(self) -> bool:
-        """Perform 2-step login to get session tokens and baseUrl."""
-        if not self.access_token or not self.mobile_number:
-            logger.error("Kotak credentials incomplete.")
-            return False
-            
-        clean_auth = self.access_token.replace("Bearer ", "").strip() if self.access_token else ""
-        clean_mobile = self.mobile_number.strip()
-        if len(clean_mobile) == 10 and not clean_mobile.startswith("+"):
-            clean_mobile = "+91" + clean_mobile
-
         try:
-            # 1. TOTP Login
-            url1 = "https://mis.kotaksecurities.com/login/1.0/tradeApiLogin"
-            headers1 = {
-                "Authorization": clean_auth,
-                "neo-fin-key": "neotradeapi",
-                "Content-Type": "application/json"
-            }
-            payload1 = {
-                "mobileNumber": clean_mobile,
-                "ucc": self.ucc,
-                "totp": self._generate_totp()
-            }
+            from neo_api_client import NeoAPI
             
-            resp1 = self.session.post(url1, headers=headers1, json=payload1, timeout=10)
-            if resp1.status_code != 200:
-                logger.error(f"Kotak TOTP Login failed: {resp1.status_code} {resp1.text}")
+            logger.info("Initializing Kotak Neo SDK...")
+            self.client = NeoAPI(consumer_key=self.access_token, environment='prod')
+            
+            totp_code = self._generate_totp()
+            resp1 = self.client.totp_login(mobile_number=self.mobile_number, ucc=self.ucc, totp=totp_code)
+            
+            if isinstance(resp1, dict) and ("Error" in resp1 or "error" in resp1):
+                logger.error(f"Kotak TOTP Login failed: {resp1}")
                 return False
                 
-            data1 = resp1.json()
-            if "data" not in data1 or "token" not in data1["data"]:
-                logger.error(f"Kotak TOTP Login missing token in response.")
+            resp2 = self.client.totp_validate(mpin=self.mpin)
+            
+            if isinstance(resp2, dict) and ("Error" in resp2 or "error" in resp2):
+                logger.error(f"Kotak MPIN Validate failed: {resp2}")
                 return False
                 
-            self.view_token = data1["data"]["token"]
-            self.view_sid = data1["data"]["sid"]
-            
-            # 2. MPIN Validate
-            url2 = "https://mis.kotaksecurities.com/login/1.0/tradeApiValidate"
-            headers2 = {
-                "Authorization": clean_auth,
-                "neo-fin-key": "neotradeapi",
-                "sid": str(self.view_sid),
-                "Auth": self.view_token,
-                "Content-Type": "application/json"
-            }
-            payload2 = {
-                "mpin": self.mpin
-            }
-            
-            resp2 = self.session.post(url2, headers=headers2, json=payload2, timeout=10)
-            if resp2.status_code != 200:
-                logger.error(f"Kotak MPIN Validate failed: {resp2.status_code} {resp2.text}")
-                return False
-                
-            data2 = resp2.json()
-            if "data" not in data2 or "token" not in data2["data"]:
-                logger.error(f"Kotak MPIN Validate missing token.")
-                return False
-                
-            self.session_token = data2["data"]["token"]
-            self.session_sid = data2["data"]["sid"]
-            
-            # Extract baseUrl from response or use fallback
-            server_map = data2["data"].get("serverMap", {})
-            self.base_url = data2["data"].get("baseUrl")
-            if not self.base_url:
-                for k, v in server_map.items():
-                    if "api-gw" in v or "neo-gw" in v:
-                        self.base_url = v
-                        break
-            if not self.base_url:
-                self.base_url = "https://neo-gw.kotaksecurities.com"
-                
-            logger.info(f"Successfully logged into Kotak Neo! BaseURL: {self.base_url}")
+            logger.info("Successfully logged into Kotak Neo via official SDK!")
+            self._logged_in = True
             return True
             
+        except ImportError:
+            logger.error("ERROR: neo_api_client is not installed! Kotak API requires Python 3.10+.")
+            logger.error("Please upgrade Python and run: pip install kotakneoapi")
+            return False
         except Exception as e:
             logger.error(f"Kotak login exception: {e}")
             return False
 
-    def _clean_auth(self):
-        """Return consumer key WITHOUT Bearer prefix."""
-        return self.access_token.replace("Bearer ", "").strip() if self.access_token else ""
-
-    def _relogin_if_needed(self, status_code):
-        """Auto re-login on 401 Unauthorized (session expired)."""
-        if status_code == 401:
-            logger.warning("Kotak session expired (401). Re-logging in...")
-            return self.login()
-        return False
-
-    def get_fund_limit(self):
-        if not self.session_token:
-            logger.warning("Kotak not logged in for fund limit.")
+    def place_order(self, symbol: str, quantity: int, transaction_type: str, _retry_count=0):
+        if not self._logged_in or not self.client:
+            logger.error("Cannot place Kotak order: Not logged in or SDK not installed.")
             return None
-        url = "https://gw-napi.kotaksecurities.com/Orders/2.0/quick/user/limits"
-        headers = {
-            "Authorization": self._clean_auth(),
-            "neo-fin-key": "neotradeapi",
-            "Sid": str(self.session_sid),
-            "Auth": str(self.session_token),
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        body = {"seg": "ALL", "exch": "ALL", "prod": "ALL"}
+            
         try:
-            resp = self.session.post(url, headers=headers, data=body, timeout=5)
-            if resp.status_code == 200:
-                return resp.json()
-            elif resp.status_code == 401:
-                if self._relogin_if_needed(401):
-                    return self.get_fund_limit()  # retry once
-            elif resp.status_code == 503:
-                return {"available": "Kotak Margin Servers Offline (503)", "utilized": 0}
-            logger.warning(f"Kotak limits API returned {resp.status_code}: {resp.text[:200]}")
-            return None
-        except Exception as e:
-            logger.error(f"Kotak limits API failed: {e}")
-            return None
-
-    def place_order(self, symbol, quantity, transaction_type, _retry_count=0):
-        from ..config import config
-        if config.paper_mode:
-            logger.error("KotakRestClient.place_order called but Paper Mode is ON.")
-            return None
+            ts = symbol.replace("_", "-")
+            if not ts.endswith("-EQ"):
+                ts = f"{ts}-EQ"
+                
+            logger.info(f"Sending Kotak Neo order for {ts} {quantity} {transaction_type}...")
             
-        if not self.base_url or not self.session_token:
-            logger.error("Kotak not logged in. Cannot place order.")
-            # Try re-login once
-            if not self.login():
-                return None
-
-        # Clean symbol: remove .NS, .BO suffixes for Kotak API
-        clean_sym = symbol.upper().replace(".NS", "").replace(".BO", "")
-        ts = f"{clean_sym}-EQ"
-        
-        jData = {
-            "am": "NO",
-            "dq": "0",
-            "es": "nse_cm",
-            "mp": "0",
-            "pc": "MIS",
-            "pf": "N",
-            "pr": "0",
-            "pt": "MKT",
-            "qt": str(quantity),
-            "rt": "DAY",
-            "tp": "0",
-            "ts": ts,
-            "tt": "B" if transaction_type.upper() == "BUY" else "S"
-        }
-        
-        # Use NAPI endpoint (v2 API) as primary, fallback to baseUrl
-        url = f"https://gw-napi.kotaksecurities.com/Orders/2.0/quick/order/rule/ms/place"
-        headers = {
-            "Authorization": f"Bearer {self._clean_auth()}",
-            "Auth": self.session_token,
-            "Sid": str(self.session_sid),
-            "neo-fin-key": "neotradeapi",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json"
-        }
-        payload = {"jData": json.dumps(jData)}
-        
-        try:
-            resp = self.session.post(url, headers=headers, data=payload, timeout=10)
+            resp = self.client.place_order(
+                exchange_segment="nse_cm",
+                product="MIS",
+                price="0",
+                order_type="MKT",
+                quantity=str(quantity),
+                validity="DAY",
+                trading_symbol=ts,
+                transaction_type="B" if transaction_type.upper() == "BUY" else "S",
+                amo="NO",
+                disclosed_quantity="0",
+                trigger_price="0"
+            )
             
-            # If NAPI returns 503, try baseUrl fallback
-            if resp.status_code == 503 and self.base_url:
-                fallback_url = f"{self.base_url}/quick/order/rule/ms/place"
-                logger.info(f"NAPI 503, trying baseUrl fallback: {fallback_url}")
-                resp = self.session.post(fallback_url, headers=headers, data=payload, timeout=10)
-            
-            # Auto re-login on 401
-            if resp.status_code == 401:
-                if _retry_count < 1 and self._relogin_if_needed(401):
-                    return self.place_order(symbol, quantity, transaction_type, _retry_count + 1)
-                logger.error("Kotak order failed: 401 Unauthorized even after retry.")
-                return None
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
-                if not isinstance(data, dict):
-                    data = {}
-                    
-                inner = data.get("data", data)
-                if isinstance(inner, list) and len(inner) > 0:
-                    inner = inner[0]
-                if isinstance(inner, dict):
-                    order_id = inner.get("nOrdNo")
-                else:
-                    order_id = None
+            if isinstance(resp, dict):
+                order_id = resp.get("nOrdNo") or resp.get("orderId")
                 if order_id:
-                    logger.info(f"Kotak LIVE order accepted: {transaction_type} {quantity} {clean_sym} -> {order_id}")
-                    return str(order_id)
-                    
-                # Check for error in response
-                err_msg = data.get("errMsg") or data.get("message") or ""
-                logger.error(f"Kotak order response (no order ID): {data}")
+                    logger.info(f"Kotak order placed successfully: {order_id}")
+                    return order_id
+                else:
+                    logger.error(f"Kotak order rejected: {resp}")
+                    return None
             else:
-                logger.error(f"Kotak order rejected ({resp.status_code}): {resp.text[:300]}")
+                logger.error(f"Unexpected Kotak order response format: {resp}")
+                return None
+                
         except Exception as e:
             logger.error(f"Kotak order placement failed: {e}")
+            return None
             
+    def get_fund_limit(self):
+        if not self._logged_in or not self.client:
+            return None
+        try:
+            resp = self.client.limits()
+            if isinstance(resp, dict) and "data" in resp:
+                data = resp["data"]
+                margin = data.get("availableMargin", 100000.0)
+                return float(margin)
+        except Exception as e:
+            logger.warning(f"Kotak get_fund_limit failed: {e}")
         return None
+
 
 class KotakProvider(DataProvider):
     def __init__(self):
