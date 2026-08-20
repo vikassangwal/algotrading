@@ -167,7 +167,7 @@ class KotakRestClient:
             logger.error(f"Kotak limits API failed: {e}")
             return None
 
-    def place_order(self, symbol, quantity, transaction_type):
+    def place_order(self, symbol, quantity, transaction_type, _retry_count=0):
         from ..config import config
         if config.paper_mode:
             logger.error("KotakRestClient.place_order called but Paper Mode is ON.")
@@ -202,11 +202,12 @@ class KotakRestClient:
         # Use NAPI endpoint (v2 API) as primary, fallback to baseUrl
         url = f"https://gw-napi.kotaksecurities.com/Orders/2.0/quick/order/rule/ms/place"
         headers = {
-            "Authorization": self._clean_auth(),
+            "Authorization": f"Bearer {self._clean_auth()}",
             "Auth": self.session_token,
             "Sid": str(self.session_sid),
             "neo-fin-key": "neotradeapi",
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json"
         }
         payload = {"jData": json.dumps(jData)}
         
@@ -221,8 +222,9 @@ class KotakRestClient:
             
             # Auto re-login on 401
             if resp.status_code == 401:
-                if self._relogin_if_needed(401):
-                    return self.place_order(symbol, quantity, transaction_type)
+                if _retry_count < 1 and self._relogin_if_needed(401):
+                    return self.place_order(symbol, quantity, transaction_type, _retry_count + 1)
+                logger.error("Kotak order failed: 401 Unauthorized even after retry.")
                 return None
             
             if resp.status_code == 200:

@@ -2444,10 +2444,10 @@ def ui_brokers_activate(name: str):
     if b == "mock":
         _cfg.paper_mode = True
         return {"ok": True, "active": "mock (paper)"}
-    elif b == "dhan":
+    elif b in ("dhan", "kotak_neo"):
         _cfg.paper_mode = False
         _os.environ["LIVE_TRADING"] = "true"
-        return {"ok": True, "active": "dhan (LIVE)"}
+        return {"ok": True, "active": f"{b} (LIVE)"}
     return {"ok": True, "active": b}
 
 
