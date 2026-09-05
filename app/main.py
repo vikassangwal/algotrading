@@ -85,13 +85,28 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     return True
 
 class LoginRequest(BaseModel):
+    email: Optional[str] = None
     password: str
 
 @app.post("/login")
 def login(req: LoginRequest):
+    # 1. If email is provided, check user database first
+    if req.email:
+        from .db import SessionLocal, User
+        db = SessionLocal()
+        try:
+            email_clean = req.email.strip().lower()
+            user = db.query(User).filter(User.email == email_clean).first()
+            if user and _auth.verify_user_password(req.password, user.password_hash):
+                return {"token": _auth.create_token(email_clean)}
+        finally:
+            db.close()
+
+    # 2. Check admin password (or fallback)
     if _auth.verify_password(req.password):
-        return {"token": _auth.create_token("admin")}
-    raise HTTPException(status_code=401, detail="Invalid password")
+        return {"token": _auth.create_token(req.email.strip().lower() if req.email else "admin")}
+
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 
 # --- Per-user auth (real, DB-backed, PBKDF2-hashed) -------------------------
