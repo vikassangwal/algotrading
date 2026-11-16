@@ -1,0 +1,1276 @@
+openapi: 3.0.3
+info:
+  title: ELCO Trader API
+  description: |
+    ELCO Trader - Algorithmic Trading Platform API
+
+    A comprehensive REST API for algorithmic trading with support for:
+    - Real-time market data and analysis
+    - Strategy backtesting and optimization
+    - Risk management and portfolio analytics
+    - Multi-broker order execution
+    - AI-powered market intelligence
+
+    ## Authentication
+
+    All endpoints require Bearer token authentication. Obtain a token via `/login` endpoint.
+
+    ```
+    Authorization: Bearer <your_token>
+    ```
+
+    ## Rate Limits
+
+    - REST API: 100 requests/second per IP
+    - WebSocket: 50 connections per IP
+    - Market data: 1000 symbols per connection
+
+    ## WebSocket Endpoints
+
+    - `/ws/live` - Real-time market data streaming
+
+    ## Error Responses
+
+    All errors follow a standard format:
+    ```json
+    {
+      "detail": "Error description",
+      "code": "ERROR_CODE",
+      "status": 400
+    }
+    ```
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.elco-trader.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Common schemas
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+        status:
+          type: integer
+      example:
+        detail: "Invalid credentials"
+        code: "AUTH_FAILED"
+        status: 401
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success]
+        message:
+          type: string
+      example:
+        status: "success"
+        message: "Operation completed"
+
+    # Authentication
+    LoginRequest:
+      type: object
+      required: [password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_in:
+          type: integer
+        token_type:
+          type: string
+          enum: [Bearer]
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        role:
+          type: string
+          enum: [user, admin]
+          default: user
+
+    # Configuration
+    Config:
+      type: object
+      properties:
+        capital:
+          type: number
+          minimum: 1000
+        auto_trade:
+          type: string
+          enum: [off, active, halted]
+        paper_mode:
+          type: boolean
+        broker_name:
+          type: string
+        api_key:
+          type: string
+        api_secret:
+          type: string
+        custom_strategies:
+          type: array
+          items:
+            type: object
+        risk:
+          type: object
+          properties:
+            max_position_pct:
+              type: number
+              minimum: 1
+              maximum: 100
+            max_portfolio_exposure_pct:
+              type: number
+              minimum: 1
+              maximum: 100
+            daily_loss_limit_pct:
+              type: number
+              minimum: 0.1
+              maximum: 10
+            crash_risk_halt_threshold:
+              type: integer
+              minimum: 0
+              maximum: 100
+        modules_enabled:
+          type: object
+          additionalProperties:
+            type: boolean
+
+    ConfigUpdate:
+      type: object
+      properties:
+        capital:
+          type: number
+        auto_trade:
+          type: string
+          enum: [off, active, halted]
+        paper_mode:
+          type: boolean
+        broker_name:
+          type: string
+        api_key:
+          type: string
+        api_secret:
+          type: string
+        custom_strategies:
+          type: array
+
+    # Market Data
+    Quote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        time:
+          type: integer
+        price:
+          type: number
+        prev_close:
+          type: number
+        change_pct:
+          type: number
+        delayed:
+          type: boolean
+        source:
+          type: string
+
+    Candle:
+      type: object
+      properties:
+        time:
+          type: integer
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        close:
+          type: number
+        volume:
+          type: number
+
+    MarketIndex:
+      type: object
+      properties:
+        symbol:
+          type: string
+        val:
+          type: string
+        change:
+          type: string
+        up:
+          type: boolean
+
+    ScannerResult:
+      type: object
+      properties:
+        gap_up:
+          type: array
+          items:
+            type: object
+            properties:
+              symbol:
+                type: string
+              price:
+                type: number
+              change:
+                type: string
+              volume:
+                type: string
+        breakout:
+          type: array
+          items:
+            type: object
+            properties:
+              symbol:
+                type: string
+              price:
+                type: number
+              change:
+                type: string
+              volume:
+                type: string
+        high_volume:
+          type: array
+          items:
+            type: object
+            properties:
+              symbol:
+                type: string
+              price:
+                type: number
+              change:
+                type: string
+              volume:
+                type: string
+
+    # Analysis
+    Signal:
+      type: object
+      properties:
+        symbol:
+          type: string
+        action:
+          type: string
+          enum: [BUY, SELL, HOLD]
+        overall_score:
+          type: number
+          minimum: -1
+          maximum: 1
+        overall_confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        style:
+          type: string
+          enum: [intraday, swing, positional]
+        risk_check_passed:
+          type: boolean
+        executed:
+          type: boolean
+        market_regime:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+        contributions:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              score:
+                type: number
+              confidence:
+                type: number
+
+    ModuleContribution:
+      type: object
+      properties:
+        score:
+          type: number
+        confidence:
+          type: number
+
+    # Portfolio
+    Position:
+      type: object
+      properties:
+        symbol:
+          type: string
+        action:
+          type: string
+        qty:
+          type: integer
+        entry_price:
+          type: number
+        ltp:
+          type: number
+        unrealized_pnl:
+          type: number
+
+    PortfolioSummary:
+      type: object
+      properties:
+        pnl:
+          type: object
+          properties:
+            total_pnl:
+              type: number
+            realized_pnl:
+              type: number
+            unrealized_pnl:
+              type: number
+        exposure:
+          type: number
+        exposure_pct:
+          type: number
+        open_positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+
+    # Orders
+    OrderRequest:
+      type: object
+      required: [symbol, action, qty, type]
+      properties:
+        symbol:
+          type: string
+        action:
+          type: string
+          enum: [BUY, SELL]
+        qty:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [MARKET, LIMIT, SL, SL-M]
+        price:
+          type: number
+
+    OrderResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+
+    # Journal
+    TradeRecord:
+      type: object
+      properties:
+        trade_id:
+          type: string
+        symbol:
+          type: string
+        action:
+          type: string
+        qty:
+          type: integer
+        entry_price:
+          type: number
+        exit_price:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+        pnl:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
+
+    # Risk
+    RiskMetrics:
+      type: object
+      properties:
+        var_95:
+          type: number
+        var_99:
+          type: number
+        cvar_95:
+          type: number
+        max_drawdown_pct:
+          type: number
+        sharpe_ratio:
+          type: number
+        sortino_ratio:
+          type: number
+        portfolio_exposure_pct:
+          type: number
+        daily_pnl_pct:
+          type: number
+
+    # Backtest
+    BacktestRequest:
+      type: object
+      properties:
+        strategy:
+          type: string
+        symbol:
+          type: string
+        timeframe:
+          type: string
+        period:
+          type: string
+        initial_capital:
+          type: number
+        position_size_pct:
+          type: number
+        commission_pct:
+          type: number
+        slippage_pct:
+          type: number
+        params:
+          type: object
+
+    BacktestResult:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            total_return_pct:
+              type: number
+            cagr_pct:
+              type: number
+            sharpe_ratio:
+              type: number
+            max_drawdown_pct:
+              type: number
+            win_rate_pct:
+              type: number
+            profit_factor:
+              type: number
+            total_trades:
+              type: integer
+        equity_curve:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              equity:
+                type: number
+        trades:
+          type: array
+
+    # Broker
+    BrokerConnection:
+      type: object
+      properties:
+        broker_id:
+          type: string
+        broker_name:
+          type: string
+        status:
+          type: string
+          enum: [connected, disconnected, connecting, error]
+        account_id:
+          type: string
+        last_sync:
+          type: string
+        margin_available:
+          type: number
+
+    BrokerAccount:
+      type: object
+      properties:
+        account_id:
+          type: string
+        account_type:
+          type: string
+        balance:
+          type: number
+        margin_available:
+          type: number
+        margin_used:
+          type: number
+        pnl:
+          type: number
+        currency:
+          type: string
+
+    # AI Assistant
+    AIChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        context:
+          type: object
+        capability:
+          type: string
+
+    AIChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+        tools_used:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+
+    # Options Chain
+    OptionChain:
+      type: object
+      properties:
+        symbol:
+          type: string
+        spot:
+          type: number
+        chain:
+          type: array
+          items:
+            type: object
+            properties:
+              strike:
+                type: number
+              calls:
+                type: object
+                properties:
+                  ltp:
+                    type: number
+                  delta:
+                    type: number
+                  gamma:
+                    type: number
+                  theta:
+                    type: number
+                  vega:
+                    type: number
+                  iv:
+                    type: string
+                  oi:
+                    type: integer
+              puts:
+                type: object
+                properties:
+                  ltp:
+                    type: number
+                  delta:
+                    type: number
+                  gamma:
+                    type: number
+                  theta:
+                    type: number
+                  vega:
+                    type: number
+                  iv:
+                    type: string
+                  oi:
+                    type: integer
+        pcr:
+          type: number
+        max_pain:
+          type: number
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: "healthy"
+
+  /login:
+    post:
+      summary: User login
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Validation error
+        '409':
+          description: Email already registered
+
+  /api/auth/login:
+    post:
+      summary: User login (per-user)
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /config:
+    get:
+      summary: Get current configuration
+      tags: [Configuration]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Config'
+
+    patch:
+      summary: Update configuration
+      tags: [Configuration]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigUpdate'
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Config'
+
+  /analyze/{symbol}:
+    get:
+      summary: Analyze a symbol
+      tags: [Analysis]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: style
+          in: query
+          schema:
+            type: string
+            enum: [intraday, swing, positional]
+            default: intraday
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+
+  /api/history/{symbol}:
+    get:
+      summary: Get historical OHLC data
+      tags: [Market Data]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 30m, 1h, 4h, 1d]
+            default: 15m
+        - name: period
+          in: query
+          schema:
+            type: string
+            default: 60d
+      responses:
+        '200':
+          description: Historical data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Candle'
+
+  /api/quote/{symbol}:
+    get:
+      summary: Get latest quote
+      tags: [Market Data]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Latest quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+
+  /api/market-indices:
+    get:
+      summary: Get market indices for ticker
+      tags: [Market Data]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Market indices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MarketIndex'
+
+  /api/scanners:
+    get:
+      summary: Get scanner results
+      tags: [Market Data]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Scanner data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScannerResult'
+
+  /portfolio:
+    get:
+      summary: Get portfolio summary
+      tags: [Portfolio]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Portfolio data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioSummary'
+
+  /api/orders:
+    post:
+      summary: Place an order
+      tags: [Orders]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '200':
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          description: Order rejected
+
+  /journal:
+    get:
+      summary: Get trade journal
+      tags: [Journal]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TradeRecord'
+
+  /radar:
+    get:
+      summary: Get market sentiment radar
+      tags: [Analysis]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Market radar data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  news:
+                    type: array
+                  avg_compound:
+                    type: number
+                  overall_status:
+                    type: string
+
+  /api/options-chain:
+    get:
+      summary: Get options chain
+      tags: [Options]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            type: string
+            default: NIFTY
+      responses:
+        '200':
+          description: Options chain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptionChain'
+
+  /api/backtest/{symbol}:
+    get:
+      summary: Run backtest
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 2
+        - name: source
+          in: query
+          schema:
+            type: string
+            enum: [mock, real]
+            default: mock
+      responses:
+        '200':
+          description: Backtest results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestResult'
+
+  /api/strategies/rank/{symbol}:
+    get:
+      summary: Rank strategies for symbol
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 3
+      responses:
+        '200':
+          description: Strategy rankings
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/strategies/generate/{symbol}:
+    get:
+      summary: Generate strategies for symbol
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 4
+      responses:
+        '200':
+          description: Generated strategies
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/strategies/backtest:
+    post:
+      summary: Run custom strategy backtest
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BacktestRequest'
+      responses:
+        '200':
+          description: Backtest results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestResult'
+
+  /api/risk/portfolio:
+    get:
+      summary: Get portfolio risk metrics
+      tags: [Risk]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Risk metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskMetrics'
+
+  /api/risk/stress-test:
+    post:
+      summary: Run stress test
+      tags: [Risk]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scenario:
+                  type: string
+      responses:
+        '200':
+          description: Stress test results
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/brokers:
+    get:
+      summary: List broker connections
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Broker connections
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BrokerConnection'
+
+  /api/brokers/connect:
+    post:
+      summary: Connect to broker
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                broker_id:
+                  type: string
+      responses:
+        '200':
+          description: Connection initiated
+
+  /api/brokers/{broker_id}/disconnect:
+    post:
+      summary: Disconnect broker
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: broker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Disconnected
+
+  /api/brokers/{broker_id}/accounts:
+    get:
+      summary: Get broker accounts
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: broker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BrokerAccount'
+
+  /api/brokers/{broker_id}/positions:
+    get:
+      summary: Get broker positions
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: broker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Positions
+          content:
+            application/json:
+              schema:
+                type: array
+
+  /api/brokers/{broker_id}/orders:
+    get:
+      summary: Get broker orders
+      tags: [Brokers]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: broker_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+
+  /api/ai/chat:
+    post:
+      summary: Chat with AI assistant
+      tags: [AI]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIChatRequest'
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIChatResponse'
+
+  /api/regime/{symbol}:
+    get:
+      summary: Get market regime
+      tags: [Analysis]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Market regime
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/quant/metrics/{symbol}:
+    get:
+      summary: Get quantitative metrics
+      tags: [Analysis]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: benchmark
+          in: query
+          schema:
+            type: string
+            default: NIFTY
+      responses:
+        '200':
+          description: Quantitative metrics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/institutional/flows:
+    get:
+      summary: Get institutional flows
+      tags: [Market Data]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            type: string
+            default: RELIANCE
+      responses:
+        '200':
+          description: Institutional data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /ws/live:
+    get:
+      summary: WebSocket for real-time data
+      tags: [WebSocket]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: symbols
+          in: query
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket upgrade

@@ -1,0 +1,255 @@
+groups:
+  - name: elco-trader.rules
+    interval: 30s
+    rules:
+      # Service Health
+      - alert: ServiceDown
+        expr: up{job="elco-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "ELCO API service is down"
+          description: "ELCO API has been down for more than 1 minute on {{ $labels.instance }}"
+          runbook_url: "https://docs.elco-trader.com/runbooks/service-down"
+
+      - alert: ServiceHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="elco-api"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile latency is above 2 seconds on {{ $labels.instance }}"
+
+      - alert: ServiceHighErrorRate
+        expr: rate(http_requests_total{job="elco-api",status=~"5.."}[5m]) / rate(http_requests_total{job="elco-api"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% on {{ $labels.instance }}"
+
+      # Database
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL has been down for more than 1 minute"
+
+      - alert: DatabaseHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connections high"
+          description: "Database connections are above 80% of max"
+
+      # Redis
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute"
+
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis memory usage is above 90%"
+
+      # System Resources
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 85% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 90% on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Disk space low"
+          description: "Disk space is below 10% on {{ $labels.instance }}"
+
+      # Trading Specific
+      - alert: TradingEngineHalted
+        expr: elco_auto_trade_state{state="halted"} == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Trading engine halted"
+          description: "Trading engine has been halted - check risk limits"
+
+      - alert: TradingEngineOff
+        expr: elco_auto_trade_state{state="off"} == 1
+        for: 1h
+        labels:
+          severity: info
+          component: trading
+        annotations:
+          summary: "Trading engine is off"
+          description: "Trading engine has been off for more than 1 hour"
+
+      - alert: DailyLossLimitApproaching
+        expr: (elco_daily_pnl / elco_capital) * 100 < -2.5
+        for: 0m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "Daily loss limit approaching"
+          description: "Daily P&L is approaching the loss limit (currently at {{ $value | humanizePercentage }}%)"
+
+      - alert: DailyLossLimitBreached
+        expr: (elco_daily_pnl / elco_capital) * 100 < -3
+        for: 0m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "Daily loss limit breached"
+          description: "Daily P&L has breached the loss limit - trading should be halted"
+
+      - alert: MaxDrawdownApproaching
+        expr: elco_max_drawdown_pct > 12
+        for: 0m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "Max drawdown approaching limit"
+          description: "Current max drawdown is {{ $value }}%, approaching 15% limit"
+
+      - alert: PositionLimitApproaching
+        expr: elco_open_positions / elco_max_open_positions > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "Position limit approaching"
+          description: "Open positions ({{ $value }}) approaching limit"
+
+      - alert: PortfolioExposureHigh
+        expr: elco_portfolio_exposure_pct > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "Portfolio exposure high"
+          description: "Portfolio exposure is {{ $value }}% of capital"
+
+      - alert: MarginUsageHigh
+        expr: elco_margin_used_pct > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "Margin usage high"
+          description: "Margin usage is {{ $value }}%"
+
+      # Market Data
+      - alert: MarketDataStale
+        expr: time() - elco_last_market_data_timestamp > 300
+        for: 1m
+        labels:
+          severity: warning
+          component: market-data
+        annotations:
+          summary: "Market data is stale"
+          description: "No market data received for more than 5 minutes"
+
+      - alert: WebSocketDisconnected
+        expr: elco_websocket_connected == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: market-data
+        annotations:
+          summary: "WebSocket disconnected"
+          description: "Real-time market data WebSocket is disconnected"
+
+      # Application Specific
+      - alert: HighQueueLength
+        expr: elco_task_queue_length > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "Task queue backing up"
+          description: "Task queue has {{ $value }} pending items"
+
+      - alert: CircuitBreakerOpen
+        expr: elco_circuit_breaker_open == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Circuit breaker open"
+          description: "Trading circuit breaker is open - all trading halted"
+
+  - name: elco-trader.info.rules
+    interval: 1m
+    rules:
+      # Info alerts for operational visibility
+      - alert: NewDeployment
+        expr: changes(build_info[1m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          component: deployment
+        annotations:
+          summary: "New deployment detected"
+          description: "New version deployed: {{ $labels.version }}"
+
+      - alert: ConfigChanged
+        expr: changes(elco_config_hash[1m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          component: configuration
+        annotations:
+          summary: "Configuration changed"
+          description: "Application configuration has been modified"

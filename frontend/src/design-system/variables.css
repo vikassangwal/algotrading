@@ -1,0 +1,326 @@
+/**
+ * ELCO Trader Design System - CSS Custom Properties
+ * Generated from design tokens for browser consumption
+ */
+
+:root {
+  /* ============================================
+     COLOR SYSTEM
+     ============================================ */
+
+  /* Brand Colors */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
+  --color-brand-950: #1e1b4b;
+
+  /* Market Semantic Colors */
+  --color-market-buy-light: #059669;
+  --color-market-buy: #10b981;
+  --color-market-buy-dark: #047857;
+  --color-market-buy-bg: rgba(16, 185, 129, 0.1);
+  --color-market-buy-border: rgba(16, 185, 129, 0.3);
+  --color-market-buy-glow: rgba(16, 185, 129, 0.4);
+
+  --color-market-sell-light: #dc2626;
+  --color-market-sell: #ef4444;
+  --color-market-sell-dark: #b91c1c;
+  --color-market-sell-bg: rgba(239, 68, 68, 0.1);
+  --color-market-sell-border: rgba(239, 68, 68, 0.3);
+  --color-market-sell-glow: rgba(239, 68, 68, 0.4);
+
+  --color-market-neutral-light: #d97706;
+  --color-market-neutral: #f59e0b;
+  --color-market-neutral-dark: #b45309;
+  --color-market-neutral-bg: rgba(245, 158, 11, 0.1);
+  --color-market-neutral-border: rgba(245, 158, 11, 0.3);
+  --color-market-neutral-glow: rgba(245, 158, 11, 0.4);
+
+  --color-market-warning-light: #f97316;
+  --color-market-warning: #fb923c;
+  --color-market-warning-dark: #ea580c;
+  --color-market-warning-bg: rgba(251, 146, 60, 0.1);
+  --color-market-warning-border: rgba(251, 146, 60, 0.3);
+
+  --color-market-info-light: #0284c7;
+  --color-market-info: #0ea5e9;
+  --color-market-info-dark: #0369a1;
+  --color-market-info-bg: rgba(14, 165, 233, 0.1);
+  --color-market-info-border: rgba(14, 165, 233, 0.3);
+
+  /* Surface System */
+  --color-surface-base: #0a0c10;
+  --color-surface-panel: #11141a;
+  --color-surface-panel-hover: #161a22;
+  --color-surface-interactive: #1a1e28;
+  --color-surface-interactive-hover: #202532;
+  --color-surface-border: #242936;
+  --color-surface-border-strong: #2d3444;
+  --color-surface-overlay: rgba(10, 12, 16, 0.85);
+  --color-surface-overlay-strong: rgba(10, 12, 16, 0.95);
+
+  /* Text Hierarchy */
+  --color-text-primary: #e8ebf0;
+  --color-text-secondary: #9aa3b2;
+  --color-text-tertiary: #6b7280;
+  --color-text-inverse: #0a0c10;
+  --color-text-disabled: #4b5563;
+  --color-text-buy: #10b981;
+  --color-text-sell: #ef4444;
+  --color-text-neutral: #f59e0b;
+  --color-text-accent: #818cf8;
+  --color-text-accent-strong: #a5b4fc;
+
+  /* Chart Colors */
+  --color-chart-grid: #1e2430;
+  --color-chart-axis: #4b5563;
+  --color-chart-tooltip: #0a0c10;
+  --color-chart-tooltip-border: #2d3444;
+  --color-chart-series-primary: #6366f1;
+  --color-chart-series-secondary: #f59e0b;
+  --color-chart-series-tertiary: #10b981;
+  --color-chart-series-quaternary: #ef4444;
+  --color-chart-series-quinary: #0ea5e9;
+  --color-chart-series-senary: #a855f7;
+  --color-chart-volume-up: rgba(16, 185, 129, 0.5);
+  --color-chart-volume-down: rgba(239, 68, 68, 0.5);
+  --color-chart-volume-neutral: rgba(139, 148, 158, 0.5);
+  --color-chart-ma: #6366f1;
+  --color-chart-ema: #f59e0b;
+  --color-chart-bb-upper: #ef4444;
+  --color-chart-bb-lower: #10b981;
+  --color-chart-rsi: #a855f7;
+  --color-chart-macd: #0ea5e9;
+  --color-chart-signal: #f59e0b;
+  --color-chart-histogram: #6366f1;
+
+  /* Status Colors */
+  --color-status-connected: #10b981;
+  --color-status-disconnected: #ef4444;
+  --color-status-connecting: #f59e0b;
+  --color-status-error: #ef4444;
+  --color-status-success: #10b981;
+  --color-status-warning: #fb923c;
+  --color-status-info: #0ea5e9;
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+
+  --font-family-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-family-mono: JetBrains Mono, "Fira Code", "SF Mono", Monaco, Consolas, monospace;
+  --font-family-display: Inter Tight, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --font-size-xs: clamp(0.6875rem, 0.65rem + 0.1875vw, 0.75rem);
+  --font-size-sm: clamp(0.8125rem, 0.765rem + 0.2375vw, 0.875rem);
+  --font-size-base: clamp(0.9375rem, 0.875rem + 0.3125vw, 1rem);
+  --font-size-lg: clamp(1.0625rem, 0.984rem + 0.3925vw, 1.125rem);
+  --font-size-xl: clamp(1.25rem, 1.14rem + 0.55vw, 1.5rem);
+  --font-size-2xl: clamp(1.5rem, 1.35rem + 0.75vw, 1.875rem);
+  --font-size-3xl: clamp(1.875rem, 1.65rem + 1.125vw, 2.5rem);
+  --font-size-4xl: clamp(2.5rem, 2.15rem + 1.75vw, 3.5rem);
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --line-height-tight: 1.1;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  --letter-spacing-tighter: -0.02em;
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.01em;
+  --letter-spacing-wider: 0.02em;
+  --letter-spacing-widest: 0.04em;
+
+  /* ============================================
+     SPACING
+     ============================================ */
+
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+
+  /* ============================================
+     BORDER RADIUS
+     ============================================ */
+
+  --radius-none: 0;
+  --radius-sm: 0.25rem;
+  --radius-default: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* ============================================
+     SHADOWS
+     ============================================ */
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-default: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.55);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-glow-buy: 0 0 12px rgba(16, 185, 129, 0.3);
+  --shadow-glow-sell: 0 0 12px rgba(239, 68, 68, 0.3);
+  --shadow-glow-brand: 0 0 12px rgba(99, 102, 241, 0.3);
+
+  /* ============================================
+     TRANSITIONS
+     ============================================ */
+
+  --transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-default: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ============================================
+     Z-INDEX
+     ============================================ */
+
+  --z-hide: -1;
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
+  --z-toast: 700;
+  --z-max: 9999;
+
+  /* ============================================
+     LAYOUT
+     ============================================ */
+
+  --sidebar-width: 280px;
+  --sidebar-width-collapsed: 72px;
+  --sidebar-width-mobile: 100%;
+  --header-height: 56px;
+  --header-height-mobile: 52px;
+  --content-max-width: 1440px;
+  --content-padding: 1.5rem;
+  --content-padding-mobile: 1rem;
+  --grid-columns: 12;
+  --grid-gap: 1.5rem;
+  --grid-gap-mobile: 1rem;
+
+  /* ============================================
+     COMPONENT TOKENS
+     ============================================ */
+
+  --btn-height-sm: 32px;
+  --btn-height-default: 40px;
+  --btn-height-lg: 48px;
+  --btn-padding-sm: 0 12px;
+  --btn-padding-default: 0 16px;
+  --btn-padding-lg: 0 24px;
+  --btn-radius: 0.5rem;
+  --btn-font-weight: 500;
+
+  --input-height-sm: 32px;
+  --input-height-default: 40px;
+  --input-height-lg: 48px;
+  --input-padding: 0 12px;
+  --input-radius: 0.5rem;
+  --input-border-width: 1px;
+
+  --card-padding: 1.5rem;
+  --card-padding-sm: 1rem;
+  --card-radius: 0.75rem;
+  --card-border-width: 1px;
+
+  --table-cell-padding: 0.75rem 1rem;
+  --table-header-height: 40px;
+  --table-row-height: 48px;
+  --table-font-size: 0.875rem;
+
+  --badge-height: 20px;
+  --badge-padding: 0 8px;
+  --badge-font-size: 0.6875rem;
+  --badge-font-weight: 600;
+  --badge-radius: 0.25rem;
+}
+
+/* ============================================
+   THEME VARIANTS
+   ============================================ */
+
+/* Light theme (optional - for users who prefer light) */
+[data-theme="light"] {
+  --color-surface-base: #f8fafc;
+  --color-surface-panel: #ffffff;
+  --color-surface-panel-hover: #f1f5f9;
+  --color-surface-interactive: #e2e8f0;
+  --color-surface-interactive-hover: #cbd5e1;
+  --color-surface-border: #e2e8f0;
+  --color-surface-border-strong: #cbd5e1;
+  --color-surface-overlay: rgba(255, 255, 255, 0.9);
+  --color-surface-overlay-strong: rgba(255, 255, 255, 0.95);
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #94a3b8;
+  --color-text-inverse: #ffffff;
+  --color-text-disabled: #cbd5e1;
+
+  --color-chart-grid: #e2e8f0;
+  --color-chart-axis: #64748b;
+  --color-chart-tooltip: #ffffff;
+  --color-chart-tooltip-border: #e2e8f0;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.07);
+  --shadow-default: 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.15);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* High contrast mode for accessibility */
+@media (prefers-contrast: high) {
+  :root {
+    --color-surface-border: #3d4451;
+    --color-surface-border-strong: #4b5563;
+    --color-text-secondary: #cbd5e1;
+    --color-text-tertiary: #9ca3af;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition-default: 0ms;
+    --transition-slow: 0ms;
+    --transition-spring: 0ms;
+  }
+}

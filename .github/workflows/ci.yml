@@ -1,0 +1,343 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================================
+  # Lint & Type Check
+  # ============================================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages ruff mypy pytest pytest-asyncio httpx
+
+      - name: Run Ruff linter
+        run: ruff check app/ tests/ --output-format=github
+
+      - name: Run MyPy type checker
+        run: mypy app/ --ignore-missing-imports --no-error-summary
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: ./frontend
+        run: npx prettier --check src/
+
+  # ============================================================
+  # Unit Tests
+  # ============================================================
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: elco_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages -r requirements.txt
+          pip install --break-system-packages pytest pytest-asyncio pytest-cov httpx fakeredis
+
+      - name: Run unit tests
+        run: |
+          pytest tests/test_api.py -v --tb=short \
+            -m "not slow and not integration" \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=60
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+
+  # ============================================================
+  # Integration Tests
+  # ============================================================
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: elco_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --break-system-packages -r requirements.txt
+          pip install --break-system-packages pytest pytest-asyncio httpx
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/elco_test
+          REDIS_URL: redis://localhost:6379/0
+          ELCO_SECRET_KEY: test-secret-key-for-testing-purposes-only-32chars
+          ENVIRONMENT: testing
+        run: |
+          pytest tests/test_api.py -v --tb=short \
+            -m "integration" \
+            --timeout=60
+
+  # ============================================================
+  # Frontend Tests
+  # ============================================================
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run TypeScript check
+        working-directory: ./frontend
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        working-directory: ./frontend
+        run: npm test -- --run --coverage
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+  # ============================================================
+  # Security Scan
+  # ============================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Bandit security linter
+        run: |
+          pip install --break-system-packages bandit
+          bandit -r app/ -f json -o bandit-results.json || true
+
+      - name: Run npm audit
+        working-directory: ./frontend
+        run: npm audit --audit-level=high || true
+
+  # ============================================================
+  # Build Docker Image
+  # ============================================================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-frontend, security]
+    if: github.event_name == 'push' || github.event_name == 'release'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # Deploy to Staging
+  # ============================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment commands here
+          # Example: kubectl apply -f k8s/staging/
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against staging..."
+          # Add smoke test commands
+
+  # ============================================================
+  # Deploy to Production
+  # ============================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'release'
+    environment: production
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+          # Example: kubectl apply -f k8s/production/
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against production..."
+          # Add smoke test commands
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Deployment ${{ job.status }}!"
+          # Add notification (Slack, email, etc.)
